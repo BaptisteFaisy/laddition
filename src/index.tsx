@@ -5,6 +5,7 @@ import { nightlyRecalc, publishRepayments } from './jobs/scheduled';
 import { issueCreated, issueUpdated, linkCreated, linkDeleted } from './jobs/triggers';
 import { jqlTopDebts } from './resolvers/jql';
 import { smokeTriggerHandler } from './jobs/smokeTrigger';
+import { opsTriggerHandler } from './jobs/opsTrigger';
 import {
   confirmEvidence,
   draftDebtTicket,
@@ -59,6 +60,9 @@ export { jqlTopDebts };
 
 /** `webtrigger` : diagnostic de bout en bout (SQL, REST Jira, domaine). */
 export { smokeTriggerHandler };
+
+/** `webtrigger` : pilotage (init, bootstrap 180 j, recalcul, bulletins). */
+export { opsTriggerHandler };
 
 /**
  * Actions Rovo et outils MCP (§13). Chacune a sa propre fonction dans le

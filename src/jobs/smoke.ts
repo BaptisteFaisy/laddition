@@ -1,4 +1,6 @@
 import { asApp, requestJira, route } from '@forge/api';
+import { Queue } from '@forge/events';
+import { BOOTSTRAP_QUEUE } from './consumer';
 import { ensureSchema, isSchemaReady } from '../platform/db/index';
 import { getSettings } from '../platform/db/repos/project';
 import { makeSettings } from '../core/settings';
@@ -31,6 +33,7 @@ const APP_NAME = "L'addition";
 export async function smokeTest(projectKey: string): Promise<SmokeReport> {
   const steps: StepResult[] = [];
   await step(steps, 'schema-sql', ensureSchemaStep);
+  await step(steps, 'file-events', queueStep);
   await step(steps, 'lecture-jira', () => jiraStep(projectKey));
   await step(steps, 'calcul-domaine', () => domainStep(projectKey));
   return {
@@ -67,6 +70,34 @@ async function ensureSchemaStep(): Promise<string> {
   const ready = await isSchemaReady();
   if (!ready) throw new Error('tables introuvables après ensureSchema()');
   return 'tables prêtes';
+}
+
+/**
+ * File Forge Events : pousser un message d'initialisation doit fonctionner,
+ * sinon la barre de progression (DT-12) ne démarre jamais. L'erreur complète
+ * est remontée : un simple « 400 » ne dit pas laquelle des causes c'est.
+ */
+async function queueStep(): Promise<string> {
+  const queue = new Queue<Record<string, unknown>>({ key: BOOTSTRAP_QUEUE });
+  try {
+    const result = await queue.push({ body: { projectId: 'smoke', nextPageToken: '' } });
+    return `message poussé, jobId ${result.jobId}`;
+  } catch (error) {
+    throw new Error(describeError(error));
+  }
+}
+
+/** Détail maximal d'une erreur Forge : nom, message, et corps de la réponse. */
+function describeError(error: unknown): string {
+  if (typeof error !== 'object' || error === null) return String(error);
+  const record = error as Record<string, unknown>;
+  const parts = [
+    typeof record['name'] === 'string' ? record['name'] : '',
+    typeof record['message'] === 'string' ? record['message'] : '',
+    record['details'] !== undefined ? `details=${JSON.stringify(record['details'])}` : '',
+    record['code'] !== undefined ? `code=${String(record['code'])}` : '',
+  ].filter((part) => part.length > 0);
+  return parts.join(' | ') || JSON.stringify(record).slice(0, 400);
 }
 
 /** REST Jira en tant qu'app : le projet existe-t-il, combien de tickets ? */

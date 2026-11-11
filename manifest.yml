@@ -31,6 +31,8 @@ modules:
       handler: index.jqlTopDebts
     - key: smoke-test
       handler: index.smokeTriggerHandler
+    - key: ops
+      handler: index.opsTriggerHandler
     # Actions Rovo / rovo:mcp : chaque action a sa propre fonction, pour que
     # l'agent puisse les invoquer une par une (§13).
     - key: getDebtRanking
@@ -128,6 +130,8 @@ modules:
   webtrigger:
     - key: laddition-smoke
       function: smoke-test
+    - key: laddition-ops
+      function: ops
 
   # -------------------------------------------------------------- événements
   trigger:
@@ -159,9 +163,7 @@ modules:
   consumer:
     - key: laddition-bootstrap-consumer
       queue: laddition-bootstrap
-      resolver:
-        function: bootstrap-batch
-        method: bootstrapBatch
+      function: bootstrap-batch
 
   # ------------------------------------------------------------- stockage
   sql:
