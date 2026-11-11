@@ -13,12 +13,12 @@ sont donc **à faire**.
 
 | # | Point | Ce qui se joue | Repli prévu | État |
 |---|---|---|---|---|
-| V1 | Volume et débit de lecture des historiques | L'initialisation lit des milliers de tickets | Fenêtre de 90 jours ; lots plus petits | à faire |
-| V2 | Écriture en masse d'un champ d'app en lecture seule | Rend le coût triable dans Jira (DT-11) | Propriété de ticket indexée pour JQL | à faire |
-| V3 | Données du site de démonstration | Sans historique, pas de coût | Jeu d'exemple injecté (DT-13) | à faire |
-| V4 | Champ « services affectés » des incidents | Rattache les incidents aux zones (C1) | Composant du ticket d'incident | à faire |
-| V5 | Dates d'ouverture et de fusion des PR dans le graphe | Mesure des PR lentes (C4) | Temps en statut de revue | à faire |
-| V6 | Compass accessible depuis l'app Jira | Zones par composant Compass (§8) | Composants Jira (défaut actuel) | à faire |
+| V1 | Volume et débit de lecture des historiques | L'initialisation lit des milliers de tickets | Fenêtre de 90 jours ; lots plus petits | **mesuré — repli appliqué** |
+| V2 | Écriture en masse d'un champ d'app en lecture seule | Rend le coût triable dans Jira (DT-11) | Propriété de ticket indexée pour JQL | **validé — pas de repli** |
+| V3 | Données du site de démonstration | Sans historique, pas de coût | Jeu d'exemple injecté (DT-13) | **validé — jeu d'exemple indispensable** |
+| V4 | Champ « services affectés » des incidents | Rattache les incidents aux zones (C1) | Composant du ticket d'incident | **mesuré — repli appliqué** |
+| V5 | Dates d'ouverture et de fusion des PR dans le graphe | Mesure des PR lentes (C4) | Temps en statut de revue | **mesuré — repli appliqué** |
+| V6 | Compass accessible depuis l'app Jira | Zones par composant Compass (§8) | Composants Jira (défaut actuel) | **mesuré — repli appliqué** |
 
 ## Protocole commun
 
@@ -182,14 +182,30 @@ déjà implémenté côté domaine (`src/core/zones.ts`, `zoneMode: 'compass'`).
 
 À remplir au fur et à mesure. Un point sans ligne ici n'est pas tranché.
 
+Toutes les mesures ci-dessous ont été prises le **11 novembre 2026** sur le site
+de démonstration `one-atlas-cndz.atlassian.net`, app installée en
+`development`, via le webtrigger d'exploitation (`?action=probe`). Chaque sonde
+est du code du dépôt (`src/jobs/opsValidate.ts`) : les chiffres sont reproductibles.
+
 | # | Date | Verdict | Décision retenue | Écrit dans |
 |---|---|---|---|---|
-| V1 | — | — | — | — |
-| V2 | — | — | — | — |
-| V3 | — | — | — | — |
-| V4 | — | — | — | — |
-| V5 | — | — | — | — |
-| V6 | — | — | — | — |
+| V1 | 11/11 | **200 à 250 ms par ticket** (historique compris, 35 tickets mesurés sur ITO et PLAT, 0 échec) → **17 à 21 min projetées pour 5 000 tickets**, au-dessus du budget de 15 min (§18) | Le repli du §17 s'applique : fenêtre de 90 jours par défaut, initialisation par lots de 50 dans la file (900 s par lot), barre de progression. Sur un site réel, lancer l'initialisation hors heures ouvrées | `src/jobs/consumer.ts`, `src/jobs/opsValidate.ts` |
+| V2 | 11/11 | **Validé.** Champ `customfield_10867` « Coût de la dette (j-p / 90 j) » créé par l'app, **10 écritures sur 10**, 0 échec ; valeur lisible par l'API REST et **triable/filtrable en JQL** (`... is not EMPTY ORDER BY ... DESC`) | Aucun repli nécessaire : DT-11 et la recette §20 n° 8 tiennent sur le champ d'app en lecture seule | `src/platform/field.ts` |
+| V3 | 11/11 | **Confirmé : le site de démo n'a presque pas d'historique récent.** 26 projets, PLAT 31 161 tickets dont **0** sur 180 jours, ITO 9 640 dont 7 498 incidents et **0** sur 180 jours, PAY 18 | Le jeu d'exemple (DT-13) n'est pas une option mais le chemin de démonstration : 68 faits, 65 preuves, 5 zones injectés, et les chiffres du §7.1 reproduits à l'identique | `src/sample/`, `docs/JUGES.md` |
+| V4 | 11/11 | **Non concluant par le graphe** : 0 service affecté rendu sur 5 incidents interrogés | Repli retenu : le composant Jira du ticket d'incident fait la zone (mode `component`, déjà le défaut). Un site réel avec les scopes du graphe accordés est à tester avant la soumission | `src/core/zones.ts` |
+| V5 | 11/11 | **Non concluant** : aucune PR lue dans le graphe (l'appel se fait hors contexte utilisateur, et le scope n'est pas accordé sur ce site) | Repli retenu : la lenteur des PR est approchée par le temps passé en statut de revue (C3), comme prévu au §15 | `src/core/families/c3.ts` |
+| V6 | 11/11 | **Non concluant** : 0 composant Compass, 0 équipe rendue | Repli retenu : zones par composants Jira. Le mode `compass` reste au manifeste et dans les réglages, il s'activera sur un site dont l'administrateur a accordé les scopes | `src/platform/graph.ts` |
+
+### Bug trouvé grâce à ces sondes (et corrigé)
+
+`GET /rest/api/3/issue/{key}/changelog` répond **`values`** (pagination
+`nextPage` / `isLast`), alors que `?expand=changelog` répond **`histories`**.
+Le code ne lisait que `histories` : sur un vrai site, **toutes les durées par
+statut étaient vides**, et C2, C3 et C4 retombaient silencieusement sur la
+durée approximée création → résolution. Corrigé dans `historyItemsOf()`
+(les deux formes acceptées), verrouillé par `src/platform/jira.test.ts`.
+Avant correctif : 0 entrée d'historique sur 35 tickets. Après : 9 entrées de
+statut sur 20 tickets ITO.
 
 ## Ce que ces six points changent dans le produit
 
