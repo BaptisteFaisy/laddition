@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+.forge/
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+coverage/
+.env
+.env.*

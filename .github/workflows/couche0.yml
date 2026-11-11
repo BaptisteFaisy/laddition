@@ -1,0 +1,59 @@
+name: couche0
+
+# Couche 0 : les règles dures du dépôt, vérifiées avant toute revue.
+#   - moins de 500 lignes par fichier de code, moins de 50 lignes par fonction
+#   - manifest.yml valide contre le schéma Forge officiel
+#   - aucune duplication de fichier de test (deux fois le même contenu)
+# Budget CI 5 min (règle user 2026-10-24).
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'manifest.yml'
+      - 'package.json'
+      - '.github/workflows/couche0.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'manifest.yml'
+
+concurrency:
+  group: couche0-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  couche0:
+    name: couche0
+    runs-on: [self-hosted, laddition-worker]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Node 22 (déjà installé sur le worker)
+        id: localnode
+        run: |
+          if [ -x "$HOME/node-current/bin/node" ]; then
+            echo "$HOME/node-current/bin" >> "$GITHUB_PATH"
+            echo "found=1" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.localnode.outputs.found != '1'
+        with:
+          node-version: 22
+      - name: Tailles (fichiers < 500, fonctions < 50)
+        run: python3 tools/check_limits.py
+      - name: Tests du gate hermes (conflits)
+        run: python3 .github/hermes/test_gate.py
+      - name: Dépendances minimales du validateur
+        run: npm ci --no-audit --no-fund --prefer-offline
+      - name: manifest.yml contre le schéma Forge
+        run: node tools/validate_manifest.mjs manifest.yml

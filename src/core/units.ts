@@ -1,0 +1,82 @@
+/**
+ * Conversions d'unités (DT-15, DT-20) : points → jours, heures → j-p, j-p →
+ * euros, vélocité observée.
+ *
+ * Toutes les conversions sont pures et ne jettent jamais : une entrée
+ * inutilisable rend `null` (valeur non chiffrable) ou `0`, jamais `NaN`.
+ */
+
+import type { IssueFact } from './types.ts';
+import { round2 } from './time.ts';
+
+/**
+ * Un ticket fermé compte pour un point simulé (DT-15).
+ *
+ * Les projets suivis n'ont pas tous d'estimation en points : faute de mieux, un
+ * ticket fermé vaut un point. Cette convention est affichée dans l'onglet
+ * Méthode et rend la vélocité comparable d'un projet à l'autre — c'est une
+ * approximation assumée, pas une mesure.
+ */
+export const POINTS_PER_CLOSED_ISSUE = 1;
+
+/** Jours calendaires dans une semaine. */
+const DAYS_PER_CALENDAR_WEEK = 7;
+
+/**
+ * Points → jours ouvrés, au rythme de la vélocité du projet.
+ * Rend `null` quand la vélocité est nulle (ou illisible) : sans rythme, aucun
+ * nombre de jours n'a de sens.
+ */
+export function pointsToDays(
+  points: number,
+  velocityPointsPerWeek: number,
+  daysPerWeek: number,
+): number | null {
+  if (!Number.isFinite(points) || !Number.isFinite(velocityPointsPerWeek) || !Number.isFinite(daysPerWeek)) {
+    return null;
+  }
+  if (velocityPointsPerWeek <= 0 || daysPerWeek <= 0) return null;
+  const weeks = Math.max(0, points) / velocityPointsPerWeek;
+  return round2(weeks * daysPerWeek);
+}
+
+/** Heures saisies → jours-personne, avec la journée de travail du projet (§9). */
+export function hoursToJp(hours: number, hoursPerDay: number): number {
+  if (!Number.isFinite(hours) || !Number.isFinite(hoursPerDay) || hoursPerDay <= 0) return 0;
+  return round2(Math.max(0, hours) / hoursPerDay);
+}
+
+/**
+ * Jours-personne → euros, au taux journalier du projet (DT-20).
+ * Rend `null` quand aucun taux n'est renseigné : on n'invente pas un prix.
+ */
+export function jpToEuros(jp: number, dayRateEur: number | undefined): number | null {
+  if (dayRateEur === undefined || !Number.isFinite(dayRateEur) || dayRateEur <= 0) return null;
+  if (!Number.isFinite(jp)) return null;
+  return round2(Math.max(0, jp) * dayRateEur);
+}
+
+/**
+ * Vélocité observée sur une fenêtre, en points par semaine.
+ *
+ * Les points sont simulés (`POINTS_PER_CLOSED_ISSUE`) ; le diviseur reste la
+ * semaine calendaire (7 jours) pour rester comparable au graphique de vélocité
+ * de Jira. `daysPerWeek` ne sert qu'à valider le calendrier du projet : un
+ * calendrier absurde rend une vélocité nulle plutôt qu'un infini.
+ */
+export function velocityFromClosedIssues(
+  facts: IssueFact[],
+  windowDays: number,
+  daysPerWeek: number,
+): number {
+  if (!Number.isFinite(windowDays) || windowDays <= 0) return 0;
+  if (!Number.isFinite(daysPerWeek) || daysPerWeek <= 0) return 0;
+  const closed = new Set<string>();
+  for (const fact of facts) {
+    if (fact.resolvedAt === null && fact.closedAt === null) continue;
+    closed.add(fact.issueId || fact.key);
+  }
+  const points = closed.size * POINTS_PER_CLOSED_ISSUE;
+  const weeks = windowDays / DAYS_PER_CALENDAR_WEEK;
+  return round2(points / weeks);
+}

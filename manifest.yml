@@ -1,0 +1,323 @@
+app:
+  id: ari:cloud:ecosystem::app/REPLACE_WITH_APP_ID
+  runtime:
+    name: nodejs22.x
+  # L'app ne fait aucune sortie réseau : seules les API Atlassian sont appelées (§15).
+  licensing:
+    enabled: false
+
+modules:
+  # ---------------------------------------------------------------- fonctions
+  function:
+    - key: resolver
+      handler: index.resolver
+    - key: issue-created
+      handler: index.issueCreated
+    - key: issue-updated
+      handler: index.issueUpdated
+    - key: link-created
+      handler: index.linkCreated
+    - key: link-deleted
+      handler: index.linkDeleted
+    - key: nightly-recalc
+      handler: index.nightlyRecalc
+      timeoutSeconds: 900
+    - key: publish-repayments
+      handler: index.publishRepayments
+      timeoutSeconds: 900
+    - key: bootstrap-batch
+      handler: index.bootstrapBatch
+      timeoutSeconds: 900
+    - key: jql-top-debts
+      handler: index.jqlTopDebts
+
+  # ------------------------------------------------------------------ écrans
+  jira:projectPage:
+    - key: laddition-project-page
+      title: L'addition
+      resource: project-page
+      resolver:
+        function: resolver
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+
+  jira:issuePanel:
+    - key: laddition-debt-panel
+      title: L'addition
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      resource: issue-panel
+      resolver:
+        function: resolver
+
+  jira:issueContext:
+    - key: laddition-evidence-context
+      title: Preuve de dette
+      label: L'addition
+      resource: issue-context
+      resolver:
+        function: resolver
+
+  jira:customField:
+    - key: laddition-debt-cost-field
+      name: Coût de la dette (j-p / 90 j)
+      description: Coût constaté de la dette sur 90 jours, en jours-personne. Écrit par l'app, lecture seule.
+      type: number
+      view:
+        resource: custom-field
+        resolver:
+          function: resolver
+
+  jira:dashboardGadget:
+    - key: laddition-gadget
+      title: L'addition — principales dettes
+      description: Les dettes les plus coûteuses, le coût par équipe et par trimestre.
+      thumbnail: https://developer.atlassian.com/platform/forge/images/icons/gadget-thumbnail.svg
+      resource: gadget
+      resolver:
+        function: resolver
+
+  jira:jqlFunction:
+    - key: laddition-jql-function
+      name: topDebts
+      function: jql-top-debts
+      arguments:
+        - name: project
+          required: true
+        - name: limit
+          required: false
+      types:
+        - issue
+      operators:
+        - '='
+        - in
+
+  jira:projectSettingsPage:
+    - key: laddition-settings-page
+      title: L'addition
+      resource: settings-page
+      resolver:
+        function: resolver
+
+  # -------------------------------------------------------------- événements
+  trigger:
+    - key: laddition-issue-created
+      events:
+        - avi:jira:created:issue
+      function: issue-created
+    - key: laddition-issue-updated
+      events:
+        - avi:jira:updated:issue
+      function: issue-updated
+    - key: laddition-link-created
+      events:
+        - avi:jira:created:issuelink
+      function: link-created
+    - key: laddition-link-deleted
+      events:
+        - avi:jira:deleted:issuelink
+      function: link-deleted
+
+  scheduledTrigger:
+    - key: laddition-nightly
+      interval: day
+      function: nightly-recalc
+    - key: laddition-repayments
+      interval: week
+      function: publish-repayments
+
+  consumer:
+    - key: laddition-bootstrap-consumer
+      queue: laddition-bootstrap
+      resolver:
+        function: bootstrap-batch
+        method: bootstrapBatch
+
+  # ------------------------------------------------------------- stockage
+  sql:
+    - key: laddition-sql
+      engine: mysql
+
+  llm:
+    - key: laddition-llm
+      model:
+        - claude
+
+  # --------------------------------------------------------- agent et MCP
+  action:
+    - key: get-debt-ranking
+      name: Get debt ranking
+      description: Renvoie les tickets de dette classés par coût constaté, avec fourchette et retour.
+      actionVerb: GET
+      function: getDebtRanking
+      inputs:
+        projectKey:
+          type: string
+          required: true
+          title: Project key
+          description: Clé du projet Jira (ex. PAY).
+        limit:
+          type: number
+          required: false
+          title: Limit
+          description: Nombre maximal de dettes renvoyées (10 par défaut).
+    - key: get-debt-bill
+      name: Get debt bill
+      description: Renvoie l'addition détaillée d'un ticket de dette, ses preuves et ses formules.
+      actionVerb: GET
+      function: getDebtBill
+      inputs:
+        issueKey:
+          type: string
+          required: true
+          title: Issue key
+          description: Clé du ticket de dette (ex. PAY-77).
+    - key: get-zone-costs
+      name: Get zone costs
+      description: Renvoie le coût d'une zone par famille et sa tendance hebdomadaire.
+      actionVerb: GET
+      function: getZoneCosts
+      inputs:
+        projectKey:
+          type: string
+          required: true
+          title: Project key
+          description: Clé du projet Jira (ex. PAY).
+        zone:
+          type: string
+          required: true
+          title: Zone
+          description: Nom de la zone (composant, service ou étiquette).
+    - key: list-phantom-debt
+      name: List phantom debt
+      description: Renvoie les zones coûteuses sans aucun ticket de dette.
+      actionVerb: GET
+      function: listPhantomDebt
+      inputs:
+        projectKey:
+          type: string
+          required: true
+          title: Project key
+          description: Clé du projet Jira (ex. PAY).
+    - key: list-dead-debt
+      name: List dead debt
+      description: Renvoie les tickets de dette sans aucune preuve depuis 180 jours.
+      actionVerb: GET
+      function: listDeadDebt
+      inputs:
+        projectKey:
+          type: string
+          required: true
+          title: Project key
+          description: Clé du projet Jira (ex. PAY).
+    - key: get-repayment-report
+      name: Get repayment report
+      description: Renvoie la comparaison avant/après d'une dette close, avec ses limites.
+      actionVerb: GET
+      function: getRepaymentReport
+      inputs:
+        issueKey:
+          type: string
+          required: true
+          title: Issue key
+          description: Clé du ticket de dette (ex. PAY-77).
+    - key: draft-debt-ticket
+      name: Draft debt ticket
+      description: Rédige un brouillon de ticket de dette à partir des preuves d'une zone.
+      actionVerb: GET
+      function: draftDebtTicket
+      inputs:
+        projectKey:
+          type: string
+          required: true
+          title: Project key
+          description: Clé du projet Jira (ex. PAY).
+        zone:
+          type: string
+          required: true
+          title: Zone
+          description: Nom de la zone (composant, service ou étiquette).
+    - key: confirm-evidence
+      name: Confirm evidence
+      description: Confirme ou rejette le rapprochement entre une preuve et un ticket de dette.
+      actionVerb: UPDATE
+      function: confirmEvidence
+      inputs:
+        evidenceKey:
+          type: string
+          required: true
+          title: Evidence key
+          description: Identifiant de la preuve à rapprocher.
+        debtKey:
+          type: string
+          required: true
+          title: Debt key
+          description: Clé du ticket de dette concerné.
+        confirmed:
+          type: boolean
+          required: true
+          title: Confirmed
+          description: true pour confirmer le rapprochement, false pour le rejeter.
+
+  rovo:agent:
+    - key: laddition-agent
+      name: L'addition
+      description: Répond sur le coût réel des dettes techniques, avec fourchettes et preuves.
+      prompt: >-
+        Tu es l'agent « L'addition ». Tu réponds aux questions sur le coût réel de la dette
+        technique d'un projet Jira, sur 90 jours, en jours-personne. Tu ne calcules jamais
+        toi-même : tu appelles les actions disponibles (get-debt-ranking, get-debt-bill,
+        get-zone-costs, list-phantom-debt, list-dead-debt, get-repayment-report,
+        draft-debt-ticket) et tu restitues leurs chiffres. Tu donnes toujours la fourchette
+        basse et haute, jamais une valeur unique, et tu cites la méthode et les preuves.
+        Tu ne classes jamais des personnes : l'unité est la zone ou l'équipe. Si une donnée
+        manque, tu le dis au lieu d'estimer.
+      conversationStarters:
+        - Quelle dette nous coûte le plus ?
+        - Détaille l'addition de PAY-77.
+        - Y a-t-il de la dette sans ticket ?
+        - Qu'a rapporté le remboursement de PAY-41 ?
+        - Prépare l'argumentaire pour PAY-77.
+      actions:
+        - get-debt-ranking
+        - get-debt-bill
+        - get-zone-costs
+        - list-phantom-debt
+        - list-dead-debt
+        - get-repayment-report
+        - draft-debt-ticket
+
+  rovo:mcp:
+    - key: laddition-mcp
+      name: L'addition
+      tools:
+        - get-debt-ranking
+        - get-debt-bill
+        - get-zone-costs
+        - list-phantom-debt
+        - list-dead-debt
+        - get-repayment-report
+        - draft-debt-ticket
+        - confirm-evidence
+
+resources:
+  - key: project-page
+    path: src/ui/project-page.tsx
+  - key: issue-panel
+    path: src/ui/issue-panel.tsx
+  - key: issue-context
+    path: src/ui/issue-context.tsx
+  - key: custom-field
+    path: src/ui/custom-field.tsx
+  - key: gadget
+    path: src/ui/gadget.tsx
+  - key: settings-page
+    path: src/ui/settings-page.tsx
+
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:jira-user
+    - storage:app
+    - read:graph:component:compass
+    - read:graph:team:atlassian
+    - read:graph:issue:jira

@@ -1,0 +1,59 @@
+name: ci
+
+# Budget CI 5 min (règle user 2026-10-24) : typage, tests, garde de taille.
+# Le build Forge (`forge build`) et le déploiement restent hors PR.
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'manifest.yml'
+      - '.github/workflows/ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'tools/**'
+      - 'package.json'
+      - 'manifest.yml'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: [self-hosted, laddition-worker]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Node 22 (déjà installé sur le worker)
+        id: localnode
+        run: |
+          if [ -x "$HOME/node-current/bin/node" ]; then
+            echo "$HOME/node-current/bin" >> "$GITHUB_PATH"
+            echo "found=1" >> "$GITHUB_OUTPUT"
+            "$HOME/node-current/bin/node" -v
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.localnode.outputs.found != '1'
+        with:
+          node-version: 22
+          cache: npm
+      - name: Dépendances (cache npm du runner)
+        run: npm ci --no-audit --no-fund --prefer-offline
+      - name: Typage strict
+        run: npm run typecheck
+      - name: Tests du domaine
+        run: npm test

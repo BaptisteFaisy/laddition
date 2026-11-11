@@ -1,0 +1,36 @@
+{
+  "name": "laddition",
+  "version": "0.1.0",
+  "private": true,
+  "description": "L'addition — le coût réel de la dette technique, mesuré sur 90 jours (Atlassian Forge · Codegeist 2026)",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
+    "test:core": "node --test --experimental-strip-types src/core/*.test.ts",
+    "lint": "forge lint",
+    "build": "forge build",
+    "check": "npm run typecheck && npm run test",
+    "limits": "python3 tools/check_limits.py"
+  },
+  "dependencies": {
+    "@forge/api": "^8.5.0",
+    "@forge/bridge": "^7.3.0",
+    "@forge/events": "^3.0.10",
+    "@forge/llm": "^1.0.10",
+    "@forge/resolver": "^2.0.2",
+    "@forge/sql": "^4.0.10",
+    "@forge/ui": "^1.11.4"
+  },
+  "devDependencies": {
+    "@forge/manifest": "^13.9.0",
+    "@types/node": "^22.10.0",
+    "ajv": "^8.20.0",
+    "js-yaml": "^4.3.2",
+    "typescript": "^5.7.0"
+  }
+}

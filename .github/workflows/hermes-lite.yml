@@ -1,0 +1,90 @@
+name: Hermes Lite (gate)
+
+# [HERMES-REFRESH] Gate « fraîcheur exigée au merge ».
+# La logique complète vit dans .github/hermes/gate.py (stdlib seule).
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+  check_run:
+    types: [completed]
+  # Secours du reveil externe (cron sur le poste de travail) : si la machine
+  # qui declenche le balayage est éteinte, GitHub relance quand meme le gate
+  # toutes les 10 minutes. Sur runner self-hosted, ca ne coute rien.
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Numéro de PR spécifique (vide = toutes les PR ouvertes)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: write
+
+concurrency:
+  # Un groupe PAR PR (et par ref pour workflow_dispatch), pas un groupe par dépôt :
+  # avec `hermes-lite-${{ github.repository }}`, deux PR (ou une PR + les refs
+  # `mergify/merge-queue/*` de la file) s'annulaient mutuellement. Un check annulé
+  # est compté comme rouge par Mergify : la file déquait la PR à chaque passage
+  # (« Canceling since a higher priority waiting request … exists »).
+  #
+  # Le type d'événement entre dans la clé : les passages `check_run` et
+  # `workflow_dispatch` (balayage périodique) ne peuvent donc PAS annuler le
+  # passage `pull_request`, qui fait autorité. Entre eux, ils s'annulent :
+  # seule la dernière évaluation compte (les précédentes sont périmées).
+  group: hermes-lite-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number || github.event.inputs.pr_number || github.ref }}
+  # Un gate interrompu n'est pas un gate vert : le passage `pull_request` n'est
+  # jamais annulé ; les réévaluations (check_run, balayage) si — une evaluation
+  # périmée ne sert à rien et ne doit pas tenir le worker.
+  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
+
+env:
+  GH_TOKEN: ${{ secrets.HERMES_LITE_TOKEN || github.token }}
+  # [HERMES-AGENT] Conflit -> chat ZeroClaw (daemon sur la machine du runner, même
+  # utilisateur). Le job ne fait que lancer : il reste sous les 5 min de `ci-budget`.
+  HERMES_AGENT_RESOLVE: ${{ vars.HERMES_AGENT_RESOLVE || '1' }}
+  HERMES_ZC_URL: ${{ vars.HERMES_ZC_URL || 'http://127.0.0.1:42617' }}
+  HERMES_ZC_AGENT: ${{ vars.HERMES_ZC_AGENT || 'hermes' }}
+  HERMES_ZC_TOKEN_FILE: ${{ vars.HERMES_ZC_TOKEN_FILE || '~/.config/zeroclaw-serveur/token' }}
+  HERMES_AGENT_TIMEOUT: ${{ vars.HERMES_AGENT_TIMEOUT || '1500' }}
+  # IMPORTANT (runbook §3) : à renseigner PAR DÉPÔT — contexts de statut requis
+  # avant merge, séparés par des virgules. Vide = merge dès que la PR est fraîche.
+  HERMES_REQUIRED_CHECKS: ''
+  # Rebase serveur du gate : DESACTIVE (0).
+  # `update-branch` pousse en tant que bot : GitHub exige alors une approbation
+  # humaine sur chaque workflow declenche, la PR perd ses checks ci/couche0/
+  # ci-budget et n'est plus jamais embarquable (15 runs bloques le 24/10).
+  # Mettre la branche a jour est le metier de Mergify (update_method: rebase) :
+  # son push declenche la CI normalement. Le gate detecte, escalade, rend la main.
+  HERMES_LITE_REFRESH: '0'
+  MERGE_METHOD: rebase
+
+jobs:
+  gate:
+    name: Verdict
+    runs-on: [self-hosted, laddition-worker]
+    timeout-minutes: 5
+    # Le gate écoute `check_run: completed` ET publie lui-même un check : il se
+    # relançait donc sans fin. Mesuré le 24/10 : 9 runs du gate pour un seul
+    # push sur master (6 pour le suivant), tous sérialisés sur le groupe
+    # `master` à 10–28 s chacun, 4 workers saturés pendant ce temps.
+    # On ne garde que les checks rattachés à une PR, et on exclut les checks
+    # publiés par le gate lui-même (« Verdict », « hermes-lite/verdict »).
+    if: >-
+      github.event_name != 'check_run'
+      || (github.event.check_run.pull_requests[0].number != null
+          && github.event.check_run.name != 'Verdict'
+          && github.event.check_run.name != 'hermes-lite/verdict')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Gate
+        run: |
+          export INPUT_PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          export HERMES_LITE_DRY_RUN="${{ vars.HERMES_LITE_DRY_RUN || '0' }}"
+          python3 .github/hermes/gate.py
