@@ -48,14 +48,20 @@ jobs:
         run: python3 tools/check_limits.py
       - name: Tests du gate hermes (conflits)
         run: python3 .github/hermes/test_gate.py
-      - name: Dépendances du validateur de manifest (si le lockfile a changé)
+      - name: Dépendances (arbre partagé sur le worker, clé = empreinte du lockfile)
         run: |
           HASH=$(sha256sum package-lock.json | cut -d' ' -f1)
-          if [ "$(cat node_modules/.laddition-lock 2>/dev/null)" = "$HASH" ]; then
-            echo "node_modules à jour ($HASH) — npm ci ignoré"
+          SHARED="$HOME/.cache/laddition-nm/$HASH"
+          if [ -d "$SHARED" ]; then
+            [ -e node_modules ] || ln -s "$SHARED" node_modules
+            echo "arbre partagé réutilisé ($HASH)"
           else
             npm ci --no-audit --no-fund --prefer-offline
-            echo "$HASH" > node_modules/.laddition-lock
+            mkdir -p "$HOME/.cache/laddition-nm"
+            rm -rf "$SHARED"
+            mv node_modules "$SHARED"
+            ln -s "$SHARED" node_modules
+            echo "arbre installé puis partagé ($HASH)"
           fi
       - name: manifest.yml contre le schéma Forge
         run: node tools/validate_manifest.mjs manifest.yml
