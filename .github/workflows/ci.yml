@@ -51,16 +51,21 @@ jobs:
         run: |
           HASH=$(sha256sum package-lock.json | cut -d' ' -f1)
           SHARED="$HOME/.cache/laddition-nm/$HASH"
+          # Copie à liens durs, PAS un lien symbolique : avec node_modules en
+          # symlink, Node résout les dépendances transitives depuis le chemin
+          # réel et ne remonte jamais jusqu'au vrai node_modules
+          # (constat du 11/11 : « Cannot find module 'fast-deep-equal' »).
+          # cp -al ne copie aucun octet, seulement des inœuds.
+          rm -rf node_modules
           if [ -d "$SHARED" ]; then
-            [ -e node_modules ] || ln -s "$SHARED" node_modules
-            echo "arbre partagé réutilisé ($HASH)"
+            cp -al "$SHARED" node_modules
+            echo "arbre partagé relié par liens durs ($HASH)"
           else
             npm ci --no-audit --no-fund --prefer-offline
             mkdir -p "$HOME/.cache/laddition-nm"
             rm -rf "$SHARED"
-            mv node_modules "$SHARED"
-            ln -s "$SHARED" node_modules
-            echo "arbre installé puis partagé ($HASH)"
+            cp -al node_modules "$SHARED"
+            echo "arbre installé puis mis en cache ($HASH)"
           fi
       - name: Typage strict
         run: npm run typecheck
