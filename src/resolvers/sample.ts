@@ -1,8 +1,8 @@
 import type { Request } from '@forge/resolver';
-import type { Attribution, Evidence, IssueFact, ProjectSettings, StatusSpan } from '../core/types.ts';
-import { buildBill } from '../core/bill.ts';
-import { makeSettings, mergeSettings } from '../core/settings.ts';
-import { runStatement, selectRows } from '../platform/db/query.ts';
+import type { Attribution, Evidence, IssueFact, ProjectSettings, StatusSpan } from '../core/types';
+import { buildBill } from '../core/bill';
+import { makeSettings, mergeSettings } from '../core/settings';
+import { runStatement, selectRows } from '../platform/db/query';
 import {
   getSettings as readSettings,
   replaceAttributions,
@@ -13,12 +13,12 @@ import {
   upsertIssueFacts,
   upsertRepayment,
   upsertZoneWeek,
-} from '../platform/db/index.ts';
-import { buildSampleData, sampleContext, sampleProjectSettings } from '../sample/load.ts';
-import { weeklyZoneCosts } from '../jobs/zoneCosts.ts';
-import { projectIdOf } from '../jobs/projects.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, nowIso, payloadOf } from '../jobs/support.ts';
+} from '../platform/db/index';
+import { buildSampleData, sampleContext, sampleProjectSettings } from '../sample/load';
+import { weeklyZoneCosts } from '../jobs/zoneCosts';
+import { projectIdOf } from '../jobs/projects';
+import type { Failure } from '../jobs/support';
+import { guard, nowIso, payloadOf } from '../jobs/support';
 
 /**
  * DT-13 : jeu d'exemple, pour tester sans historique (§22).

@@ -1,9 +1,10 @@
-import { Fragment, Heading, IssuePanel } from '@forge/ui';
-import type { ScreenContext } from './context.ts';
-import { t } from './i18n/index.ts';
-import { BillView } from './components/BillView.tsx';
-import { ErrorState } from './components/ErrorState.tsx';
-import { ScreenShell } from './components/ScreenShell.tsx';
+import { Fragment, Heading, IssuePanel } from './kit';
+import { mountScreen } from './mount';
+import type { ScreenContext } from './context';
+import { t } from './i18n/index';
+import { BillView } from './components/BillView';
+import { ErrorState } from './components/ErrorState';
+import { ScreenShell } from './components/ScreenShell';
 
 /** Écran 2 (§14) : l'addition d'un ticket de dette, dans le panneau du ticket. */
 export default function IssuePanelScreen(): JSX.Element {
@@ -26,3 +27,5 @@ function IssuePanelContent({ context }: { context: ScreenContext }): JSX.Element
     </Fragment>
   );
 }
+
+mountScreen(<IssuePanelScreen />);

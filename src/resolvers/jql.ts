@@ -1,8 +1,8 @@
 import type { Request } from '@forge/resolver';
-import { listBills } from '../platform/db/index.ts';
-import { projectIdByKey, listProjectIds } from '../jobs/projects.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, payloadOf } from '../jobs/support.ts';
+import { listBills } from '../platform/db/index';
+import { projectIdByKey, listProjectIds } from '../jobs/projects';
+import type { Failure } from '../jobs/support';
+import { guard, payloadOf } from '../jobs/support';
 
 /**
  * DT-19 : fonction JQL « dettes les plus coûteuses ».

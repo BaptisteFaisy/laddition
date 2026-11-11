@@ -20,12 +20,12 @@ import type {
   RankedDebt,
   Repayment,
   ZoneCost,
-} from '../core/types.ts';
-import { findDeadDebt } from '../core/dead.ts';
-import { findPhantomDebt } from '../core/phantom.ts';
-import { rankDebts } from '../core/ranking.ts';
-import { makeSettings } from '../core/settings.ts';
-import { addDays, round2, weeksBetween } from '../core/time.ts';
+} from '../core/types';
+import { findDeadDebt } from '../core/dead';
+import { findPhantomDebt } from '../core/phantom';
+import { rankDebts } from '../core/ranking';
+import { makeSettings } from '../core/settings';
+import { addDays, round2, weeksBetween } from '../core/time';
 import {
   getSettings,
   insertRejection,
@@ -36,10 +36,10 @@ import {
   listRepayments,
   listZoneWeeks,
   replaceAttributions,
-} from '../platform/db/index.ts';
-import { projectIdByKey } from '../jobs/projects.ts';
-import type { ActionEnvelope, JsonPayload } from './result.ts';
-import { optionalNumber, optionalText, requireBoolean, requireText, run } from './result.ts';
+} from '../platform/db/index';
+import { projectIdByKey } from '../jobs/projects';
+import type { ActionEnvelope, JsonPayload } from './result';
+import { optionalNumber, optionalText, requireBoolean, requireText, run } from './result';
 
 /** Nombre de dettes rendues par défaut, et plafond de l'action de classement. */
 export const DEFAULT_RANKING_LIMIT = 10;

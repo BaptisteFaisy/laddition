@@ -1,7 +1,7 @@
 import { sql } from '@forge/sql';
-import type { Confirmation } from '../core/attribution.ts';
-import { insertRows, onDuplicateUpdate, runStatement, selectRows } from '../platform/db/query.ts';
-import { toDbDateRequired, toText } from '../platform/db/rows.ts';
+import type { Confirmation } from '../core/attribution';
+import { insertRows, onDuplicateUpdate, runStatement, selectRows } from '../platform/db/query';
+import { toDbDateRequired, toText } from '../platform/db/rows';
 
 /**
  * Rapprochements confirmés par un humain (§10, règle 2).

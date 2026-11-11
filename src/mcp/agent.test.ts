@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { agentDescription, agentForbiddenTopics, agentPrompt, agentStarters } from './agent.ts';
+import { agentDescription, agentForbiddenTopics, agentPrompt, agentStarters } from './agent';
 
 describe('agent — prompt', () => {
   it('tient les deux langues et se replie sur l’anglais', () => {

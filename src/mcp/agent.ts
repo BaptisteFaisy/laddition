@@ -10,7 +10,7 @@
  * celle de l'utilisateur, et le prompt doit pouvoir la lui rappeler.
  */
 
-import type { Locale } from '../ui/i18n/index.ts';
+import type { Locale } from '../ui/i18n/index';
 
 /** Rôle et interdits de l'agent, par langue. */
 interface AgentCopy {

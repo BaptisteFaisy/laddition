@@ -5,12 +5,12 @@
  * Aucune fonction ne jette pour une donnée absente : elle rend `null` ou `[]`.
  */
 
-import type { Attribution, Evidence, Rejection } from '../../../core/types.ts';
-import type { SqlValue } from '../query.ts';
-import { insertRows, onDuplicateUpdate, projectOfIssue, replaceRows, selectRows } from '../query.ts';
-import type { AttributionRow, EvidenceRow, RejectionRow } from '../mappers.ts';
-import { toAttribution, toEvidence, toRejection } from '../mappers.ts';
-import { toDbBool, toDbDateRequired, toJson } from '../rows.ts';
+import type { Attribution, Evidence, Rejection } from '../../../core/types';
+import type { SqlValue } from '../query';
+import { insertRows, onDuplicateUpdate, projectOfIssue, replaceRows, selectRows } from '../query';
+import type { AttributionRow, EvidenceRow, RejectionRow } from '../mappers';
+import { toAttribution, toEvidence, toRejection } from '../mappers';
+import { toDbBool, toDbDateRequired, toJson } from '../rows';
 /* ------------------------------------------------------------- evidence */
 
 

@@ -1,12 +1,12 @@
 import type { Request } from '@forge/resolver';
-import type { Attribution, DebtBill, Evidence, Family, FamilyTotal, IssueFact } from '../core/types.ts';
-import { BILLED_FAMILIES } from '../core/types.ts';
-import { getBill, getIssueFact } from '../platform/db/index.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, nowIso, payloadOf, requireString } from '../jobs/support.ts';
-import { evidenceOfBill } from './read.ts';
-import type { ProjectState } from './state.ts';
-import { loadState } from './state.ts';
+import type { Attribution, DebtBill, Evidence, Family, FamilyTotal, IssueFact } from '../core/types';
+import { BILLED_FAMILIES } from '../core/types';
+import { getBill, getIssueFact } from '../platform/db/index';
+import type { Failure } from '../jobs/support';
+import { guard, nowIso, payloadOf, requireString } from '../jobs/support';
+import { evidenceOfBill } from './read';
+import type { ProjectState } from './state';
+import { loadState } from './state';
 
 /**
  * L'addition d'un ticket, telle que le panneau la montre (écran 2).

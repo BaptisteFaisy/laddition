@@ -1,8 +1,8 @@
-import type { Baseline, CostContext, Evidence, IssueFact } from '../types.ts';
-import { baselineKey, clipToPercentile, sizeClassOf, ticketDurationDays } from '../baseline.ts';
-import type { TicketDuration } from '../baseline.ts';
-import { DAY_MS, parseIso, round2 } from '../time.ts';
-import { splitAcrossZones, zonesForIssue } from '../zones.ts';
+import type { Baseline, CostContext, Evidence, IssueFact } from '../types';
+import { baselineKey, clipToPercentile, sizeClassOf, ticketDurationDays } from '../baseline';
+import type { TicketDuration } from '../baseline';
+import { DAY_MS, parseIso, round2 } from '../time';
+import { splitAcrossZones, zonesForIssue } from '../zones';
 
 /**
  * Famille C3 — la lenteur (§9).

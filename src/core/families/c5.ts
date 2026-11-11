@@ -1,6 +1,6 @@
-import type { CostContext, Evidence, IssueFact, IssueLink } from '../types.ts';
-import { diffDays, round2 } from '../time.ts';
-import { splitAcrossZones, zonesForIssue } from '../zones.ts';
+import type { CostContext, Evidence, IssueFact, IssueLink } from '../types';
+import { diffDays, round2 } from '../time';
+import { splitAcrossZones, zonesForIssue } from '../zones';
 
 /** Famille « retard induit » (§9, lot S) — un délai, jamais de l'effort. */
 const FAMILY = 'C5' as const;

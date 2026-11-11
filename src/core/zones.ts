@@ -1,4 +1,4 @@
-import type { IssueFact, ProjectSettings } from './types.ts';
+import type { IssueFact, ProjectSettings } from './types';
 
 /** Zone des tickets sans rattachement : taille affichée comme indicateur (§8). */
 export const UNCLASSIFIED_ZONE = 'non classé';

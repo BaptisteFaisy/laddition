@@ -1,9 +1,9 @@
-import { Fragment, Text } from '@forge/ui';
-import type { EvidenceDetail } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatDays, methodLabel, pair } from '../format.ts';
-import { Disclosure } from './Disclosure.tsx';
+import { Fragment, Text } from '../kit';
+import type { EvidenceDetail } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatDays, methodLabel, pair } from '../format';
+import { Disclosure } from './Disclosure';
 
 /**
  * Règle de transparence (§18) : chaque chiffre a sa formule à deux clics.

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import type { CostContext, IssueFact, StatusSpan } from '../types.ts';
-import { makeSettings } from '../settings.ts';
-import { c2Bugs } from './c2.ts';
+import type { CostContext, IssueFact, StatusSpan } from '../types';
+import { makeSettings } from '../settings';
+import { c2Bugs } from './c2';
 
 const NOW = '2026-11-01T00:00:00.000Z';
 /** Lundi 12 octobre 2026. */

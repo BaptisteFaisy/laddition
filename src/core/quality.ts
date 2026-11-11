@@ -7,10 +7,10 @@
  * affichés à côté des additions, jamais en note de bas de page.
  */
 
-import type { DataQuality, Evidence, Family, IssueFact, ProjectSettings } from './types.ts';
-import { BILLED_FAMILIES } from './types.ts';
-import { round2 } from './time.ts';
-import { isUnclassified, zonesForIssue } from './zones.ts';
+import type { DataQuality, Evidence, Family, IssueFact, ProjectSettings } from './types';
+import { BILLED_FAMILIES } from './types';
+import { round2 } from './time';
+import { isUnclassified, zonesForIssue } from './zones';
 
 /**
  * Photographie de la qualité des données d'un projet.

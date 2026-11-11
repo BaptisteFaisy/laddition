@@ -1,15 +1,17 @@
-import { Button, Fragment, IssueContext, Text, useState } from '@forge/ui';
-import type { DebtBillView, IssueAttribution } from './api.ts';
-import { confirmEvidence, getDebtBill, rejectEvidence } from './api.ts';
-import { errorMessage, useResolver } from './async.ts';
-import type { ScreenContext } from './context.ts';
-import { formatPercent, formatRange } from './format.ts';
-import type { Locale, MessageKey } from './i18n/index.ts';
-import { t } from './i18n/index.ts';
-import { AsyncView } from './components/AsyncView.tsx';
-import { DemoBanner } from './components/DemoBanner.tsx';
-import { ErrorState } from './components/ErrorState.tsx';
-import { ScreenShell } from './components/ScreenShell.tsx';
+import { useState } from 'react';
+import { Button, Fragment, IssueContext, Text } from './kit';
+import { mountScreen } from './mount';
+import type { DebtBillView, IssueAttribution } from './api';
+import { confirmEvidence, getDebtBill, rejectEvidence } from './api';
+import { errorMessage, useResolver } from './async';
+import type { ScreenContext } from './context';
+import { formatPercent, formatRange } from './format';
+import type { Locale, MessageKey } from './i18n/index';
+import { t } from './i18n/index';
+import { AsyncView } from './components/AsyncView';
+import { DemoBanner } from './components/DemoBanner';
+import { ErrorState } from './components/ErrorState';
+import { ScreenShell } from './components/ScreenShell';
 
 /** Écran 3 (§14) : « alimente la dette X » ou « ressemble à X, confirmer ? ». */
 export default function IssueContextScreen(): JSX.Element {
@@ -101,3 +103,5 @@ function ProposalBlock({
     </Fragment>
   );
 }
+
+mountScreen(<IssueContextScreen />);

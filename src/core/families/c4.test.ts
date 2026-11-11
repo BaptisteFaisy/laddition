@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CostContext, Evidence, IssueFact, StatusCategory, StatusSpan } from '../types.ts';
-import { makeSettings } from '../settings.ts';
-import { c4Rework } from './c4.ts';
+import type { CostContext, Evidence, IssueFact, StatusCategory, StatusSpan } from '../types';
+import { makeSettings } from '../settings';
+import { c4Rework } from './c4';
 
 /** Instant de référence des tests (mercredi). */
 const NOW = '2026-11-11T00:00:00.000Z';

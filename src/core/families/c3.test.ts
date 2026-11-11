@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { Baseline, CostContext, IssueFact, StatusSpan } from '../types.ts';
-import { makeSettings } from '../settings.ts';
-import { c3Slowness } from './c3.ts';
+import type { Baseline, CostContext, IssueFact, StatusSpan } from '../types';
+import { makeSettings } from '../settings';
+import { c3Slowness } from './c3';
 
 const NOW = '2026-11-30T00:00:00.000Z';
 

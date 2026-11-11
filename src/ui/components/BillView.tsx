@@ -1,9 +1,9 @@
-import { useState } from '@forge/ui';
-import { getDebtBill } from '../api.ts';
-import { useResolver } from '../async.ts';
-import type { Locale } from '../i18n/index.ts';
-import { AsyncView } from './AsyncView.tsx';
-import { BillSummary } from './BillSummary.tsx';
+import { useState } from 'react';
+import { getDebtBill } from '../api';
+import { useResolver } from '../async';
+import type { Locale } from '../i18n/index';
+import { AsyncView } from './AsyncView';
+import { BillSummary } from './BillSummary';
 
 /**
  * Une addition complète, chargée par identifiant de ticket de dette.

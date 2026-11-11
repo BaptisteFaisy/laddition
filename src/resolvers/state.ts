@@ -6,9 +6,9 @@ import type {
   ProjectSettings,
   RankedDebt,
   ZoneCost,
-} from '../core/types.ts';
-import { rankDebts } from '../core/ranking.ts';
-import { addDays, weeksBetween } from '../core/time.ts';
+} from '../core/types';
+import { rankDebts } from '../core/ranking';
+import { addDays, weeksBetween } from '../core/time';
 import {
   listAttributions,
   listBills,
@@ -16,8 +16,8 @@ import {
   listEvidence,
   listIssuesInWindow,
   listZoneWeeks,
-} from '../platform/db/index.ts';
-import { requireSettings } from '../jobs/projects.ts';
+} from '../platform/db/index';
+import { requireSettings } from '../jobs/projects';
 
 /**
  * Ce qu'un écran lit, en une lecture : réglages, tickets, preuves, additions.

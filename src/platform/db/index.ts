@@ -7,12 +7,12 @@
  */
 
 import { sql } from '@forge/sql';
-import { selectRows } from './query.ts';
-import { SCHEMA_STATEMENTS, TABLE_NAMES } from './schema.ts';
+import { selectRows } from './query';
+import { SCHEMA_STATEMENTS, TABLE_NAMES } from './schema';
 
-export * from './repos.ts';
-export { SCHEMA_STATEMENTS, TABLE_NAMES } from './schema.ts';
-export type { TableName } from './schema.ts';
+export * from './repos';
+export { SCHEMA_STATEMENTS, TABLE_NAMES } from './schema';
+export type { TableName } from './schema';
 
 /** Motifs d'une erreur « objet déjà présent » : un schéma existant n'est pas une panne. */
 const ALREADY_EXISTS = /already exists|ER_TABLE_EXISTS|ER_DUP_KEYNAME|duplicate column|1050|1061|1060/i;

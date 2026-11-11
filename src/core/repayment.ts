@@ -9,9 +9,9 @@
  * Module pur : aucune horloge implicite, le « maintenant » est un paramètre.
  */
 
-import type { IssueFact, Repayment } from './types.ts';
-import { addDays, parseIso, round2, weekKey } from './time.ts';
-import { UNCLASSIFIED_ZONE } from './zones.ts';
+import type { IssueFact, Repayment } from './types';
+import { addDays, parseIso, round2, weekKey } from './time';
+import { UNCLASSIFIED_ZONE } from './zones';
 
 /** Nombre de semaines comparées de part et d'autre du travail. */
 export const REPAYMENT_WEEKS = 8;

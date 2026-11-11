@@ -1,4 +1,4 @@
-import { en } from './en.ts';
+import { en } from './en';
 
 /** Toutes les clés de message : l'anglais fait foi, le français doit suivre. */
 export type MessageKey = keyof typeof en;

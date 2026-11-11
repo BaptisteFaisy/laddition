@@ -11,9 +11,9 @@
  * refusée) rend `{ ok: false, reason }` et laisse l'app continuer.
  */
 import { route } from '@forge/api';
-import { clamp } from '../core/time.ts';
-import { jiraGetJson, jiraSendJson, searchIssues } from './jira.ts';
-import { logShort } from './log.ts';
+import { clamp } from '../core/time';
+import { jiraGetJson, jiraSendJson, searchIssues } from './jira';
+import { logShort } from './log';
 
 /** Nom exact du champ, tel qu'il apparaît dans Jira. */
 export const DEBT_COST_FIELD_NAME = 'Coût de la dette (j-p / 90 j)';

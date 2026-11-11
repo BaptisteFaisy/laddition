@@ -1,8 +1,8 @@
-import type { Evidence, Family, ZoneCost } from '../core/types.ts';
-import { BILLED_FAMILIES } from '../core/types.ts';
-import type { ZoneWeek } from '../core/repayment.ts';
-import type { ZoneWeekInput } from '../platform/db/index.ts';
-import { round2, weekKey } from '../core/time.ts';
+import type { Evidence, Family, ZoneCost } from '../core/types';
+import { BILLED_FAMILIES } from '../core/types';
+import type { ZoneWeek } from '../core/repayment';
+import type { ZoneWeekInput } from '../platform/db/index';
+import { round2, weekKey } from '../core/time';
 
 /**
  * Repli des preuves en cases zone × semaine (table `zone_week`, §16).

@@ -1,8 +1,8 @@
-import { en } from './en.ts';
-import { fr } from './fr.ts';
-import type { MessageKey, MessageVars, Messages } from './types.ts';
+import { en } from './en';
+import { fr } from './fr';
+import type { MessageKey, MessageVars, Messages } from './types';
 
-export type { MessageKey, MessageVars, Messages } from './types.ts';
+export type { MessageKey, MessageVars, Messages } from './types';
 
 /** Langues livrées (§18). L'anglais est la langue par défaut. */
 export type Locale = 'en' | 'fr';

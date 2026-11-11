@@ -5,9 +5,9 @@ import type {
   ProjectSettings,
   Repayment,
   StatusSpan,
-} from '../core/types.ts';
-import { REPAYMENT_WEEKS, buildRepayment, isRepaymentStale } from '../core/repayment.ts';
-import { addDays, weeksBetween } from '../core/time.ts';
+} from '../core/types';
+import { REPAYMENT_WEEKS, buildRepayment, isRepaymentStale } from '../core/repayment';
+import { addDays, weeksBetween } from '../core/time';
 import {
   listDebtIssues,
   listIssuesInWindow,
@@ -21,19 +21,19 @@ import {
   upsertBill,
   upsertRepayment,
   upsertZoneWeek,
-} from '../platform/db/index.ts';
-import { ensureDebtCostField, writeDebtCost } from '../platform/field.ts';
-import { fetchLinks } from '../platform/jira.ts';
-import { listConfirmations } from './confirmations.ts';
-import { clearInvalid } from './invalidation.ts';
-import { listProjectIds, requireSettings } from './projects.ts';
-import type { RecomputeInput, RecomputeResult } from './recompute.ts';
-import { debtFieldValues, finish, prepare } from './recompute.ts';
-import { scoreCandidates } from './relevance.ts';
-import { ensureReady } from './schema.ts';
-import { groupSpans } from './spans.ts';
-import { messageOf, nowIso } from './support.ts';
-import { zoneWeekly } from './zoneCosts.ts';
+} from '../platform/db/index';
+import { ensureDebtCostField, writeDebtCost } from '../platform/field';
+import { fetchLinks } from '../platform/jira';
+import { listConfirmations } from './confirmations';
+import { clearInvalid } from './invalidation';
+import { listProjectIds, requireSettings } from './projects';
+import type { RecomputeInput, RecomputeResult } from './recompute';
+import { debtFieldValues, finish, prepare } from './recompute';
+import { scoreCandidates } from './relevance';
+import { ensureReady } from './schema';
+import { groupSpans } from './spans';
+import { messageOf, nowIso } from './support';
+import { zoneWeekly } from './zoneCosts';
 
 /**
  * `scheduledTrigger` (§15) : le calcul lourd, une fois par nuit.

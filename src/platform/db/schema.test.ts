@@ -8,7 +8,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { SCHEMA_STATEMENTS, TABLE_NAMES } from './schema.ts';
+import { SCHEMA_STATEMENTS, TABLE_NAMES } from './schema';
 
 test('le schéma déclare les onze tables du §16', () => {
   assert.equal(TABLE_NAMES.length, 11);

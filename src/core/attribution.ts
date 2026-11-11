@@ -7,8 +7,8 @@ import type {
   ProjectSettings,
   RelevanceScore,
   Rejection,
-} from './types.ts';
-import { clamp, round2 } from './time.ts';
+} from './types';
+import { clamp, round2 } from './time';
 
 /**
  * §10 « Attribution » : à quel ticket de dette chaque preuve est imputée.

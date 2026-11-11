@@ -16,10 +16,10 @@
 import { chat, list } from '@forge/llm';
 import type { Message } from '@forge/llm';
 import { createHash } from 'node:crypto';
-import { clamp, round2 } from '../core/time.ts';
-import { BILLED_FAMILIES } from '../core/types.ts';
-import type { DebtBill, Evidence, Family, ProjectSettings } from '../core/types.ts';
-import { logShort, shortError } from './log.ts';
+import { clamp, round2 } from '../core/time';
+import { BILLED_FAMILIES } from '../core/types';
+import type { DebtBill, Evidence, Family, ProjectSettings } from '../core/types';
+import { logShort, shortError } from './log';
 
 /** Le modèle demandé à `chat()` : Claude, seul modèle autorisé par §17. */
 const CLAUDE_HINTS: readonly string[] = ['claude', 'anthropic'];

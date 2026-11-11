@@ -1,10 +1,10 @@
-import type { IssueFact, ProjectSettings, StatusSpan } from '../core/types.ts';
-import { sizeClassOf } from '../core/baseline.ts';
-import { attachIssueId, reconstructStatusSpans } from '../core/duration.ts';
-import { zonesForIssue } from '../core/zones.ts';
-import { upsertIssueFacts, replaceStatusSpans } from '../platform/db/index.ts';
-import type { JiraIssueJson } from '../platform/jira.ts';
-import { fetchChangelog, toIssueFact } from '../platform/jira.ts';
+import type { IssueFact, ProjectSettings, StatusSpan } from '../core/types';
+import { sizeClassOf } from '../core/baseline';
+import { attachIssueId, reconstructStatusSpans } from '../core/duration';
+import { zonesForIssue } from '../core/zones';
+import { upsertIssueFacts, replaceStatusSpans } from '../platform/db/index';
+import type { JiraIssueJson } from '../platform/jira';
+import { fetchChangelog, toIssueFact } from '../platform/jira';
 
 /**
  * D'un ticket Jira à ses faits en base : lecture, zones, durées par statut.

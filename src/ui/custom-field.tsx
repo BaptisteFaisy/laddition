@@ -1,13 +1,14 @@
-import { CustomField, Fragment, Text } from '@forge/ui';
-import type { DebtBillView } from './api.ts';
-import { getDebtBill } from './api.ts';
-import { useResolver } from './async.ts';
-import type { ScreenContext } from './context.ts';
-import { formatNumber, formatRange } from './format.ts';
-import type { Locale } from './i18n/index.ts';
-import { t } from './i18n/index.ts';
-import { AsyncView } from './components/AsyncView.tsx';
-import { ScreenShell } from './components/ScreenShell.tsx';
+import { CustomField, Fragment, Text } from './kit';
+import { mountScreen } from './mount';
+import type { DebtBillView } from './api';
+import { getDebtBill } from './api';
+import { useResolver } from './async';
+import type { ScreenContext } from './context';
+import { formatNumber, formatRange } from './format';
+import type { Locale } from './i18n/index';
+import { t } from './i18n/index';
+import { AsyncView } from './components/AsyncView';
+import { ScreenShell } from './components/ScreenShell';
 
 /**
  * Écran 4 (§14) : le champ « Coût de la dette (j-p / 90 j) », en lecture seule.
@@ -51,3 +52,5 @@ function CustomFieldValue({ locale, view }: { locale: Locale; view: DebtBillView
     </Fragment>
   );
 }
+
+mountScreen(<CustomFieldScreen />);

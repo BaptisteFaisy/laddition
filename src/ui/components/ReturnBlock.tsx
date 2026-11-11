@@ -1,8 +1,8 @@
-import { Fragment, Heading, Text } from '@forge/ui';
-import type { DebtBill } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatDays, formatJp, formatRatio, pair } from '../format.ts';
+import { Fragment, Heading, Text } from '../kit';
+import type { DebtBill } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatDays, formatJp, formatRatio, pair } from '../format';
 
 /** Le retour (§11) : ce que la clôture rapporterait, ou pourquoi il n'est pas chiffré. */
 export function ReturnBlock({ locale, bill }: { locale: Locale; bill: DebtBill }): JSX.Element {

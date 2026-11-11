@@ -1,4 +1,4 @@
-import type { StatusSpan } from '../core/types.ts';
+import type { StatusSpan } from '../core/types';
 
 /**
  * Séjours de statut regroupés par ticket.

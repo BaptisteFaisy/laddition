@@ -11,13 +11,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildBill } from '../core/bill.ts';
-import { findDeadDebt } from '../core/dead.ts';
-import { findPhantomDebt } from '../core/phantom.ts';
-import { rankDebts } from '../core/ranking.ts';
-import { addDays } from '../core/time.ts';
-import { BILLED_FAMILIES } from '../core/types.ts';
-import type { DebtBill, Evidence, IssueFact } from '../core/types.ts';
+import { buildBill } from '../core/bill';
+import { findDeadDebt } from '../core/dead';
+import { findPhantomDebt } from '../core/phantom';
+import { rankDebts } from '../core/ranking';
+import { addDays } from '../core/time';
+import { BILLED_FAMILIES } from '../core/types';
+import type { DebtBill, Evidence, IssueFact } from '../core/types';
 import {
   DEAD_DEBT_KEYS,
   MAIN_DEBT_KEYS,
@@ -26,8 +26,8 @@ import {
   SAMPLE_PROJECT_ID,
   SAMPLE_PROJECT_KEY,
   SAMPLE_ZONES,
-} from './dataset.ts';
-import { buildSampleData, isSampleProject, sampleContext } from './load.ts';
+} from './dataset';
+import { buildSampleData, isSampleProject, sampleContext } from './load';
 
 const data = buildSampleData(SAMPLE_NOW);
 const ctx = sampleContext(SAMPLE_NOW);

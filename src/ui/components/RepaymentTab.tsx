@@ -1,11 +1,11 @@
-import { Cell, Fragment, Head, Row, Table, Text } from '@forge/ui';
-import type { Repayment } from '../../core/types.ts';
-import { getRepaymentReport } from '../api.ts';
-import { useResolver } from '../async.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatDate, formatJp, pair } from '../format.ts';
-import { AsyncView } from './AsyncView.tsx';
+import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import type { Repayment } from '../../core/types';
+import { getRepaymentReport } from '../api';
+import { useResolver } from '../async';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatDate, formatJp, pair } from '../format';
+import { AsyncView } from './AsyncView';
 
 /** Bulletins de remboursement (§11) : une comparaison, jamais une causalité. */
 export function RepaymentTab({ locale, projectId }: { locale: Locale; projectId: string }): JSX.Element {

@@ -13,7 +13,7 @@
 
 import { sql } from '@forge/sql';
 import type { Result, UpdateQueryResponse } from '@forge/sql';
-import type { SqlParam, SqlParams } from './rows.ts';
+import type { SqlParam, SqlParams } from './rows';
 
 /** Fragment SQL brut (sous-requête) inséré à la place d'un `?`. */
 export interface RawSql {

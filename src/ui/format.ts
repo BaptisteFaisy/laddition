@@ -1,6 +1,6 @@
-import type { CostMethod, Family } from '../core/types.ts';
-import type { Locale, MessageKey } from './i18n/index.ts';
-import { t } from './i18n/index.ts';
+import type { CostMethod, Family } from '../core/types';
+import type { Locale, MessageKey } from './i18n/index';
+import { t } from './i18n/index';
 
 /**
  * Mise en forme des nombres et des dates. Volontairement déterministe :

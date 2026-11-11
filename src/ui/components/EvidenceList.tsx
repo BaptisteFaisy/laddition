@@ -1,9 +1,9 @@
-import { Cell, Head, Row, Table, Text } from '@forge/ui';
-import type { Evidence, Family } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { familyLabel, formatDate, formatJp } from '../format.ts';
-import { FormulaDisclosure } from './FormulaDisclosure.tsx';
+import { Cell, Head, Row, Table, Text } from '../kit';
+import type { Evidence, Family } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { familyLabel, formatDate, formatJp } from '../format';
+import { FormulaDisclosure } from './FormulaDisclosure';
 
 /** Les preuves d'une addition, chacune ouvrant sa formule (règle des 2 clics). */
 export function EvidenceList({

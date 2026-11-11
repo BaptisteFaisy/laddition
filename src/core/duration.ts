@@ -1,5 +1,5 @@
-import type { IssueFact, StatusCategory, StatusSpan } from './types.ts';
-import { businessDaysBetween, diffDays, parseIso } from './time.ts';
+import type { IssueFact, StatusCategory, StatusSpan } from './types';
+import { businessDaysBetween, diffDays, parseIso } from './time';
 
 /** Entrée d'historique Jira, réduite à ce qui sert aux durées. */
 export interface HistoryEntry {

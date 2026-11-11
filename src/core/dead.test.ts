@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { findDeadDebt } from './dead.ts';
-import { makeSettings } from './settings.ts';
-import { addDays } from './time.ts';
-import type { Attribution, Evidence, IssueFact, ProjectSettings } from './types.ts';
+import { findDeadDebt } from './dead';
+import { makeSettings } from './settings';
+import { addDays } from './time';
+import type { Attribution, Evidence, IssueFact, ProjectSettings } from './types';
 
 const NOW = '2026-11-11T00:00:00.000Z';
 const SETTINGS: ProjectSettings = makeSettings('p1', 'PA');

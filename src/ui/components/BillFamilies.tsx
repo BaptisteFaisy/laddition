@@ -1,10 +1,11 @@
-import { Fragment, Heading, useState } from '@forge/ui';
-import type { Family } from '../../core/types.ts';
-import type { DebtBillView } from '../api.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { EvidenceList } from './EvidenceList.tsx';
-import { FamilyTable } from './FamilyTable.tsx';
+import { useState } from 'react';
+import { Fragment, Heading } from '../kit';
+import type { Family } from '../../core/types';
+import type { DebtBillView } from '../api';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { EvidenceList } from './EvidenceList';
+import { FamilyTable } from './FamilyTable';
 
 /**
  * Familles + preuves d'une addition. Choisir une famille filtre la liste :

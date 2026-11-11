@@ -1,9 +1,9 @@
-import { Fragment, Text } from '@forge/ui';
-import type { Family, ProjectSettings, ZoneCost } from '../../core/types.ts';
-import { BILLED_FAMILIES } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { familyLabel, formatJp, pair } from '../format.ts';
+import { Fragment, Text } from '../kit';
+import type { Family, ProjectSettings, ZoneCost } from '../../core/types';
+import { BILLED_FAMILIES } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { familyLabel, formatJp, pair } from '../format';
 
 /**
  * La ventilation d'une zone, telle qu'elle sort du calcul : une ligne par

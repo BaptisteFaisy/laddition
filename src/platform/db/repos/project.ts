@@ -5,12 +5,12 @@
  * Aucune fonction ne jette pour une donnée absente : elle rend `null` ou `[]`.
  */
 
-import type { Baseline, BootstrapProgress, ProjectSettings, Repayment } from '../../../core/types.ts';
-import type { SqlValue } from '../query.ts';
-import { insertRows, onDuplicateUpdate, projectOfIssue, replaceRows, selectRows } from '../query.ts';
-import type { BaselineRow, BootstrapProgressRow, RepaymentRow, SettingsRow } from '../mappers.ts';
-import { toBaseline, toBootstrapProgress, toProjectSettings, toRepayment } from '../mappers.ts';
-import { toDbBool, toDbDate, toDbDateRequired, toJson } from '../rows.ts';
+import type { Baseline, BootstrapProgress, ProjectSettings, Repayment } from '../../../core/types';
+import type { SqlValue } from '../query';
+import { insertRows, onDuplicateUpdate, projectOfIssue, replaceRows, selectRows } from '../query';
+import type { BaselineRow, BootstrapProgressRow, RepaymentRow, SettingsRow } from '../mappers';
+import { toBaseline, toBootstrapProgress, toProjectSettings, toRepayment } from '../mappers';
+import { toDbBool, toDbDate, toDbDateRequired, toJson } from '../rows';
 /* ------------------------------------------------------------- baseline */
 
 

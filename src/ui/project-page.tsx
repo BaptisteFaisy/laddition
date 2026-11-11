@@ -1,22 +1,24 @@
-import { Fragment, Heading, ProjectPage, Tab, Tabs, Text, useState } from '@forge/ui';
-import type { ProjectPageData } from './api.ts';
-import { getProjectPage } from './api.ts';
-import { useResolver } from './async.ts';
-import type { ScreenContext } from './context.ts';
-import { formatNumber } from './format.ts';
-import type { Locale } from './i18n/index.ts';
-import { t } from './i18n/index.ts';
-import { AsyncView } from './components/AsyncView.tsx';
-import { BillView } from './components/BillView.tsx';
-import { DeadTab } from './components/DeadTab.tsx';
-import { DemoBanner } from './components/DemoBanner.tsx';
-import { MethodTab } from './components/MethodTab.tsx';
-import { PhantomTab } from './components/PhantomTab.tsx';
-import { QualityBanner } from './components/QualityBanner.tsx';
-import { RankingTable } from './components/RankingTable.tsx';
-import { RepaymentTab } from './components/RepaymentTab.tsx';
-import { ScreenShell } from './components/ScreenShell.tsx';
-import { ZoneTab } from './components/ZoneTab.tsx';
+import { useState } from 'react';
+import { Fragment, Heading, ProjectPage, TabEntry, Tabs, Text } from './kit';
+import { mountScreen } from './mount';
+import type { ProjectPageData } from './api';
+import { getProjectPage } from './api';
+import { useResolver } from './async';
+import type { ScreenContext } from './context';
+import { formatNumber } from './format';
+import type { Locale } from './i18n/index';
+import { t } from './i18n/index';
+import { AsyncView } from './components/AsyncView';
+import { BillView } from './components/BillView';
+import { DeadTab } from './components/DeadTab';
+import { DemoBanner } from './components/DemoBanner';
+import { MethodTab } from './components/MethodTab';
+import { PhantomTab } from './components/PhantomTab';
+import { QualityBanner } from './components/QualityBanner';
+import { RankingTable } from './components/RankingTable';
+import { RepaymentTab } from './components/RepaymentTab';
+import { ScreenShell } from './components/ScreenShell';
+import { ZoneTab } from './components/ZoneTab';
 
 /** Écran 1 (§14) : le classement, puis les cinq onglets du projet. */
 export default function ProjectPageScreen(): JSX.Element {
@@ -61,27 +63,29 @@ function ProjectPageBody({ context, data }: { context: ScreenContext; data: Proj
 function ProjectTabs({ context, data }: { context: ScreenContext; data: ProjectPageData }): JSX.Element {
   const locale = context.locale;
   return (
-    <Tabs>
-      <Tab label={t(locale, 'project.tab.zones')}>
+    <Tabs id="laddition-tabs">
+      <TabEntry label={t(locale, 'project.tab.zones')}>
         <ZoneTab locale={locale} zones={data.zones} settings={data.settings} />
-      </Tab>
-      <Tab label={t(locale, 'project.tab.phantom')}>
+      </TabEntry>
+      <TabEntry label={t(locale, 'project.tab.phantom')}>
         <PhantomTab
           locale={locale}
           projectId={context.projectId}
           projectKey={context.projectKey}
           thresholdJp={data.settings.phantomThresholdJp}
         />
-      </Tab>
-      <Tab label={t(locale, 'project.tab.dead')}>
+      </TabEntry>
+      <TabEntry label={t(locale, 'project.tab.dead')}>
         <DeadTab locale={locale} projectId={context.projectId} deadDays={data.settings.deadDays} />
-      </Tab>
-      <Tab label={t(locale, 'project.tab.repayments')}>
+      </TabEntry>
+      <TabEntry label={t(locale, 'project.tab.repayments')}>
         <RepaymentTab locale={locale} projectId={context.projectId} />
-      </Tab>
-      <Tab label={t(locale, 'project.tab.method')}>
+      </TabEntry>
+      <TabEntry label={t(locale, 'project.tab.method')}>
         <MethodTab locale={locale} settings={data.settings} quality={data.quality} />
-      </Tab>
+      </TabEntry>
     </Tabs>
   );
 }
+
+mountScreen(<ProjectPageScreen />);

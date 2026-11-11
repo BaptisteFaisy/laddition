@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { computeQuality } from './quality.ts';
-import { makeSettings } from './settings.ts';
-import type { CostMethod, Evidence, Family, IssueFact, ProjectSettings } from './types.ts';
+import { computeQuality } from './quality';
+import { makeSettings } from './settings';
+import type { CostMethod, Evidence, Family, IssueFact, ProjectSettings } from './types';
 
 const SETTINGS: ProjectSettings = makeSettings('p1', 'PA');
 

@@ -1,26 +1,28 @@
-import { Fragment, TextField } from '@forge/ui';
-import type { ProjectSettings } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { numberFields } from '../settings-form-values.ts';
+import type { ProjectSettings } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { Fragment, TextField } from '../kit';
+import { numberFields } from '../settings-form-values';
 
 /** Journée de travail, fenêtre et coefficients : douze nombres, une seule boucle. */
 export function SettingsNumbersFields({
   locale,
-  settings,
+  values,
+  onChange,
 }: {
   locale: Locale;
-  settings: ProjectSettings;
+  values: ProjectSettings;
+  onChange: (key: string, value: string) => void;
 }): JSX.Element {
   return (
     <Fragment>
-      {numberFields(settings).map((field) => (
+      {numberFields(values).map((field) => (
         <TextField
           key={field.name}
-          type="number"
           name={field.name}
           label={t(locale, field.label)}
-          defaultValue={field.value}
+          defaultValue={String(field.value)}
+          onChange={(value) => onChange(field.name, value)}
         />
       ))}
     </Fragment>

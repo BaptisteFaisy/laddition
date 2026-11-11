@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import type { DebtBill, Family, FamilyTotal, IssueFact } from './types.ts';
-import { rankDebts } from './ranking.ts';
+import type { DebtBill, Family, FamilyTotal, IssueFact } from './types';
+import { rankDebts } from './ranking';
 
 /** Ventilation par famille, tout à zéro : le classement ne la lit pas. */
 function zeroFamilies(): Record<Family, FamilyTotal> {

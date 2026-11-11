@@ -1,9 +1,9 @@
-import type { CostContext, Evidence, IssueFact, IssueLink } from '../types.ts';
-import { c1Incidents } from './c1.ts';
-import { c2Bugs } from './c2.ts';
-import { c3Slowness } from './c3.ts';
-import { c4Rework } from './c4.ts';
-import { c5Delay } from './c5.ts';
+import type { CostContext, Evidence, IssueFact, IssueLink } from '../types';
+import { c1Incidents } from './c1';
+import { c2Bugs } from './c2';
+import { c3Slowness } from './c3';
+import { c4Rework } from './c4';
+import { c5Delay } from './c5';
 
 /** Familles qui entrent dans l'addition (C5 est un délai, jamais de l'effort). */
 export const BILLED = ['C1', 'C2', 'C3', 'C4'] as const;

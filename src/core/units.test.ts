@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { IssueFact } from './types.ts';
+import type { IssueFact } from './types';
 import {
   POINTS_PER_CLOSED_ISSUE,
   hoursToJp,
   jpToEuros,
   pointsToDays,
   velocityFromClosedIssues,
-} from './units.ts';
+} from './units';
 
 function makeFact(overrides: Partial<IssueFact> = {}): IssueFact {
   return {

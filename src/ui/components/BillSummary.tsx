@@ -1,13 +1,13 @@
-import { Fragment, Text } from '@forge/ui';
-import type { DebtBillView } from '../api.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatNumber } from '../format.ts';
-import { BillFamilies } from './BillFamilies.tsx';
-import { DemoBanner } from './DemoBanner.tsx';
-import { MatchList } from './MatchList.tsx';
-import { RangeBadge } from './RangeBadge.tsx';
-import { ReturnBlock } from './ReturnBlock.tsx';
+import { Fragment, Text } from '../kit';
+import type { DebtBillView } from '../api';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatNumber } from '../format';
+import { BillFamilies } from './BillFamilies';
+import { DemoBanner } from './DemoBanner';
+import { MatchList } from './MatchList';
+import { RangeBadge } from './RangeBadge';
+import { ReturnBlock } from './ReturnBlock';
 
 /** Le corps d'une addition : fourchette, familles, preuves, rapprochements, retour. */
 export function BillSummary({

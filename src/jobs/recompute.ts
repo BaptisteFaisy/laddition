@@ -12,16 +12,16 @@ import type {
   RelevanceScore,
   Rejection,
   StatusSpan,
-} from '../core/types.ts';
-import type { Confirmation } from '../core/attribution.ts';
-import { attributeEvidence } from '../core/attribution.ts';
-import { computeBaselines } from '../core/baseline.ts';
-import { buildBill } from '../core/bill.ts';
-import { collectEvidence } from '../core/families/index.ts';
-import { computeQuality } from '../core/quality.ts';
-import { rankDebts } from '../core/ranking.ts';
-import type { ZoneWeekInput } from '../platform/db/index.ts';
-import { weeklyZoneCosts } from './zoneCosts.ts';
+} from '../core/types';
+import type { Confirmation } from '../core/attribution';
+import { attributeEvidence } from '../core/attribution';
+import { computeBaselines } from '../core/baseline';
+import { buildBill } from '../core/bill';
+import { collectEvidence } from '../core/families/index';
+import { computeQuality } from '../core/quality';
+import { rankDebts } from '../core/ranking';
+import type { ZoneWeekInput } from '../platform/db/index';
+import { weeklyZoneCosts } from './zoneCosts';
 
 /**
  * Orchestration pure du calcul nocturne (§15).

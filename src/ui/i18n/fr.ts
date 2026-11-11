@@ -1,4 +1,4 @@
-import type { Messages } from './index.ts';
+import type { Messages } from './index';
 
 /**
  * Traductions françaises. Le type `Messages` est dérivé de `en.ts` : une clé

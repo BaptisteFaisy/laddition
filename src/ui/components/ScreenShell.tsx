@@ -1,10 +1,10 @@
-import { Fragment } from '@forge/ui';
-import type { ScreenContext } from '../context.ts';
-import { useScreenContext } from '../context.ts';
-import type { Locale } from '../i18n/index.ts';
-import { DEFAULT_LOCALE } from '../i18n/index.ts';
-import { ErrorState } from './ErrorState.tsx';
-import { LoadingState } from './LoadingState.tsx';
+import { Fragment } from '../kit';
+import type { ScreenContext } from '../context';
+import { useScreenContext } from '../context';
+import type { Locale } from '../i18n/index';
+import { DEFAULT_LOCALE } from '../i18n/index';
+import { ErrorState } from './ErrorState';
+import { LoadingState } from './LoadingState';
 
 /**
  * Enveloppe commune des six écrans : lit le contexte Forge une fois, affiche

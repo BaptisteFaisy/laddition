@@ -1,7 +1,7 @@
-import { Badge } from '@forge/ui';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatRange } from '../format.ts';
+import { Badge } from '../kit';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatRange } from '../format';
 
 /**
  * La fourchette, telle qu'elle doit apparaître partout : deux bornes, ou

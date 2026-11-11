@@ -1,9 +1,9 @@
 import { view } from '@forge/bridge';
-import { useEffect, useState } from '@forge/ui';
-import type { AsyncState } from './async.ts';
-import { errorMessage } from './async.ts';
-import type { Locale } from './i18n/index.ts';
-import { localeFrom } from './i18n/index.ts';
+import { useEffect, useState } from 'react';
+import type { AsyncState } from './async';
+import { errorMessage } from './async';
+import type { Locale } from './i18n/index';
+import { localeFrom } from './i18n/index';
 
 /** Ce dont un écran a besoin du contexte Forge, et rien de plus. */
 export type ScreenContext = {
@@ -46,6 +46,9 @@ export function useScreenContext(): AsyncState<ScreenContext> {
         if (!cancelled) setState({ status: 'error', message: errorMessage(error) });
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return state;

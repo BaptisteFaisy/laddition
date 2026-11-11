@@ -9,9 +9,9 @@
  * Fonction pure : l'instant de référence vient de `ctx.now`, aucune I/O.
  */
 
-import type { CostContext, CostMethod, Evidence, EvidenceDetail, IssueFact, ProjectSettings } from '../types.ts';
-import { addDays, businessDaysBetween, parseIso, round2, secondsToJp } from '../time.ts';
-import { splitAcrossZones, zonesForIssue } from '../zones.ts';
+import type { CostContext, CostMethod, Evidence, EvidenceDetail, IssueFact, ProjectSettings } from '../types';
+import { addDays, businessDaysBetween, parseIso, round2, secondsToJp } from '../time';
+import { splitAcrossZones, zonesForIssue } from '../zones';
 
 /** Nom lisible de la famille, affiché dans le détail d'une preuve. */
 const FAMILY_LABEL = 'Incidents';

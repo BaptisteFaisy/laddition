@@ -1,11 +1,11 @@
-import { Fragment, Text } from '@forge/ui';
-import type { DataQuality, ProjectSettings } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatNumber } from '../format.ts';
-import { MethodCoefficients } from './MethodCoefficients.tsx';
-import { MethodFormulas } from './MethodFormulas.tsx';
-import { MethodQuality } from './MethodQuality.tsx';
+import { Fragment, Text } from '../kit';
+import type { DataQuality, ProjectSettings } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatNumber } from '../format';
+import { MethodCoefficients } from './MethodCoefficients';
+import { MethodFormulas } from './MethodFormulas';
+import { MethodQuality } from './MethodQuality';
 
 /**
  * Onglet Méthode (§14) : les formules, les coefficients en vigueur et la

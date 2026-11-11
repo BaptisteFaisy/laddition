@@ -26,10 +26,10 @@ import type {
   Family,
   FamilyTotal,
   IssueFact,
-} from './types.ts';
-import { BILLED_FAMILIES } from './types.ts';
-import { round2 } from './time.ts';
-import { payback } from './payback.ts';
+} from './types';
+import { BILLED_FAMILIES } from './types';
+import { round2 } from './time';
+import { payback } from './payback';
 
 /** Les cinq familles du §9, C5 comprise : la grille affichée reste complète. */
 const ALL_FAMILIES: readonly Family[] = ['C1', 'C2', 'C3', 'C4', 'C5'];

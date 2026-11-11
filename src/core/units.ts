@@ -6,8 +6,8 @@
  * inutilisable rend `null` (valeur non chiffrable) ou `0`, jamais `NaN`.
  */
 
-import type { IssueFact } from './types.ts';
-import { round2 } from './time.ts';
+import type { IssueFact } from './types';
+import { round2 } from './time';
 
 /**
  * Un ticket fermé compte pour un point simulé (DT-15).

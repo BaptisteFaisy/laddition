@@ -1,27 +1,40 @@
 import Resolver from '@forge/resolver';
-import { RESOLVERS } from './resolvers/index.ts';
-import { bootstrapBatch } from './jobs/consumer.ts';
-import { nightlyRecalc, publishRepayments } from './jobs/scheduled.ts';
-import { issueCreated, issueUpdated, linkCreated, linkDeleted } from './jobs/triggers.ts';
-import { jqlTopDebts } from './resolvers/jql.ts';
+import { RESOLVERS } from './resolvers/index';
+import { bootstrapBatch } from './jobs/consumer';
+import { nightlyRecalc, publishRepayments } from './jobs/scheduled';
+import { issueCreated, issueUpdated, linkCreated, linkDeleted } from './jobs/triggers';
+import { jqlTopDebts } from './resolvers/jql';
+import {
+  confirmEvidence,
+  draftDebtTicket,
+  getDebtBill,
+  getDebtRanking,
+  getRepaymentReport,
+  getZoneCosts,
+  listDeadDebt,
+  listPhantomDebt,
+} from './mcp/actions';
 
 /**
  * Point d'entrée Forge de « L'addition ».
  *
- * Deux surfaces, et rien d'autre :
- * - le resolver par défaut, qui expose les clés appelées par les écrans (§14) ;
+ * Trois surfaces, et rien d'autre :
+ * - `resolver` : les clés appelées par les écrans (§14) ;
  * - les fonctions nommées que le manifeste appelle telles quelles : triggers
- *   Jira, `scheduledTrigger`, `consumer`, fonction JQL.
+ *   Jira, `scheduledTrigger`, `consumer`, fonction JQL ;
+ * - les huit actions Rovo / `rovo:mcp` (§13).
  *
  * Les noms exportés ici sont ceux du manifeste : les renommer casse le
  * déploiement sans erreur de compilation, d'où ce fichier unique et court.
  */
 
-/** Resolver des écrans : `new Resolver().define({...})`, une clé par écran. */
-const resolver = new Resolver();
-for (const [key, handler] of Object.entries(RESOLVERS)) resolver.define(key, handler);
+const resolverInstance = new Resolver();
+for (const [key, handler] of Object.entries(RESOLVERS)) resolverInstance.define(key, handler);
 
-export default resolver.getDefinitions();
+/** Resolver des écrans, référencé par `handler: index.resolver`. */
+export const resolver = resolverInstance.getDefinitions();
+
+export default resolver;
 
 /**
  * Triggers Jira (§15) : au fil de l'eau, sans calcul lourd.
@@ -42,3 +55,18 @@ export { bootstrapBatch };
 
 /** `jira:jqlFunction` (DT-19) : les dettes les plus coûteuses du projet. */
 export { jqlTopDebts };
+
+/**
+ * Actions Rovo et outils MCP (§13). Chacune a sa propre fonction dans le
+ * manifeste : l'agent peut en invoquer une sans charger les autres.
+ */
+export {
+  confirmEvidence,
+  draftDebtTicket,
+  getDebtBill,
+  getDebtRanking,
+  getRepaymentReport,
+  getZoneCosts,
+  listDeadDebt,
+  listPhantomDebt,
+};

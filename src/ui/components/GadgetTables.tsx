@@ -1,10 +1,10 @@
-import { Cell, Head, Row, Table, Text } from '@forge/ui';
-import type { RankedDebt } from '../../core/types.ts';
-import type { QuarterCost, TeamCost } from '../api.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatJp } from '../format.ts';
-import { RangeBadge } from './RangeBadge.tsx';
+import { Cell, Head, Row, Table, Text } from '../kit';
+import type { RankedDebt } from '../../core/types';
+import type { QuarterCost, TeamCost } from '../api';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatJp } from '../format';
+import { RangeBadge } from './RangeBadge';
 
 /** Les principales dettes du gadget : un classement tronqué, rien de calculé ici. */
 export function TopDebtsTable({ locale, debts }: { locale: Locale; debts: RankedDebt[] }): JSX.Element {

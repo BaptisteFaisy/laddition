@@ -9,23 +9,23 @@ import type {
   RankedDebt,
   Repayment,
   ZoneCost,
-} from '../core/types.ts';
-import { findDeadDebt } from '../core/dead.ts';
-import { findPhantomDebt } from '../core/phantom.ts';
-import { computeQuality } from '../core/quality.ts';
-import { makeSettings } from '../core/settings.ts';
+} from '../core/types';
+import { findDeadDebt } from '../core/dead';
+import { findPhantomDebt } from '../core/phantom';
+import { computeQuality } from '../core/quality';
+import { makeSettings } from '../core/settings';
 import {
   bootstrapProgress as readProgress,
   getSettings as readSettings,
   listEvidence,
   listRepayments,
-} from '../platform/db/index.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, nowIso, optionalString, payloadOf } from '../jobs/support.ts';
-import type { QuarterCost, TeamCost } from './aggregate.ts';
-import { costByQuarter, costByTeam } from './aggregate.ts';
-import { projectIdOf } from '../jobs/projects.ts';
-import { loadState } from './state.ts';
+} from '../platform/db/index';
+import type { Failure } from '../jobs/support';
+import { guard, nowIso, optionalString, payloadOf } from '../jobs/support';
+import type { QuarterCost, TeamCost } from './aggregate';
+import { costByQuarter, costByTeam } from './aggregate';
+import { projectIdOf } from '../jobs/projects';
+import { loadState } from './state';
 
 /**
  * Résolveurs de lecture : l'écran affiche, il ne calcule pas (§15).

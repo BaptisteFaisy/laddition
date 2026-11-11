@@ -12,9 +12,9 @@
  * reste lisible quelle que soit la date d'injection.
  */
 
-import type { IssueFact, IssueLink, ProjectSettings, SizeClass, StatusCategory, StatusSpan } from '../core/types.ts';
-import { makeSettings } from '../core/settings.ts';
-import { addDays, isoWeekStart } from '../core/time.ts';
+import type { IssueFact, IssueLink, ProjectSettings, SizeClass, StatusCategory, StatusSpan } from '../core/types';
+import { makeSettings } from '../core/settings';
+import { addDays, isoWeekStart } from '../core/time';
 
 /** Clé du projet fictif, seule valeur que l'agent et les actions MCP reçoivent. */
 export const SAMPLE_PROJECT_KEY = 'PAY';
