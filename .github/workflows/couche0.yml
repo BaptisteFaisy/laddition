@@ -8,12 +8,6 @@ name: couche0
 
 on:
   pull_request:
-    paths:
-      - 'src/**'
-      - 'tools/**'
-      - 'manifest.yml'
-      - 'package.json'
-      - '.github/workflows/couche0.yml'
   push:
     branches: [main]
     paths:
