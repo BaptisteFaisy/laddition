@@ -1,6 +1,6 @@
 # L'addition
 
-**What your technical debt actually costs — measured on the last 90 days, in person-days, with the evidence behind every figure.**
+**What your technical debt actually costs — measured over the last 90 days, in person-days, with the evidence behind every figure.**
 
 ## The problem
 
