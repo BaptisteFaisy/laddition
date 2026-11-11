@@ -141,6 +141,15 @@ check('refresh refusé : pas de check rouge', not fx.called('POST', '/check-runs
 check('refresh refusé : pas de label conflit', not fx.called('POST', '/issues/5/labels'))
 check('refresh refusé : verdict behind', r == 'behind')
 
+# 5b. mergeable inconnu dans la liste -> le gate relit la PR et voit le conflit
+fx = FakeApi()
+fx.compare_behind = 1
+fx.pull = pr(7, mergeable=False, mergeable_state='dirty')
+r = run(fx, pr(7))
+check('relecture : GET /pulls/7 appelé', fx.called('GET', '/pulls/7'))
+check('relecture : conflit détecté', r == 'conflict')
+check('relecture : label conflit posé', fx.called('POST', '/issues/7/labels'))
+
 # 6. Rebase refusé ET PR réellement en conflit -> conflit, escalade
 fx = FakeApi()
 fx.compare_behind = 2

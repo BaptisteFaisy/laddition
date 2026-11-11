@@ -194,7 +194,7 @@ def main(argv=None):
 
 
 def spawn(args):
-    """Lance le chat en processus détaché ; retourne 0 dans tous les cas."""
+    """Lance le chat hors du job CI ; retourne 0 dans tous les cas."""
     num, sha = args.pr, os.environ.get('HERMES_PR_HEAD_SHA', '')
     if already_spawned(num, sha):
         print('[agent] #%d : déjà saisi pour ce commit — rien de plus' % num, flush=True)
@@ -207,15 +207,62 @@ def spawn(args):
     log = open(os.path.join(state_dir(), 'pr-%d.log' % num), 'ab', buffering=0)
     cmd = [sys.executable, os.path.abspath(__file__), '--run',
            '--repo', args.repo, '--pr', str(num)]
+    mode = launch_detached(cmd, num, log)
+    print('[agent] #%d : chat ZeroClaw lancé via %s (agent %s sur %s)'
+          % (num, mode, env('HERMES_ZC_AGENT', 'hermes'),
+             env('HERMES_ZC_URL', 'http://127.0.0.1:42617')), flush=True)
+    return 0
+
+
+def env_file_path(num):
+    return os.path.join(state_dir(), 'pr-%d.env' % num)
+
+
+def write_env_file(num):
+    """Fichier d'environnement (0600) pour l'unité transitoire systemd."""
+    keep = ('GH_TOKEN', 'GITHUB_TOKEN', 'GITHUB_REPOSITORY', 'HOME', 'PATH',
+            'HERMES_ZC_URL', 'HERMES_ZC_AGENT', 'HERMES_ZC_TOKEN_FILE',
+            'HERMES_AGENT_TIMEOUT', 'HERMES_AGENT_RESOLVE', 'HERMES_STATE_DIR')
+    lines = ['HERMES_PR_HEAD_SHA=%s' % os.environ.get('HERMES_PR_HEAD_SHA', '')]
+    for key in keep:
+        value = os.environ.get(key)
+        if value:
+            lines.append('%s=%s' % (key, value))
+    path = env_file_path(num)
+    with open(path, 'w', encoding='utf-8') as handle:
+        handle.write('\n'.join(lines) + '\n')
+    os.chmod(path, 0o600)
+    return path
+
+
+def launch_detached(cmd, num, log):
+    """Démarre `--run` hors du cgroup du job CI.
+
+    Le runner GitHub tue toute sa descendance quand le job se termine : un
+    simple `start_new_session=True` n'y survit pas (constat du 11/11 sur la
+    PR #6 — le processus `--run` disparaît dès la fin du job, le chat n'est
+    jamais mené à son terme). `systemd-run --user` crée une unité transitoire
+    indépendante du job ; sans systemd, repli sur le détachement simple.
+    """
+    env_path = write_env_file(num)
+    unit = 'hermes-pr-%d' % num
+    transient = ['systemd-run', '--user', '--unit=%s' % unit, '--collect',
+                 '--property=EnvironmentFile=%s' % env_path] + cmd
+    try:
+        subprocess.Popen(transient, stdout=log, stderr=log,
+                         stdin=subprocess.DEVNULL, start_new_session=True)
+        return 'systemd'
+    except OSError as exc:
+        print('[agent] #%d : systemd-run indisponible (%r) — repli détaché'
+              % (num, exc), flush=True)
     try:
         subprocess.Popen(cmd, stdout=log, stderr=log, stdin=subprocess.DEVNULL,
                          start_new_session=True, env=dict(os.environ))
-        print('[agent] #%d : chat ZeroClaw lancé (agent %s sur %s)'
-              % (num, env('HERMES_ZC_AGENT', 'hermes'),
-                 env('HERMES_ZC_URL', 'http://127.0.0.1:42617')), flush=True)
+        return 'detach'
     except OSError as exc:
         print('[agent] #%d : lancement impossible %r' % (num, exc), flush=True)
-    return 0
+        return 'echec'
+
 
 
 def count_recent_spawns():
@@ -309,8 +356,27 @@ def post_back(args, repo, num, text, ok):
         gh('POST', '/repos/%s/issues/%d/labels' % (repo, num), token, {'labels': labels})
 
 
+def remove_env_file(num):
+    """Le fichier d'environnement porte un jeton : il ne survit pas au run."""
+    try:
+        os.remove(env_file_path(num))
+    except OSError:
+        pass
+
+
 def run(args):
+    try:
+        return run_body(args)
+    finally:
+        remove_env_file(args.pr)
+
+
+def run_body(args):
     token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
+    if not token:
+        print('[agent] #%d : GH_TOKEN absent — saisine abandonnée' % args.pr,
+              flush=True)
+        return 0
     pr, files, recent = conflict_facts(token, args.repo, args.pr)
     reason = None if args.malgre_etat else eligible(token, args.repo, pr)
     if reason:
