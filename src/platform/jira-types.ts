@@ -69,11 +69,23 @@ export interface JiraLink {
   outwardIssue?: { id?: string; key?: string };
 }
 
-/** Une page de `GET /rest/api/3/issue/{key}/changelog`. */
+/**
+ * Une page de `GET /rest/api/3/issue/{key}/changelog`.
+ *
+ * L'API paginée répond `values` (avec `nextPage`), tandis que le changelog
+ * embarqué dans un ticket (`?expand=changelog`) répond `histories`. Les deux
+ * formes sont acceptées : ne lire que l'une faisait des historiques vides sur
+ * un vrai site (constat du 11/11 sur one-atlas-cndz, ITO-9641 : `total: 11`,
+ * `histories` absent, 11 entrées sous `values`).
+ */
 export interface ChangelogPage {
+  values?: JiraHistory[];
   histories?: JiraHistory[];
   total?: number;
   isLast?: boolean;
+  startAt?: number;
+  maxResults?: number;
+  nextPage?: string;
 }
 
 /** Une page de `GET /rest/api/3/issue/{key}/comment`. */

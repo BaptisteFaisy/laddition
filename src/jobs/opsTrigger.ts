@@ -9,6 +9,7 @@ import {
 } from './ops';
 import { compareBill, injectSample, readReport, removeSample } from './opsReport';
 import { exerciseMcp } from './opsMcp';
+import { runProbe } from './opsValidate';
 import type { OpsReport } from './ops';
 import { ensureReady } from './schema';
 import { messageOf, nowIso } from './support';
@@ -37,6 +38,7 @@ const ACTIONS = [
   'report',
   'bill',
   'mcp',
+  'probe',
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -76,6 +78,13 @@ async function dispatch(
       return runAction('report', () => readReport(projectKey));
     case 'bill':
       return runAction('bill', () => compareBill(firstParam(request, 'key') ?? 'PAY-77'));
+    case 'probe':
+      return runAction('probe', () =>
+        runProbe(
+          firstParam(request, 'probe') ?? 'throughput',
+          projectKey,
+          Number(firstParam(request, 'sample') ?? '20'),
+        ));
     case 'mcp':
       return runAction('mcp', () =>
         exerciseMcp(

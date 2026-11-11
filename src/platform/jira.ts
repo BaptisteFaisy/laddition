@@ -183,6 +183,16 @@ export async function fetchIssue(key: string): Promise<JiraIssueJson | null> {
  * Rend `null` si le catalogue de statuts est illisible : sans lui, aucune
  * catégorie n'est fiable et le calcul doit retomber sur l'approximation (§19).
  */
+/**
+ * Entrées d'une page de changelog, quelle que soit sa forme.
+ *
+ * Fonction pure exportée pour être testée sans Forge : c'est elle qui a été
+ * prise en défaut le 11/11 (lecture de `histories` sur une réponse en `values`).
+ */
+export function historyItemsOf(page: ChangelogPage): JiraHistory[] {
+  return page.values ?? page.histories ?? [];
+}
+
 export async function fetchChangelog(issueIdOrKey: string, startAt = 0): Promise<HistoryEntry[] | null> {
   const categories = await loadStatusCategories();
   if (!categories) {
@@ -197,7 +207,7 @@ export async function fetchChangelog(issueIdOrKey: string, startAt = 0): Promise
       `changelog ${issueIdOrKey}`,
     );
     if (!data) return page === 0 ? null : entries;
-    const histories = data.histories ?? [];
+    const histories = historyItemsOf(data);
     for (const history of histories) entries.push(...toHistoryEntries(history, categories));
     cursor += histories.length;
     if (data.isLast === true || histories.length === 0) return entries;
