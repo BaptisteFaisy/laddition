@@ -29,6 +29,8 @@ modules:
       timeoutSeconds: 900
     - key: jql-top-debts
       handler: index.jqlTopDebts
+    - key: smoke-test
+      handler: index.smokeTriggerHandler
     # Actions Rovo / rovo:mcp : chaque action a sa propre fonction, pour que
     # l'agent puisse les invoquer une par une (§13).
     - key: getDebtRanking
@@ -120,6 +122,12 @@ modules:
       resource: settings-page
       resolver:
         function: resolver
+
+  # Diagnostic de bout en bout, sans navigateur : prouve que le runtime Forge
+  # exécute bien SQL, REST Jira et le domaine. URL obtenue par `forge webtrigger create`.
+  webtrigger:
+    - key: laddition-smoke
+      function: smoke-test
 
   # -------------------------------------------------------------- événements
   trigger:

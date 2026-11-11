@@ -4,6 +4,7 @@ import { bootstrapBatch } from './jobs/consumer';
 import { nightlyRecalc, publishRepayments } from './jobs/scheduled';
 import { issueCreated, issueUpdated, linkCreated, linkDeleted } from './jobs/triggers';
 import { jqlTopDebts } from './resolvers/jql';
+import { smokeTriggerHandler } from './jobs/smokeTrigger';
 import {
   confirmEvidence,
   draftDebtTicket,
@@ -55,6 +56,9 @@ export { bootstrapBatch };
 
 /** `jira:jqlFunction` (DT-19) : les dettes les plus coûteuses du projet. */
 export { jqlTopDebts };
+
+/** `webtrigger` : diagnostic de bout en bout (SQL, REST Jira, domaine). */
+export { smokeTriggerHandler };
 
 /**
  * Actions Rovo et outils MCP (§13). Chacune a sa propre fonction dans le
