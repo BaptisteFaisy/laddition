@@ -69,6 +69,21 @@
 - [x] Textes de soumission écrits : `docs/MARKETPLACE.md` (formulaire Marketplace,
       scopes justifiés un par un, 12 captures à produire) et `docs/DEVPOST.md`
       (champs du formulaire Devpost).
+- [x] **Environnement `production` vérifié de bout en bout** ( smoke test sur
+      `one-atlas-cndz.atlassian.net`, projet ENGS) :
+
+      | Étape | Résultat | Durée |
+      |---|---|---|
+      | `schema-sql` | tables créées dans la partition production | 3 804 ms |
+      | `file-events` | message poussé dans la file Forge Events (jobId rendu) | 530 ms |
+      | `lecture-jira` | projet ENGS, 20 tickets lus en tant qu'app | 742 ms |
+      | `calcul-domaine` | 20 tickets analysés, 2 dettes, 1 preuve, 2 lignes de classement | 344 ms |
+
+- [x] **Recalcul nocturne exécuté pour de vrai sur les cinq projets initialisés**
+      (`?action=recalc-all`, le même code que le `scheduledTrigger`) :
+      **40 secondes** au total, 66 preuves, 5 additions, champ écrit sans
+      réécrire les valeurs identiques, puis **7 bulletins de remboursement**
+      publiés par `?action=repayments`.
 
 ## Ce qui reste à faire avant le 22 décembre
 
