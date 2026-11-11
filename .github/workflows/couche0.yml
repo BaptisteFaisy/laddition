@@ -16,8 +16,10 @@ on:
       - 'manifest.yml'
 
 concurrency:
-  group: couche0-${{ github.ref }}
-  cancel-in-progress: true
+  # Un groupe PAR PR (par ref pour push/main) et aucune annulation : un check
+  # annulé compte rouge pour Mergify (piège de concurrency n°1).
+  group: couche0-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
