@@ -17,13 +17,22 @@
 
 ## Ce qui reste à faire avant le 22 décembre
 
-- [ ] `forge register` sur le site de démonstration, puis remplacer l'identifiant
-      `REPLACE_WITH_APP_ID` dans `manifest.yml` et déployer (`forge deploy`).
+- [x] `forge register` sur le compte Atlassian : app id `15da522f-986f-4b46-8844-d4b8c2bcaf8e` posé dans `manifest.yml`.
+- [x] `forge lint` propre (No issues found) et `forge build` OK (tag `b88e1c7b`).
+- [x] `forge deploy -e development` : déployé.
+- [x] `forge site provision` : site de démo `https://one-atlas-cndz.atlassian.net` (actif jusqu'au 09/02/2027).
+- [x] `forge install --demo-site --product jira -e development` : installé et à jour sur Jira.
+- [x] `forge eligibility` : confirmé éligible au programme **Runs on Atlassian**.
+- [x] Tickets de test réels créés dans le projet PAY du site : `PAY-17` (dette « Supprimer le double système de calcul des taxes ») et `PAY-18` (bug « Montant de TVA incohérent »).
+
+## Ce qui reste à faire avant le 22 décembre
+
 - [ ] Valider les six points du §17 (voir `docs/VALIDATIONS.md`) sur le site réel :
       volume et débit de lecture des historiques, écriture en masse du champ,
       données du site de démonstration, champ « services affectés » des incidents,
       dates d'ouverture et de fusion des PR, accès Compass.
 - [ ] Enregistrer la vidéo de moins de cinq minutes (scénario prêt dans `docs/VIDEO.md`).
+- [ ] Déployer en `production` (`forge deploy -e production`) et installer en production avant le gel du 15 décembre.
 - [ ] Rédiger la description Marketplace (boutons, permissions, captures).
 - [ ] Déposer sur le Marketplace (le dépôt reste public, licence MIT).
 
