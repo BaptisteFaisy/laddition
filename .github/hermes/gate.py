@@ -266,12 +266,36 @@ def compare_behind(repo, token, base_ref, sha):
     return behind if isinstance(behind, int) else -1
 
 
+def reload_mergeability(repo, token, num, attempts=3, pause=2):
+    """Relit la PR jusqu'à ce que GitHub ait calculé sa fusionnabilité.
+
+    La liste `/pulls?state=open` rend toujours `mergeable: null` : sans cette
+    relecture, un conflit réel n'est JAMAIS détecté sur les passages
+    `check_run`, `workflow_dispatch` et le cron de secours — la PR reste
+    étiquetée « approuvée » pendant que la file la déqueue en boucle
+    (constat du 11/11 sur la PR #6).
+    """
+    for attempt in range(attempts):
+        sc, fresh = api('GET', '/repos/%s/pulls/%d' % (repo, num), token=token)
+        if sc == 200 and isinstance(fresh, dict):
+            state = fresh.get('mergeable_state') or ''
+            if fresh.get('mergeable') is not None:
+                return fresh.get('mergeable'), state
+            if state == 'dirty':
+                return False, state
+        if attempt + 1 < attempts:
+            time.sleep(pause)
+    return None, ''
+
+
 def handle_pr(pr, repo, token, required, dry=False, refresh=True):
     num = pr['number']
     sha = pr['head']['sha']
     base_ref = pr['base']['ref']
     mergeable = pr.get('mergeable')           # None = calcul en cours
     mergeable_state = pr.get('mergeable_state') or ''
+    if mergeable is None:
+        mergeable, mergeable_state = reload_mergeability(repo, token, num)
 
     # Débloquer d'abord : un run en attente d'approbation ne produit aucun
     # check, donc juger maintenant donnerait un verdict sur du vide.
