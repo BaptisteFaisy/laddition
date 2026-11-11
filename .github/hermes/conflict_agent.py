@@ -322,16 +322,25 @@ def eligible(token, repo, pr):
     return None
 
 
-def still_conflicting(token, repo, num):
+def still_conflicting(token, repo, num, attempts=6, pause=10):
     """Vrai si la PR est toujours en conflit après le passage de l'agent.
 
     C'est le seul juge honnête : l'agent peut avoir résolu en local sans pouvoir
     pousser (droits du jeton), ou avoir poussé sans que GitHub ait recalculé.
+    Juste après un push, GitHub rend `mergeable: null` pendant quelques
+    secondes : on relit jusqu'à ce qu'il ait tranché, sinon on proclame un
+    échec sur un état périmé (constat du 11/11 sur la PR #6, résolue et
+    mergée une minute plus tard).
     """
-    sc, pr = gh('GET', '/repos/%s/pulls/%d' % (repo, num), token)
-    if sc != 200 or not isinstance(pr, dict):
-        return True                     # dans le doute : pas de succès proclamé
-    return (pr.get('mergeable_state') or '') == 'dirty'
+    for attempt in range(attempts):
+        sc, pr = gh('GET', '/repos/%s/pulls/%d' % (repo, num), token)
+        if sc != 200 or not isinstance(pr, dict):
+            return True                 # dans le doute : pas de succès proclamé
+        if pr.get('mergeable') is not None:
+            return (pr.get('mergeable_state') or '') == 'dirty'
+        if attempt + 1 < attempts:
+            time.sleep(pause)
+    return True
 
 
 def post_back(args, repo, num, text, ok):
@@ -341,8 +350,13 @@ def post_back(args, repo, num, text, ok):
         return
     body = '_hermes · chat ZeroClaw `%s` (provider InferHub)_\n\n%s' % (
         env('HERMES_ZC_AGENT', 'hermes'), text)
-    gh('POST', '/repos/%s/issues/%d/comments' % (repo, num), token,
-       {'body': body[:65000]})
+    sc, _ = gh('POST', '/repos/%s/issues/%d/comments' % (repo, num), token,
+               {'body': body[:65000]})
+    if sc not in (200, 201):
+        # Un 403 (quota) ou un 422 ne doit pas passer pour une publication :
+        # le compte rendu est la seule trace lisible du passage de l'agent.
+        print('[agent] #%d : commentaire NON publié (HTTP %s)' % (num, sc),
+              flush=True)
     title = ('Conflit réconcilié par l\'agent' if ok
              else 'Agent rendu, conflit persistant — humain nécessaire')
     sc, pr = gh('GET', '/repos/%s/pulls/%d' % (repo, num), token)
