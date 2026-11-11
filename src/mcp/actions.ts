@@ -10,7 +10,6 @@
  */
 
 import type {
-  Attribution,
   DeadDebt,
   DebtBill,
   Evidence,
@@ -27,17 +26,17 @@ import { rankDebts } from '../core/ranking';
 import { makeSettings } from '../core/settings';
 import { addDays, round2, weeksBetween } from '../core/time';
 import {
+  getIssueFactByKey,
   getSettings,
-  insertRejection,
   listAttributions,
   listBills,
   listDebtIssues,
   listEvidence,
   listRepayments,
   listZoneWeeks,
-  replaceAttributions,
 } from '../platform/db/index';
 import { projectIdByKey } from '../jobs/projects';
+import { confirmMatch as decideConfirm, rejectMatch as decideReject } from '../jobs/decisions';
 import type { ActionEnvelope, JsonPayload } from './result';
 import { optionalNumber, optionalText, requireBoolean, requireText, run } from './result';
 
@@ -129,6 +128,12 @@ interface LocatedDebt {
 
 /** Retrouve la dette et son projet ; jette un motif clair si elle est absente. */
 async function locateDebt(issueKey: string): Promise<LocatedDebt> {
+  const byKey = await getIssueFactByKey(issueKey);
+  if (byKey) {
+    const settings = (await getSettings(byKey.projectId)) ?? makeSettings(byKey.projectId, byKey.projectKey);
+    if (!byKey.isDebt) throw new Error(`« ${issueKey} » n'est pas un ticket de dette`);
+    return { project: { projectId: byKey.projectId, projectKey: byKey.projectKey, settings }, debt: byKey };
+  }
   const project = await projectOf(projectKeyOf(issueKey));
   const debts = await listDebtIssues(project.projectId);
   const debt = debts.find((item) => item.key === issueKey);
@@ -295,16 +300,23 @@ export interface RepaymentData {
 export async function getRepaymentReport(payload: JsonPayload): Promise<ActionEnvelope<RepaymentData>> {
   return run(async () => {
     const issueKey = requireText(payload, 'issueKey');
-    const project = await projectOf(projectKeyOf(issueKey));
-    const repayments = await listRepayments(project.projectId);
+    const located = await locateProjectOfIssue(issueKey);
+    const repayments = await listRepayments(located.projectId);
     const repayment = repayments.find((item) => item.key === issueKey);
     if (!repayment) throw new Error(`aucun bulletin de remboursement pour « ${issueKey} »`);
     return {
-      projectKey: project.projectKey,
+      projectKey: located.projectKey,
       repayment,
       causalWarning: 'comparaison avant/après, sans preuve de causalité',
     };
   });
+}
+
+/** Projet qui héberge un ticket : la clé enregistrée prime sur le préfixe. */
+async function locateProjectOfIssue(issueKey: string): Promise<{ projectId: string; projectKey: string }> {
+  const fact = await getIssueFactByKey(issueKey);
+  if (fact) return { projectId: fact.projectId, projectKey: fact.projectKey };
+  return projectOf(projectKeyOf(issueKey));
 }
 
 /** Préfixe d'une clé de ticket (`PAY-77` → `PAY`). */
@@ -406,17 +418,20 @@ export async function confirmEvidence(payload: JsonPayload): Promise<ActionEnvel
     const confirmed = requireBoolean(payload, 'confirmed');
     const located = await locateDebt(debtKey);
     const evidence = await evidenceFor(evidenceKey, located.project.projectId);
-    if (confirmed) {
-      const updated = await confirmMatch(located, evidence, optionalText(payload, 'by'));
-      return { evidenceId: evidence.id, debtIssueId: located.debt.issueId, confirmed, basis: 'confirmed', updated };
-    }
-    await insertRejection({
-      evidenceId: evidence.id,
-      debtIssueId: located.debt.issueId,
-      rejectedBy: optionalText(payload, 'by') ?? 'rovo',
-      at: nowIso(),
-    });
-    return { evidenceId: evidence.id, debtIssueId: located.debt.issueId, confirmed, basis: 'rejected', updated: 0 };
+    const by = optionalText(payload, 'by') ?? 'rovo';
+    const projectId = located.project.projectId;
+    // Même module que l'écran : la décision est enregistrée comme telle, donc
+    // elle survit au recalcul nocturne (un simple réécriture des parts, non).
+    const outcome = confirmed
+      ? await decideConfirm(projectId, evidence.id, located.debt.issueId, by)
+      : await decideReject(projectId, evidence.id, located.debt.issueId, by);
+    return {
+      evidenceId: outcome.evidenceId,
+      debtIssueId: outcome.debtIssueId,
+      confirmed,
+      basis: confirmed ? 'confirmed' : 'rejected',
+      updated: outcome.bills,
+    };
   });
 }
 
@@ -428,23 +443,3 @@ async function evidenceFor(evidenceKey: string, projectId: string): Promise<Evid
   return found;
 }
 
-/**
- * Écrit la confirmation : les parts du couple preuve / dette sont remplacées par
- * une attribution `confirmed` pleine, les autres sont conservées telles quelles.
- */
-async function confirmMatch(located: LocatedDebt, evidence: Evidence, by: string | null): Promise<number> {
-  const existing = await listAttributions(located.project.projectId);
-  const kept = existing.filter(
-    (item) => !(item.evidenceId === evidence.id && item.debtIssueId === located.debt.issueId),
-  );
-  const confirmed: Attribution = {
-    evidenceId: evidence.id,
-    debtIssueId: located.debt.issueId,
-    share: 1,
-    basis: 'confirmed',
-    relevance: 1,
-    rationale: by ? `Rapprochement confirmé par ${by}` : 'Rapprochement confirmé par un humain',
-  };
-  await replaceAttributions(located.project.projectId, [...kept, confirmed]);
-  return kept.length + 1;
-}

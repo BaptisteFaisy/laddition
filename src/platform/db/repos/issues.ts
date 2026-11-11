@@ -87,6 +87,19 @@ export async function getIssueFact(issueId: string): Promise<IssueFact | null> {
   return row ? toIssueFact(row) : null;
 }
 
+/**
+ * Lit un fait de ticket par sa clé Jira (`PAY-77`).
+ *
+ * Sert aux outils MCP : un agent donne une clé, pas un identifiant de projet.
+ * La clé est indexée (`idx_issue_fact_key`), la lecture est directe et ne
+ * suppose rien du projet qui l'héberge.
+ */
+export async function getIssueFactByKey(issueKey: string): Promise<IssueFact | null> {
+  const rows = await selectRows<IssueFactRow>('SELECT * FROM issue_fact WHERE issue_key = ? LIMIT 1', [issueKey]);
+  const row = rows[0];
+  return row ? toIssueFact(row) : null;
+}
+
 /** Tickets de dette désignés par la règle du projet (DT-01). */
 export async function listDebtIssues(projectId: string): Promise<IssueFact[]> {
   const rows = await selectRows<IssueFactRow>(
