@@ -30,6 +30,11 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+          # Le workspace d'un runner self-hosted est persistant : garder
+          # node_modules d'un run à l'autre évite 1,6 Go de réinstallation à
+          # chaque PR (mesuré le 11/11 : npm ci seul dépassait le budget de
+          # 5 min quand la machine est chargée).
+          clean: false
       - name: Node 22 (déjà installé sur le worker)
         id: localnode
         run: |
@@ -42,9 +47,15 @@ jobs:
         if: steps.localnode.outputs.found != '1'
         with:
           node-version: 22
-          cache: npm
-      - name: Dépendances (cache npm du runner)
-        run: npm ci --no-audit --no-fund --prefer-offline
+      - name: Dépendances (installées seulement si le lockfile a changé)
+        run: |
+          HASH=$(sha256sum package-lock.json | cut -d' ' -f1)
+          if [ "$(cat node_modules/.laddition-lock 2>/dev/null)" = "$HASH" ]; then
+            echo "node_modules à jour ($HASH) — npm ci ignoré"
+          else
+            npm ci --no-audit --no-fund --prefer-offline
+            echo "$HASH" > node_modules/.laddition-lock
+          fi
       - name: Typage strict
         run: npm run typecheck
       - name: Tests du domaine
