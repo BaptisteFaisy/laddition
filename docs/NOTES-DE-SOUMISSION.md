@@ -55,6 +55,21 @@
       `identical: true`).
 - [x] Les huit outils MCP du §13 exercés un par un sur le runtime, tous verts.
 
+- [x] **Déployé et installé en `production`** sur `one-atlas-cndz.atlassian.net`
+      (installation `a27c13d4`, à jour), en plus de l'environnement `development`
+      (`f03fa159`). Console :
+      <https://developer.atlassian.com/console/myapps/15da522f-986f-4b46-8844-d4b8c2bcaf8e>
+- [x] **Recette §20 n° 1 vérifiée sur de vraies données Jira** (pas le jeu
+      d'exemple) : projet ENGS, dette `ENGS-31` (étiquette `tech-debt`, composant
+      *Billing Services*), bug `ENGS-32` sur le même composant avec **14 h de
+      temps saisi** (= 2 j-p à 7 h/j), relié à la dette par un lien Jira.
+      Initialisation 3/3, recalcul : **1 preuve, 2 additions, 2 champs écrits**,
+      et l'addition de `ENGS-31` vaut **2 – 2 j-p** : le bug lié tombe bien à
+      100 % dans la fourchette **basse**. MCP et panneau identiques.
+- [x] Textes de soumission écrits : `docs/MARKETPLACE.md` (formulaire Marketplace,
+      scopes justifiés un par un, 12 captures à produire) et `docs/DEVPOST.md`
+      (champs du formulaire Devpost).
+
 ## Ce qui reste à faire avant le 22 décembre
 
 - [ ] Enregistrer la vidéo de moins de cinq minutes (scénario prêt dans `docs/VIDEO.md`).
@@ -64,9 +79,10 @@
       replis sont en place ; le bonus « Teamwork Graph » se joue là.
 - [ ] Vérifier les six écrans dans le navigateur (Projet → L'addition, panneau de
       ticket, encart sur un bug, champ, gadget, réglages).
-- [ ] Déployer en `production` et installer en production avant le gel du 15 décembre.
-- [ ] Rédiger la description Marketplace (boutons, permissions, captures).
-- [ ] Déposer sur le Marketplace (le dépôt reste public, licence MIT).
+- [ ] Produire les 12 captures listées dans `docs/MARKETPLACE.md`.
+- [ ] Déposer sur Devpost (texte prêt dans `docs/DEVPOST.md`) et sur le
+      Marketplace (texte prêt dans `docs/MARKETPLACE.md`) — les deux dépôts se
+      font depuis un navigateur, avec ton compte.
 
 ## Les trois chiffres à dire à l'oral
 
