@@ -9,9 +9,9 @@ import type {
   RelevanceScore,
   Rejection,
   ProjectSettings,
-} from './types.ts';
-import { makeSettings } from './settings.ts';
-import { attributeEvidence, isHighBandOnly } from './attribution.ts';
+} from './types';
+import { makeSettings } from './settings';
+import { attributeEvidence, isHighBandOnly } from './attribution';
 
 /** Détail de preuve minimal, suffisant pour les tests d'attribution. */
 const DETAIL: EvidenceDetail = {

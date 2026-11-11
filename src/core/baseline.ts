@@ -1,7 +1,7 @@
-import type { Baseline, IssueFact, ProjectSettings, SizeClass, StatusSpan } from './types.ts';
-import { approximateDays, inProgressDays } from './duration.ts';
-import { round2, secondsToJp } from './time.ts';
-import { zonesForIssue } from './zones.ts';
+import type { Baseline, IssueFact, ProjectSettings, SizeClass, StatusSpan } from './types';
+import { approximateDays, inProgressDays } from './duration';
+import { round2, secondsToJp } from './time';
+import { zonesForIssue } from './zones';
 
 /**
  * Références de la famille C3 (§9, table `baseline`) : pour chaque couple

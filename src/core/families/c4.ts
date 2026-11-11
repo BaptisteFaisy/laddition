@@ -1,7 +1,7 @@
-import type { CostContext, Evidence, IssueFact } from '../types.ts';
-import { reworkCount, reworkDays } from '../duration.ts';
-import { addDays, parseIso, round2 } from '../time.ts';
-import { splitAcrossZones, zonesForIssue } from '../zones.ts';
+import type { CostContext, Evidence, IssueFact } from '../types';
+import { reworkCount, reworkDays } from '../duration';
+import { addDays, parseIso, round2 } from '../time';
+import { splitAcrossZones, zonesForIssue } from '../zones';
 
 /** Famille « retouches » (§9, lot S). */
 const FAMILY = 'C4' as const;

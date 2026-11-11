@@ -11,8 +11,8 @@
  * 70 % du coût observé, sur deux trimestres (§11).
  */
 
-import type { ProjectSettings } from './types.ts';
-import { round2 } from './time.ts';
+import type { ProjectSettings } from './types';
+import { round2 } from './time';
 
 /** Ce que rend le calcul de retour ; chaque champ manquant vaut `null`. */
 export interface PaybackResult {

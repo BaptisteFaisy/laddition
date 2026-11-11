@@ -1,8 +1,8 @@
-import { Fragment, Heading, Text } from '@forge/ui';
-import type { ProjectSettings } from '../../core/types.ts';
-import type { Locale, MessageKey } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatNumber } from '../format.ts';
+import { Fragment, Heading, Text } from '../kit';
+import type { ProjectSettings } from '../../core/types';
+import type { Locale, MessageKey } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatNumber } from '../format';
 
 /** Les coefficients réellement appliqués au dernier calcul. */
 export function MethodCoefficients({

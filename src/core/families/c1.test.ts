@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import type { CostContext, IssueFact } from '../types.ts';
-import { makeSettings } from '../settings.ts';
-import { c1Incidents } from './c1.ts';
+import type { CostContext, IssueFact } from '../types';
+import { makeSettings } from '../settings';
+import { c1Incidents } from './c1';
 
 const NOW = '2026-11-01T00:00:00.000Z';
 /** Lundi 26 octobre 2026 : 5 jours ouvrés jusqu'à NOW (dimanche). */

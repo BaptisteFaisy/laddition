@@ -1,9 +1,9 @@
-import { Button, Cell, Head, Row, Table, Text } from '@forge/ui';
-import type { RankedDebt } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatDays, formatJp, formatRatio } from '../format.ts';
-import { RangeBadge } from './RangeBadge.tsx';
+import { Button, Cell, Head, Row, Table, Text } from '../kit';
+import type { RankedDebt } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatDays, formatJp, formatRatio } from '../format';
+import { RangeBadge } from './RangeBadge';
 
 /**
  * Le classement (DT-07) : coût décroissant, puis retour. Aucune colonne

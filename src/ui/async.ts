@@ -1,4 +1,4 @@
-import { useEffect, useState } from '@forge/ui';
+import { useEffect, useState } from 'react';
 
 /**
  * Chargement d'une donnée distante, sans page blanche : tout écran affiche
@@ -34,6 +34,9 @@ export function useResolver<T>(key: string, load: (() => Promise<T>) | null): Re
         if (!cancelled) setState({ status: 'error', message: errorMessage(error) });
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [key, attempt]);
 
   return { state, reload: () => setAttempt(attempt + 1) };

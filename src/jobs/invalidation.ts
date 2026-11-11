@@ -1,6 +1,6 @@
 import { sql } from '@forge/sql';
-import { insertRows, onDuplicateUpdate, runStatement, selectRows } from '../platform/db/query.ts';
-import { toDbDateRequired, toIso, toText } from '../platform/db/rows.ts';
+import { insertRows, onDuplicateUpdate, runStatement, selectRows } from '../platform/db/query';
+import { toDbDateRequired, toIso, toText } from '../platform/db/rows';
 
 /**
  * « À recalculer » (§15) : le trigger ne calcule rien, il laisse une trace.

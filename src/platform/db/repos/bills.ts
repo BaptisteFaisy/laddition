@@ -5,12 +5,12 @@
  * Aucune fonction ne jette pour une donnée absente : elle rend `null` ou `[]`.
  */
 
-import type { DebtBill, Family, ZoneCost } from '../../../core/types.ts';
-import { UNCLASSIFIED_ZONE } from '../../../core/zones.ts';
-import type { SqlValue } from '../query.ts';
-import { insertRows, onDuplicateUpdate, projectOfIssue, selectRows } from '../query.ts';
-import type { DebtBillRow, ZoneWeekRow } from '../mappers.ts';
-import { toDebtBill } from '../mappers.ts';
+import type { DebtBill, Family, ZoneCost } from '../../../core/types';
+import { UNCLASSIFIED_ZONE } from '../../../core/zones';
+import type { SqlValue } from '../query';
+import { insertRows, onDuplicateUpdate, projectOfIssue, selectRows } from '../query';
+import type { DebtBillRow, ZoneWeekRow } from '../mappers';
+import { toDebtBill } from '../mappers';
 import {
   FAMILIES,
   toDbDateRequired,
@@ -20,7 +20,7 @@ import {
   toText,
   toTextOrNull,
   zeroFamilyNumbers,
-} from '../rows.ts';
+} from '../rows';
 /* ------------------------------------------------------------- debt_bill */
 
 

@@ -1,5 +1,5 @@
-import type { ZoneCost } from '../core/types.ts';
-import { round2, weekKey } from '../core/time.ts';
+import type { ZoneCost } from '../core/types';
+import { round2, weekKey } from '../core/time';
 
 /**
  * Replis d'affichage : coût par équipe et par trimestre.

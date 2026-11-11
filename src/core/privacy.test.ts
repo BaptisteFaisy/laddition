@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { assertNoPersonRanking, maskHidden, redactName } from './privacy.ts';
+import { assertNoPersonRanking, maskHidden, redactName } from './privacy';
 
 test('masquage : éléments visibles séparés, le reste compté', () => {
   const items = [

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { IssueFact, StatusSpan } from './types.ts';
-import { makeSettings } from './settings.ts';
+import type { IssueFact, StatusSpan } from './types';
+import { makeSettings } from './settings';
 import {
   baselineKey,
   clipToPercentile,
@@ -9,7 +9,7 @@ import {
   median,
   sizeClassOf,
   ticketDurationDays,
-} from './baseline.ts';
+} from './baseline';
 
 const NOW = '2026-11-30T00:00:00.000Z';
 const SETTINGS = makeSettings('p1', 'ABC');

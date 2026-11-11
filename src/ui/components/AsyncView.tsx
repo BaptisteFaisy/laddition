@@ -1,8 +1,8 @@
-import { Fragment } from '@forge/ui';
-import type { AsyncState } from '../async.ts';
-import type { Locale } from '../i18n/index.ts';
-import { ErrorState } from './ErrorState.tsx';
-import { LoadingState } from './LoadingState.tsx';
+import { Fragment } from '../kit';
+import type { AsyncState } from '../async';
+import type { Locale } from '../i18n/index';
+import { ErrorState } from './ErrorState';
+import { LoadingState } from './LoadingState';
 
 export interface AsyncViewProps<T> {
   state: AsyncState<T>;

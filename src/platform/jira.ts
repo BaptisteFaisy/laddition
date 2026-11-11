@@ -15,9 +15,9 @@
  */
 import { asApp, asUser, route } from '@forge/api';
 import type { Route } from '@forge/api';
-import type { HistoryEntry } from '../core/duration.ts';
-import { secondsToJp } from '../core/time.ts';
-import type { IssueFact, IssueLink, ProjectSettings, StatusCategory } from '../core/types.ts';
+import type { HistoryEntry } from '../core/duration';
+import { secondsToJp } from '../core/time';
+import type { IssueFact, IssueLink, ProjectSettings, StatusCategory } from '../core/types';
 import type {
   ChangelogPage,
   CommentPage,
@@ -27,10 +27,10 @@ import type {
   JiraLink,
   JiraStatus,
   SearchResponse,
-} from './jira-types.ts';
-import { logShort, shortError } from './log.ts';
+} from './jira-types';
+import { logShort, shortError } from './log';
 
-export type { JiraFields, JiraIssueJson, JiraNamed, JiraStatus } from './jira-types.ts';
+export type { JiraFields, JiraIssueJson, JiraNamed, JiraStatus } from './jira-types';
 
 /** Taille de page demandée à Jira (100 = maximum de l'API REST v3). */
 const PAGE_SIZE = 100;

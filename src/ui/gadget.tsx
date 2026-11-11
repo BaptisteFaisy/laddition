@@ -1,16 +1,17 @@
-import { DashboardGadget, Fragment, Heading, Text } from '@forge/ui';
-import type { ProjectPageData } from './api.ts';
-import { getProjectPage } from './api.ts';
-import { useResolver } from './async.ts';
-import type { ScreenContext } from './context.ts';
-import type { Locale } from './i18n/index.ts';
-import { t } from './i18n/index.ts';
-import { AsyncView } from './components/AsyncView.tsx';
-import { DemoBanner } from './components/DemoBanner.tsx';
-import { Disclosure } from './components/Disclosure.tsx';
-import { QuarterCostTable, TeamCostTable, TopDebtsTable } from './components/GadgetTables.tsx';
-import { MethodFormulas } from './components/MethodFormulas.tsx';
-import { ScreenShell } from './components/ScreenShell.tsx';
+import { DashboardGadget, Fragment, Heading, Text } from './kit';
+import { mountScreen } from './mount';
+import type { ProjectPageData } from './api';
+import { getProjectPage } from './api';
+import { useResolver } from './async';
+import type { ScreenContext } from './context';
+import type { Locale } from './i18n/index';
+import { t } from './i18n/index';
+import { AsyncView } from './components/AsyncView';
+import { DemoBanner } from './components/DemoBanner';
+import { Disclosure } from './components/Disclosure';
+import { QuarterCostTable, TeamCostTable, TopDebtsTable } from './components/GadgetTables';
+import { MethodFormulas } from './components/MethodFormulas';
+import { ScreenShell } from './components/ScreenShell';
 
 /** Écran 5 (§14) : le gadget de tableau de bord — dettes, équipes, trimestres. */
 export default function GadgetScreen(): JSX.Element {
@@ -50,3 +51,5 @@ function GadgetBody({ locale, data }: { locale: Locale; data: ProjectPageData })
     </Fragment>
   );
 }
+
+mountScreen(<GadgetScreen />);

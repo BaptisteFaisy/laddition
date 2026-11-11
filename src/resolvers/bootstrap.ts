@@ -1,9 +1,9 @@
 import type { Request } from '@forge/resolver';
-import type { BootstrapProgress } from '../core/types.ts';
-import { startBootstrap as startBootstrapJob } from '../jobs/consumer.ts';
-import { projectIdOf } from '../jobs/projects.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, payloadOf } from '../jobs/support.ts';
+import type { BootstrapProgress } from '../core/types';
+import { startBootstrap as startBootstrapJob } from '../jobs/consumer';
+import { projectIdOf } from '../jobs/projects';
+import type { Failure } from '../jobs/support';
+import { guard, payloadOf } from '../jobs/support';
 
 /**
  * DT-12 : lancer l'initialisation depuis l'écran.

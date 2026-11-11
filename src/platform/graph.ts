@@ -15,7 +15,7 @@
  * n'entre dans aucune addition.
  */
 import { asUser } from '@forge/api';
-import { logShort, shortError } from './log.ts';
+import { logShort, shortError } from './log';
 
 /** Zone(s) Compass d'un ticket, par clé de ticket. */
 export type ZoneLinks = Map<string, string[]>;

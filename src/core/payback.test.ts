@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import type { ProjectSettings } from './types.ts';
-import { makeSettings } from './settings.ts';
-import { payback } from './payback.ts';
+import type { ProjectSettings } from './types';
+import { makeSettings } from './settings';
+import { payback } from './payback';
 
 /** Réglages de référence : 0,7 de persistance, fenêtre de 90 jours (§9, §11). */
 const SETTINGS: ProjectSettings = makeSettings('p1', 'PROJ');

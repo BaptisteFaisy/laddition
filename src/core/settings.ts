@@ -1,5 +1,5 @@
-import type { ProjectSettings } from './types.ts';
-import { DEFAULT_DAYS_PER_WEEK, DEFAULT_HOURS_PER_DAY } from './time.ts';
+import type { ProjectSettings } from './types';
+import { DEFAULT_DAYS_PER_WEEK, DEFAULT_HOURS_PER_DAY } from './time';
 
 /**
  * Réglages par défaut d'un projet (§9, §11, §14).

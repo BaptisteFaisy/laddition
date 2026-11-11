@@ -1,4 +1,4 @@
-import { ensureSchema } from '../platform/db/index.ts';
+import { ensureSchema } from '../platform/db/index';
 
 /**
  * Création du schéma, une seule fois par instance d'exécution.

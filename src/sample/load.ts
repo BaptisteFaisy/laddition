@@ -21,16 +21,16 @@ import type {
   Repayment,
   StatusSpan,
   ZoneCost,
-} from '../core/types.ts';
-import { attributeEvidence } from '../core/attribution.ts';
-import type { Confirmation } from '../core/attribution.ts';
-import { computeBaselines } from '../core/baseline.ts';
-import { collectEvidence } from '../core/families/index.ts';
-import { buildRepayment } from '../core/repayment.ts';
-import { addDays, round2, weeksBetween } from '../core/time.ts';
-import { UNCLASSIFIED_ZONE } from '../core/zones.ts';
-import { emptyFamilies, weeklyZoneCosts, zoneWeekly } from '../jobs/zoneCosts.ts';
-import type { ZoneWeekInput } from '../platform/db/repos/bills.ts';
+} from '../core/types';
+import { attributeEvidence } from '../core/attribution';
+import type { Confirmation } from '../core/attribution';
+import { computeBaselines } from '../core/baseline';
+import { collectEvidence } from '../core/families/index';
+import { buildRepayment } from '../core/repayment';
+import { addDays, round2, weeksBetween } from '../core/time';
+import { UNCLASSIFIED_ZONE } from '../core/zones';
+import { emptyFamilies, weeklyZoneCosts, zoneWeekly } from '../jobs/zoneCosts';
+import type { ZoneWeekInput } from '../platform/db/repos/bills';
 import {
   SAMPLE_CONFIRMATION_RULES,
   SAMPLE_NOW,
@@ -45,7 +45,7 @@ import {
   sampleRepaymentPlan,
   sampleSettings,
   sampleSpans,
-} from './dataset.ts';
+} from './dataset';
 
 /** Les sept tables écrites par l'injection du jeu d'exemple. */
 export interface SampleData {

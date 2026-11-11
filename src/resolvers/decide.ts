@@ -1,5 +1,5 @@
 import type { Request } from '@forge/resolver';
-import type { Attribution, CostContext, RelevanceScore } from '../core/types.ts';
+import type { Attribution, CostContext, RelevanceScore } from '../core/types';
 import {
   getIssueFact,
   insertRejection,
@@ -11,15 +11,15 @@ import {
   listStatusSpans,
   replaceAttributions,
   upsertBill,
-} from '../platform/db/index.ts';
-import { addConfirmation, listConfirmations, removeConfirmation } from '../jobs/confirmations.ts';
-import { requireSettings } from '../jobs/projects.ts';
-import type { RecomputeInput } from '../jobs/recompute.ts';
-import { finish } from '../jobs/recompute.ts';
-import { removeRejection } from '../jobs/rejections.ts';
-import { groupSpans } from '../jobs/spans.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, nowIso, payloadOf, requireString } from '../jobs/support.ts';
+} from '../platform/db/index';
+import { addConfirmation, listConfirmations, removeConfirmation } from '../jobs/confirmations';
+import { requireSettings } from '../jobs/projects';
+import type { RecomputeInput } from '../jobs/recompute';
+import { finish } from '../jobs/recompute';
+import { removeRejection } from '../jobs/rejections';
+import { groupSpans } from '../jobs/spans';
+import type { Failure } from '../jobs/support';
+import { guard, nowIso, payloadOf, requireString } from '../jobs/support';
 
 /**
  * DT-10 : confirmer ou rejeter un rapprochement.

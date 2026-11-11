@@ -1,4 +1,5 @@
-import { Button, Fragment, useState } from '@forge/ui';
+import { useState } from 'react';
+import { Button, Fragment } from '../kit';
 
 /**
  * Révélation en un clic, réutilisée partout où un chiffre doit pouvoir

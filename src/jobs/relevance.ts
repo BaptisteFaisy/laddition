@@ -1,7 +1,7 @@
-import type { Evidence, IssueFact, RelevanceScore } from '../core/types.ts';
-import { BILLED_FAMILIES } from '../core/types.ts';
-import type { ScoreCache } from '../platform/llm.ts';
-import { scoreRelevance } from '../platform/llm.ts';
+import type { Evidence, IssueFact, RelevanceScore } from '../core/types';
+import { BILLED_FAMILIES } from '../core/types';
+import type { ScoreCache } from '../platform/llm';
+import { scoreRelevance } from '../platform/llm';
 
 /**
  * Scores de pertinence du modèle, en amont du calcul nocturne (§10, §18).

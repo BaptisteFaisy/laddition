@@ -1,8 +1,8 @@
-import type { ProjectSettings } from '../core/types.ts';
-import { getSettings } from '../platform/db/index.ts';
-import { selectRows } from '../platform/db/query.ts';
-import { toText } from '../platform/db/rows.ts';
-import { optionalString, requireString } from './support.ts';
+import type { ProjectSettings } from '../core/types';
+import { getSettings } from '../platform/db/index';
+import { selectRows } from '../platform/db/query';
+import { toText } from '../platform/db/rows';
+import { optionalString, requireString } from './support';
 
 /**
  * Retrouver un projet à partir de ce que l'écran ou l'événement connaît :

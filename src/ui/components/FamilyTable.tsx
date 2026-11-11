@@ -1,10 +1,10 @@
-import { Button, Cell, Fragment, Head, Row, Table, Text } from '@forge/ui';
-import type { Family, FamilyTotal } from '../../core/types.ts';
-import { BILLED_FAMILIES } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { familyLabel, formatDays, formatNumber, pair } from '../format.ts';
-import { RangeBadge } from './RangeBadge.tsx';
+import { Button, Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import type { Family, FamilyTotal } from '../../core/types';
+import { BILLED_FAMILIES } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { familyLabel, formatDays, formatNumber, pair } from '../format';
+import { RangeBadge } from './RangeBadge';
 
 /**
  * Ventilation de l'addition par famille. La colonne « preuves » ouvre la liste

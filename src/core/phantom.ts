@@ -10,9 +10,9 @@
  * sont les faits les plus coûteux de la zone, telles qu'elles ont été mesurées.
  */
 
-import type { Evidence, Family, IssueFact, PhantomDebt, ProjectSettings, ZoneCost } from './types.ts';
-import { round2 } from './time.ts';
-import { zonesForIssue } from './zones.ts';
+import type { Evidence, Family, IssueFact, PhantomDebt, ProjectSettings, ZoneCost } from './types';
+import { round2 } from './time';
+import { zonesForIssue } from './zones';
 
 /** Nombre de preuves citées pour justifier le brouillon. */
 export const PHANTOM_TOP_EVIDENCE = 5;

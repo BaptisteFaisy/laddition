@@ -1,11 +1,11 @@
 import type { ResolverFunction } from '@forge/resolver';
-import { bootstrapProgress, getDataQuality, getProjectPage, getRepaymentReport, getSettings, getZoneCosts, listDeadDebt, listPhantomDebt } from './read.ts';
-import { getDebtBill } from './billView.ts';
-import { confirmEvidence, rejectEvidence } from './decide.ts';
-import { saveSettings } from './settings.ts';
-import { clearSampleData, loadSampleData } from './sample.ts';
-import { draftDebtTicket } from './draft.ts';
-import { startBootstrap } from './bootstrap.ts';
+import { bootstrapProgress, getDataQuality, getProjectPage, getRepaymentReport, getSettings, getZoneCosts, listDeadDebt, listPhantomDebt } from './read';
+import { getDebtBill } from './billView';
+import { confirmEvidence, rejectEvidence } from './decide';
+import { saveSettings } from './settings';
+import { clearSampleData, loadSampleData } from './sample';
+import { draftDebtTicket } from './draft';
+import { startBootstrap } from './bootstrap';
 
 /**
  * API des écrans (§14) : une clé par fonction appelée par l'UI.

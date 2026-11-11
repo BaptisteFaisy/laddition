@@ -1,15 +1,17 @@
-import { Fragment, Heading, ProjectSettingsPage, useState } from '@forge/ui';
-import type { ProjectSettings } from '../core/types.ts';
-import { getSettings } from './api.ts';
-import { useResolver } from './async.ts';
-import type { ScreenContext } from './context.ts';
-import type { Locale } from './i18n/index.ts';
-import { t } from './i18n/index.ts';
-import { AsyncView } from './components/AsyncView.tsx';
-import { DemoBanner } from './components/DemoBanner.tsx';
-import { SampleDataButton } from './components/SampleDataButton.tsx';
-import { ScreenShell } from './components/ScreenShell.tsx';
-import { SettingsForm } from './components/SettingsForm.tsx';
+import { useState } from 'react';
+import { Fragment, Heading, ProjectSettingsPage } from './kit';
+import { mountScreen } from './mount';
+import type { ProjectSettings } from '../core/types';
+import { getSettings } from './api';
+import { useResolver } from './async';
+import type { ScreenContext } from './context';
+import type { Locale } from './i18n/index';
+import { t } from './i18n/index';
+import { AsyncView } from './components/AsyncView';
+import { DemoBanner } from './components/DemoBanner';
+import { SampleDataButton } from './components/SampleDataButton';
+import { ScreenShell } from './components/ScreenShell';
+import { SettingsForm } from './components/SettingsForm';
 
 /** Écran 6 (§14) : les réglages qui pilotent tous les calculs. */
 export default function SettingsPageScreen(): JSX.Element {
@@ -55,3 +57,5 @@ function SettingsBody({
     </Fragment>
   );
 }
+
+mountScreen(<SettingsPageScreen />);

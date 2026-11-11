@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { IssueFact, Repayment } from './types.ts';
-import { addDays, weekKey } from './time.ts';
-import type { ZoneWeek } from './repayment.ts';
+import type { IssueFact, Repayment } from './types';
+import { addDays, weekKey } from './time';
+import type { ZoneWeek } from './repayment';
 import {
   CAVEAT_COMPARISON,
   CAVEAT_INSUFFICIENT_RECUL,
@@ -12,7 +12,7 @@ import {
   mergeMonthlyRepayments,
   repaymentCaveats,
   sampleCaveat,
-} from './repayment.ts';
+} from './repayment';
 
 /** Lundi 2 mars 2026 : ancre des semaines « avant ». */
 const WORK_START = '2026-03-02T00:00:00.000Z';

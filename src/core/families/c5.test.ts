@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { CostContext, Evidence, IssueFact, IssueLink } from '../types.ts';
-import { BILLED_FAMILIES } from '../types.ts';
-import { makeSettings } from '../settings.ts';
-import { c5Delay } from './c5.ts';
+import type { CostContext, Evidence, IssueFact, IssueLink } from '../types';
+import { BILLED_FAMILIES } from '../types';
+import { makeSettings } from '../settings';
+import { c5Delay } from './c5';
 
 /** Instant de référence des tests (mercredi). */
 const NOW = '2026-11-11T00:00:00.000Z';

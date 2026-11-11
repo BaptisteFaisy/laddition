@@ -27,8 +27,8 @@ import type {
   StatusCategory,
   StatusSpan,
   ZoneMode,
-} from '../../core/types.ts';
-import { makeSettings } from '../../core/settings.ts';
+} from '../../core/types';
+import { makeSettings } from '../../core/settings';
 import {
   FAMILIES,
   parseJson,
@@ -40,7 +40,7 @@ import {
   toStringArray,
   toText,
   toTextOrNull,
-} from './rows.ts';
+} from './rows';
 
 const STATUS_CATEGORIES: readonly StatusCategory[] = ['todo', 'inprogress', 'done'];
 const SIZE_CLASSES: readonly SizeClass[] = ['xs', 's', 'm', 'l', 'xl', 'unknown'];

@@ -1,48 +1,97 @@
-import { Fragment, Option, Radio, RadioGroup, Select, TextField } from '@forge/ui';
-import type { ProjectSettings } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { DEBT_RULE_KINDS, KIND_LABELS, ZONE_MODES, ZONE_MODE_LABELS } from '../settings-form-values.ts';
+import type { ProjectSettings } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { Fragment, RadioField, SelectField, TextField } from '../kit';
+import { DEBT_RULE_KINDS, KIND_LABELS, ZONE_MODES, ZONE_MODE_LABELS } from '../settings-form-values';
+
+export type FieldChange = (key: string, value: string) => void;
 
 /** Définition de la dette, mode de zone, projets JSM (§14 écran 6). */
 export function SettingsRuleFields({
   locale,
-  settings,
+  values,
+  onChange,
 }: {
   locale: Locale;
-  settings: ProjectSettings;
+  values: ProjectSettings;
+  onChange: FieldChange;
 }): JSX.Element {
   return (
     <Fragment>
-      <Select name="debtRuleKind" label={t(locale, 'settings.debtRuleKind')}>
-        {DEBT_RULE_KINDS.map((kind) => (
-          <Option
-            key={kind}
-            label={t(locale, KIND_LABELS[kind])}
-            value={kind}
-            defaultSelected={settings.debtRule.kind === kind}
-          />
-        ))}
-      </Select>
+      <DebtRuleFields locale={locale} values={values} onChange={onChange} />
+      <ZoneModeFields locale={locale} values={values} onChange={onChange} />
+    </Fragment>
+  );
+}
+
+/** Comment un ticket devient une dette : type, étiquette ou requête JQL (DT-01). */
+function DebtRuleFields({
+  locale,
+  values,
+  onChange,
+}: {
+  locale: Locale;
+  values: ProjectSettings;
+  onChange: FieldChange;
+}): JSX.Element {
+  const options = DEBT_RULE_KINDS.map((kind) => ({
+    label: t(locale, KIND_LABELS[kind]),
+    value: kind,
+  }));
+  return (
+    <Fragment>
+      <SelectField
+        name="debtRuleKind"
+        label={t(locale, 'settings.debtRuleKind')}
+        options={options}
+        value={values.debtRule.kind}
+        onChange={(value) => onChange('debtRuleKind', value)}
+      />
       <TextField
         name="debtRuleValue"
         label={t(locale, 'settings.debtRuleValue')}
-        defaultValue={settings.debtRule.value}
+        defaultValue={values.debtRule.value}
+        onChange={(value) => onChange('debtRuleValue', value)}
       />
-      <RadioGroup name="zoneMode" label={t(locale, 'settings.zoneMode')}>
-        {ZONE_MODES.map((mode) => (
-          <Radio key={mode} value={mode} label={t(locale, ZONE_MODE_LABELS[mode])} defaultChecked={settings.zoneMode === mode} />
-        ))}
-      </RadioGroup>
+    </Fragment>
+  );
+}
+
+/** Comment un ticket est rattaché à une zone (§8), et les projets JSM suivis. */
+function ZoneModeFields({
+  locale,
+  values,
+  onChange,
+}: {
+  locale: Locale;
+  values: ProjectSettings;
+  onChange: FieldChange;
+}): JSX.Element {
+  const options = ZONE_MODES.map((mode) => ({
+    name: 'zoneMode',
+    label: t(locale, ZONE_MODE_LABELS[mode]),
+    value: mode,
+  }));
+  return (
+    <Fragment>
+      <RadioField
+        name="zoneMode"
+        label={t(locale, 'settings.zoneMode')}
+        options={options}
+        value={values.zoneMode}
+        onChange={(value) => onChange('zoneMode', value)}
+      />
       <TextField
         name="zoneLabelField"
         label={t(locale, 'settings.zoneLabelField')}
-        defaultValue={settings.zoneLabelField ?? ''}
+        defaultValue={values.zoneLabelField ?? ''}
+        onChange={(value) => onChange('zoneLabelField', value)}
       />
       <TextField
         name="jsmProjectKeys"
         label={t(locale, 'settings.jsmProjects')}
-        defaultValue={settings.jsmProjectKeys.join(', ')}
+        defaultValue={values.jsmProjectKeys.join(', ')}
+        onChange={(value) => onChange('jsmProjectKeys', value)}
       />
     </Fragment>
   );

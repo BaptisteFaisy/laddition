@@ -1,11 +1,12 @@
-import { Button, Cell, Fragment, Head, Row, Table, Text, useState } from '@forge/ui';
-import type { PhantomDebt } from '../../core/types.ts';
-import { draftDebtTicket, listPhantomDebt } from '../api.ts';
-import { errorMessage, useResolver } from '../async.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatJp, formatNumber } from '../format.ts';
-import { AsyncView } from './AsyncView.tsx';
+import { useState } from 'react';
+import { Button, Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import type { PhantomDebt } from '../../core/types';
+import { draftDebtTicket, listPhantomDebt } from '../api';
+import { errorMessage, useResolver } from '../async';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatJp, formatNumber } from '../format';
+import { AsyncView } from './AsyncView';
 
 /** Dette fantôme (DT-08) : une zone coûteuse que personne ne rembourse. */
 export function PhantomTab({

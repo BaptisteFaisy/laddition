@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { findPhantomDebt, PHANTOM_TOP_EVIDENCE } from './phantom.ts';
-import { makeSettings } from './settings.ts';
-import type { Evidence, IssueFact, ProjectSettings, ZoneCost } from './types.ts';
+import { findPhantomDebt, PHANTOM_TOP_EVIDENCE } from './phantom';
+import { makeSettings } from './settings';
+import type { Evidence, IssueFact, ProjectSettings, ZoneCost } from './types';
 
 const SETTINGS: ProjectSettings = makeSettings('p1', 'PA');
 

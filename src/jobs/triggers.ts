@@ -1,10 +1,10 @@
-import type { ProjectSettings } from '../core/types.ts';
-import { getIssueFact, getSettings } from '../platform/db/index.ts';
-import { fetchIssue } from '../platform/jira.ts';
-import { markInvalid } from './invalidation.ts';
-import { storeIssue } from './issueSync.ts';
-import { ensureReady } from './schema.ts';
-import { childRecord, eventBody, messageOf, nowIso, uniqueStrings } from './support.ts';
+import type { ProjectSettings } from '../core/types';
+import { getIssueFact, getSettings } from '../platform/db/index';
+import { fetchIssue } from '../platform/jira';
+import { markInvalid } from './invalidation';
+import { storeIssue } from './issueSync';
+import { ensureReady } from './schema';
+import { childRecord, eventBody, messageOf, nowIso, uniqueStrings } from './support';
 
 /**
  * Triggers Jira (§15) : au fil de l'eau, jamais de calcul lourd.

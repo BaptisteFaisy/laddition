@@ -1,8 +1,8 @@
-import { Fragment, Heading, Text } from '@forge/ui';
-import type { DataQuality } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { familyLabel, formatNumber, formatPercent, pair } from '../format.ts';
+import { Fragment, Heading, Text } from '../kit';
+import type { DataQuality } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { familyLabel, formatNumber, formatPercent, pair } from '../format';
 
 /** Qualité des données affichée dans l'onglet Méthode (§14). */
 export function MethodQuality({ locale, quality }: { locale: Locale; quality: DataQuality }): JSX.Element {

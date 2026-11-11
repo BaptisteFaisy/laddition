@@ -1,10 +1,10 @@
 import type { Request } from '@forge/resolver';
-import type { ProjectSettings } from '../core/types.ts';
-import { makeSettings, mergeSettings } from '../core/settings.ts';
-import { getSettings as readSettings, saveSettings as writeSettings } from '../platform/db/index.ts';
-import { projectIdOf, requireSettings } from '../jobs/projects.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, isRecord, payloadOf, requireString } from '../jobs/support.ts';
+import type { ProjectSettings } from '../core/types';
+import { makeSettings, mergeSettings } from '../core/settings';
+import { getSettings as readSettings, saveSettings as writeSettings } from '../platform/db/index';
+import { projectIdOf, requireSettings } from '../jobs/projects';
+import type { Failure } from '../jobs/support';
+import { guard, isRecord, payloadOf, requireString } from '../jobs/support';
 
 /**
  * Écran 6 : réglages du projet.

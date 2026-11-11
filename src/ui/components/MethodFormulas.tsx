@@ -1,8 +1,8 @@
-import { Fragment, Heading, Text } from '@forge/ui';
-import type { ProjectSettings } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { familyLabel, formatNumber, pair } from '../format.ts';
+import { Fragment, Heading, Text } from '../kit';
+import type { ProjectSettings } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { familyLabel, formatNumber, pair } from '../format';
 
 /** Les cinq formules, écrites telles quelles, avec les coefficients en vigueur. */
 export function MethodFormulas({ locale, settings }: { locale: Locale; settings: ProjectSettings }): JSX.Element {

@@ -1,4 +1,4 @@
-import { runStatement } from '../platform/db/query.ts';
+import { runStatement } from '../platform/db/query';
 
 /**
  * Rejets de rapprochement : écriture par le dépôt (`insertRejection`), retrait ici.

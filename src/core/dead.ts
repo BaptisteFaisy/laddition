@@ -13,9 +13,9 @@
  * `deadDays` lisible tel quel dans les réglages (§9).
  */
 
-import type { Attribution, DeadDebt, Evidence, IssueFact, ProjectSettings } from './types.ts';
-import { diffDays } from './time.ts';
-import { UNCLASSIFIED_ZONE, zonesForIssue } from './zones.ts';
+import type { Attribution, DeadDebt, Evidence, IssueFact, ProjectSettings } from './types';
+import { diffDays } from './time';
+import { UNCLASSIFIED_ZONE, zonesForIssue } from './zones';
 
 /**
  * Tickets de dette sans preuve récente.

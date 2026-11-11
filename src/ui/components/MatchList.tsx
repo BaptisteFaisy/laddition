@@ -1,11 +1,12 @@
-import { Button, Cell, Fragment, Head, Row, Table, Text, useState } from '@forge/ui';
-import type { PendingMatch } from '../api.ts';
-import { confirmEvidence, rejectEvidence } from '../api.ts';
-import { errorMessage } from '../async.ts';
-import type { Locale, MessageKey } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatJp, formatPercent } from '../format.ts';
-import { ErrorState } from './ErrorState.tsx';
+import { useState } from 'react';
+import { Button, Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import type { PendingMatch } from '../api';
+import { confirmEvidence, rejectEvidence } from '../api';
+import { errorMessage } from '../async';
+import type { Locale, MessageKey } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatJp, formatPercent } from '../format';
+import { ErrorState } from './ErrorState';
 
 /**
  * Rapprochements proposés par le modèle (§10). Un clic confirme ou rejette ;

@@ -6,7 +6,7 @@
  * personne ne redéclare une action ailleurs.
  */
 
-import type { Action } from './result.ts';
+import type { Action } from './result';
 import {
   confirmEvidence,
   draftDebtTicket,
@@ -16,7 +16,7 @@ import {
   getZoneCosts,
   listDeadDebt,
   listPhantomDebt,
-} from './actions.ts';
+} from './actions';
 
 /** Verbe d'une action : lecture seule, ou écriture. */
 export type ActionVerb = 'GET' | 'UPDATE';
@@ -66,7 +66,7 @@ export {
   listDeadDebt,
   listPhantomDebt,
 };
-export { agentDescription, agentForbiddenTopics, agentPrompt, agentStarters } from './agent.ts';
+export { agentDescription, agentForbiddenTopics, agentPrompt, agentStarters } from './agent';
 export type {
   ConfirmEvidenceData,
   DeadDebtData,
@@ -76,5 +76,5 @@ export type {
   PhantomDebtData,
   RepaymentData,
   ZoneCostData,
-} from './actions.ts';
-export type { Action, ActionEnvelope, JsonPayload } from './result.ts';
+} from './actions';
+export type { Action, ActionEnvelope, JsonPayload } from './result';

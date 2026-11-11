@@ -1,16 +1,16 @@
 import { Queue, QueueResponse } from '@forge/events';
 import { route } from '@forge/api';
-import type { BootstrapProgress, ProjectSettings } from '../core/types.ts';
+import type { BootstrapProgress, ProjectSettings } from '../core/types';
 import {
   bootstrapProgress as readProgress,
   updateBootstrapProgress,
-} from '../platform/db/index.ts';
-import type { JiraIssueJson } from '../platform/jira.ts';
-import { jiraSendJson, searchIssues } from '../platform/jira.ts';
-import { storeIssue } from './issueSync.ts';
-import { requireSettings } from './projects.ts';
-import { ensureReady } from './schema.ts';
-import { eventBody, messageOf, nowIso, requireString } from './support.ts';
+} from '../platform/db/index';
+import type { JiraIssueJson } from '../platform/jira';
+import { jiraSendJson, searchIssues } from '../platform/jira';
+import { storeIssue } from './issueSync';
+import { requireSettings } from './projects';
+import { ensureReady } from './schema';
+import { eventBody, messageOf, nowIso, requireString } from './support';
 
 /**
  * `consumer` (§15) : l'initialisation de l'historique, par lots de 50.

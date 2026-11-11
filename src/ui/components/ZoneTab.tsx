@@ -1,10 +1,10 @@
-import { Cell, Fragment, Head, Row, Table, Text } from '@forge/ui';
-import type { ProjectSettings, ZoneCost } from '../../core/types.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatJp, formatPercent } from '../format.ts';
-import { Disclosure } from './Disclosure.tsx';
-import { ZoneFamilies } from './ZoneFamilies.tsx';
+import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import type { ProjectSettings, ZoneCost } from '../../core/types';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatJp, formatPercent } from '../format';
+import { Disclosure } from './Disclosure';
+import { ZoneFamilies } from './ZoneFamilies';
 
 /** Carte des coûts par zone (§14, onglet Zones). Les équipes, jamais les personnes. */
 export function ZoneTab({

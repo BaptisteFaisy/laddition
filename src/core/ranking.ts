@@ -8,9 +8,9 @@
  * tout seul d'un rafraîchissement à l'autre (§18, stabilité).
  */
 
-import type { DebtBill, IssueFact, RankedDebt } from './types.ts';
-import { UNCLASSIFIED_ZONE } from './zones.ts';
-import { compareText } from './bill.ts';
+import type { DebtBill, IssueFact, RankedDebt } from './types';
+import { UNCLASSIFIED_ZONE } from './zones';
+import { compareText } from './bill';
 
 /**
  * Classe les additions d'un projet (DT-07).

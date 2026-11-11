@@ -10,7 +10,7 @@ import type {
   RankedDebt,
   Repayment,
   ZoneCost,
-} from '../core/types.ts';
+} from '../core/types';
 
 /**
  * Passerelle typée vers les resolvers (§14). Chaque écran appelle une fonction

@@ -5,12 +5,12 @@
  * Aucune fonction ne jette pour une donnée absente : elle rend `null` ou `[]`.
  */
 
-import type { IssueFact, StatusSpan } from '../../../core/types.ts';
-import type { SqlValue } from '../query.ts';
-import { insertRows, onDuplicateUpdate, replaceRows, selectRows } from '../query.ts';
-import type { IssueFactRow, StatusSpanRow } from '../mappers.ts';
-import { toIssueFact, toStatusSpan } from '../mappers.ts';
-import { toDbBool, toDbDate, toDbDateRequired, toJson } from '../rows.ts';
+import type { IssueFact, StatusSpan } from '../../../core/types';
+import type { SqlValue } from '../query';
+import { insertRows, onDuplicateUpdate, replaceRows, selectRows } from '../query';
+import type { IssueFactRow, StatusSpanRow } from '../mappers';
+import { toIssueFact, toStatusSpan } from '../mappers';
+import { toDbBool, toDbDate, toDbDateRequired, toJson } from '../rows';
 /* ------------------------------------------------------------- issue_fact */
 
 

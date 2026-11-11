@@ -8,9 +8,9 @@ import type {
   Evidence,
   IssueFact,
   ProjectSettings,
-} from './types.ts';
-import { makeSettings } from './settings.ts';
-import { buildBill } from './bill.ts';
+} from './types';
+import { makeSettings } from './settings';
+import { buildBill } from './bill';
 
 const NOW = '2026-11-11T09:00:00.000Z';
 

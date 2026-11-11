@@ -1,12 +1,12 @@
 import { route } from '@forge/api';
 import type { Request } from '@forge/resolver';
-import type { Evidence } from '../core/types.ts';
-import { listEvidence } from '../platform/db/index.ts';
-import { jiraSendJson } from '../platform/jira.ts';
-import { draftDebtTicket as draftWithModel } from '../platform/llm.ts';
-import { projectIdByKey, requireSettings } from '../jobs/projects.ts';
-import type { Failure } from '../jobs/support.ts';
-import { guard, optionalString, payloadOf, requireString } from '../jobs/support.ts';
+import type { Evidence } from '../core/types';
+import { listEvidence } from '../platform/db/index';
+import { jiraSendJson } from '../platform/jira';
+import { draftDebtTicket as draftWithModel } from '../platform/llm';
+import { projectIdByKey, requireSettings } from '../jobs/projects';
+import type { Failure } from '../jobs/support';
+import { guard, optionalString, payloadOf, requireString } from '../jobs/support';
 
 /**
  * DT-08 : préparer le ticket d'une dette fantôme.

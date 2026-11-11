@@ -1,11 +1,11 @@
-import { Cell, Fragment, Head, Row, Table, Text } from '@forge/ui';
-import type { DeadDebt } from '../../core/types.ts';
-import { listDeadDebt } from '../api.ts';
-import { useResolver } from '../async.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { formatDate, formatNumber } from '../format.ts';
-import { AsyncView } from './AsyncView.tsx';
+import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import type { DeadDebt } from '../../core/types';
+import { listDeadDebt } from '../api';
+import { useResolver } from '../async';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { formatDate, formatNumber } from '../format';
+import { AsyncView } from './AsyncView';
 
 /** Dette morte (DT-09) : un ticket de dette sans preuve depuis N jours. */
 export function DeadTab({

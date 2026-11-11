@@ -1,9 +1,10 @@
-import { Button, Fragment, Text, useState } from '@forge/ui';
-import { loadSampleData } from '../api.ts';
-import { errorMessage } from '../async.ts';
-import type { Locale } from '../i18n/index.ts';
-import { t } from '../i18n/index.ts';
-import { ErrorState } from './ErrorState.tsx';
+import { useState } from 'react';
+import { Button, Fragment, Text } from '../kit';
+import { loadSampleData } from '../api';
+import { errorMessage } from '../async';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
+import { ErrorState } from './ErrorState';
 
 /** DT-13 : injecter le jeu d'exemple, sans jamais toucher aux vrais tickets. */
 export function SampleDataButton({
