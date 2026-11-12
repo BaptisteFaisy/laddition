@@ -8,7 +8,7 @@ import type { Failure } from '../jobs/support';
 import { guard, nowIso, payloadOf, requireString } from '../jobs/support';
 import { evidenceOfBill } from './read';
 import type { ProjectState } from './state';
-import { loadState } from './state';
+import { loadState, withReaderRights } from './state';
 
 /**
  * L'addition d'un ticket, telle que le panneau la montre (écran 2).
@@ -71,6 +71,11 @@ export interface DebtBillView {
   evidence: Evidence[];
   /** Preuves comptées mais masquées pour ce lecteur (§18) : jamais leur contenu. */
   hiddenCount: number;
+  /**
+   * Vrai quand la lecture des droits du lecteur a échoué (item 4, §18) : rien
+   * n'a pu être masqué à ce titre — le trou est signalé, jamais silencieux.
+   */
+  visibilityUnchecked: boolean;
   /** Parts d'attribution des preuves de cette dette (recette §20 n° 2). */
   shares: EvidenceShare[];
   pendingMatches: PendingMatch[];
@@ -88,7 +93,11 @@ export async function getDebtBill(request: Request<unknown>): Promise<DebtBillVi
     const state = await loadState(projectId, nowIso());
     const fact = state.facts.find((item) => item.issueId === debtIssueId) ?? null;
     const bill = stored ?? emptyBill(fact, debtIssueId, nowIso());
-    const masked = maskEvidence(await evidenceOfBill(projectId, bill.evidenceIds));
+    // Item 4 (§18) : les preuves que ce lecteur ne peut pas ouvrir sont
+    // marquées `visible: false` avant le masquage ; une lecture des droits en
+    // échec ne masque rien mais laisse `visibilityUnchecked` à vrai.
+    const rights = await withReaderRights(await evidenceOfBill(projectId, bill.evidenceIds));
+    const masked = maskEvidence(rights.evidence);
     return {
       settings: state.settings,
       zone: fact?.zones[0] ?? '',
@@ -97,6 +106,7 @@ export async function getDebtBill(request: Request<unknown>): Promise<DebtBillVi
       bill: { ...bill, hiddenCount: masked.hiddenCount },
       evidence: masked.evidence,
       hiddenCount: masked.hiddenCount,
+      visibilityUnchecked: !rights.checked,
       shares: sharesOf(state.attributions, masked.evidence, debtIssueId),
       pendingMatches: pendingMatchesOf(state, debtIssueId),
       attribution: fact && !fact.isDebt ? attributionOf(state, fact) : null,
