@@ -1,8 +1,9 @@
 import type { Request } from '@forge/resolver';
 import type { ProjectSettings } from '../core/types';
 import { makeSettings, mergeSettings } from '../core/settings';
-import { getSettings as readSettings, saveSettings as writeSettings } from '../platform/db/index';
+import { getSettings as readSettings } from '../platform/db/index';
 import { projectIdOf, requireSettings } from '../jobs/projects';
+import { saveProjectSettings } from '../jobs/settings';
 import type { Failure } from '../jobs/support';
 import { guard, isRecord, payloadOf, requireString } from '../jobs/support';
 
@@ -24,7 +25,8 @@ export async function saveSettings(request: Request<unknown>): Promise<ProjectSe
     const base = await baseOf(patch);
     const merged = mergeSettings(base, patch as Partial<ProjectSettings>);
     if (merged.projectId !== base.projectId) throw new Error('le projet d\'un réglage ne se change pas');
-    await writeSettings(merged);
+    // B27 : la marque « à recalculer » est posée par `jobs/settings.ts`.
+    await saveProjectSettings(merged);
     return merged;
   });
 }
