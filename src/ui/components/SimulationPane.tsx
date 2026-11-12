@@ -6,7 +6,7 @@ import { simulateRepayment } from '../api';
 import { formatRange } from '../format';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
-import { Button, Cell, Fragment, Head, Row, Stack, Table, Text } from '../kit';
+import { Button, Cell, Fragment, Head, markTableRow, Row, Stack, Table, Text } from '../kit';
 import { useAction } from '../use-action';
 import { ErrorState } from './ErrorState';
 import { SimulationTab } from './SimulationTab';
@@ -149,3 +149,6 @@ function RunBar({
     </Stack>
   );
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(SelectionRows);

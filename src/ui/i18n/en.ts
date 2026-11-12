@@ -96,6 +96,7 @@ export const en = {
 
   'project.title': '{project} · the bill',
   'project.rankingTitle': 'Debts, most expensive first',
+  'project.rankingCaption': 'Cost of each debt ticket, over the window',
   'project.rankingBody': 'Cost over the last {days} days, with the low and high ends of the range.',
   'project.rankingEmpty': 'No debt ticket in this project yet. Debt tickets are the ones that match the project rule.',
   'project.col.debt': 'Debt',
