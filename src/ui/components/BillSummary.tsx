@@ -2,7 +2,7 @@ import { Fragment, Text } from '../kit';
 import type { DebtBillView } from '../api';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
-import { formatNumber, pair } from '../format';
+import { formatNumber, formatRangeEur, pair } from '../format';
 import { BillFamilies } from './BillFamilies';
 import { MatchList } from './MatchList';
 import { RangeBadge } from './RangeBadge';
@@ -35,6 +35,13 @@ export function BillSummary({
       <TicketLink issueKey={bill.key} />
       <Text>{pair(locale, t(locale, 'common.zone'), view.zone || t(locale, 'common.unclassified'))}</Text>
       <RangeBadge locale={locale} lowJp={bill.lowJp} highJp={bill.highJp} />
+      <Text>
+        {pair(
+          locale,
+          t(locale, 'panel.costEur'),
+          formatRangeEur(locale, bill.lowJp, bill.highJp, settings.dayRateEur),
+        )}
+      </Text>
       <Text>{t(locale, 'panel.range', { days: formatNumber(locale, settings.windowDays) })}</Text>
       {bill.hiddenCount > 0 ? <Text>{t(locale, 'panel.hidden', { count: bill.hiddenCount })}</Text> : null}
       <BillFamilies locale={locale} view={view} />

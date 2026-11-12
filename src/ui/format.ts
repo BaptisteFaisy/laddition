@@ -1,4 +1,5 @@
 import type { CostMethod, Family } from '../core/types';
+import { jpToEuros } from '../core/units';
 import type { Locale, MessageKey } from './i18n/index';
 import { t } from './i18n/index';
 
@@ -39,6 +40,23 @@ export function formatJp(locale: Locale, value: number | null | undefined): stri
 export function formatRange(locale: Locale, lowJp: number, highJp: number): string {
   if (lowJp === highJp) return t(locale, 'common.exact', { value: formatJp(locale, lowJp) });
   return t(locale, 'common.range', { low: formatJp(locale, lowJp), high: formatJp(locale, highJp) });
+}
+
+/**
+ * La fourchette en euros (DT-20, item 65), au taux journalier du projet.
+ * Rend `—` quand aucun taux n'est renseigné : on n'invente pas un prix.
+ */
+export function formatRangeEur(
+  locale: Locale,
+  lowJp: number,
+  highJp: number,
+  dayRateEur: number | undefined,
+): string {
+  const low = jpToEuros(lowJp, dayRateEur);
+  const high = jpToEuros(highJp, dayRateEur);
+  if (low === null || high === null) return t(locale, 'common.none');
+  if (low === high) return t(locale, 'common.eur', { value: formatNumber(locale, low) });
+  return t(locale, 'common.eurRange', { low: formatNumber(locale, low), high: formatNumber(locale, high) });
 }
 
 /** Une part (0 à 1) en pourcentage. */
