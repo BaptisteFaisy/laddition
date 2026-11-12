@@ -27,7 +27,7 @@ export function RankingTable({
   onSelect: (debtIssueId: string) => void;
   emptyAction?: ReactNode;
 }): JSX.Element {
-  const caption = t(locale, 'project.rankingTitle');
+  const caption = t(locale, 'project.rankingCaption');
   if (ranking.length === 0) {
     return (
       <Fragment>

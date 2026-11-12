@@ -97,6 +97,7 @@ export const fr: Messages = {
 
   'project.title': '{project} · l’addition',
   'project.rankingTitle': 'Les dettes, de la plus chère à la moins chère',
+  'project.rankingCaption': 'Coût de chaque dette sur la fenêtre',
   'project.rankingBody': 'Coût sur les {days} derniers jours, avec le bas et le haut de la fourchette.',
   'project.rankingEmpty':
     'Aucun ticket de dette dans ce projet. Les tickets de dette sont ceux qui répondent à la règle du projet.',
