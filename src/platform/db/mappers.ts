@@ -29,18 +29,7 @@ import type {
   ZoneMode,
 } from '../../core/types';
 import { makeSettings } from '../../core/settings';
-import {
-  FAMILIES,
-  parseJson,
-  pickOne,
-  toBool,
-  toIso,
-  toNumber,
-  toNumberOrNull,
-  toStringArray,
-  toText,
-  toTextOrNull,
-} from './rows';
+import { FAMILIES, parseJson, pickOne, toBool, toIso, toNamedArray, toNumber, toNumberOrNull, toStringArray, toText, toTextOrNull } from './rows';
 
 const STATUS_CATEGORIES: readonly StatusCategory[] = ['todo', 'inprogress', 'done'];
 const SIZE_CLASSES: readonly SizeClass[] = ['xs', 's', 'm', 'l', 'xl', 'unknown'];
@@ -222,7 +211,7 @@ export function toIssueFact(row: IssueFactRow): IssueFact {
     estimateJp: toNumberOrNull(row.estimate_jp),
     loggedSeconds: toNumberOrNull(row.logged_seconds),
     labels: toStringArray(row.labels),
-    components: toStringArray(row.components),
+    ...toNamedArray(row.components),
     affectedServices: toStringArray(row.affected_services),
     hasPostMortem: toBool(row.has_post_mortem),
     participants: toNumber(row.participants),

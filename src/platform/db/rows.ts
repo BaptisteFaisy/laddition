@@ -115,6 +115,32 @@ export function toStringArray(value: unknown): string[] {
   return parsed.filter((item): item is string => typeof item === 'string');
 }
 
+/**
+ * Composants d'un ticket lus en base : noms et identifiants, dans le même ordre.
+ *
+ * Deux écritures cohabitent : l'ancienne (noms seuls, avant l'item B24) et la
+ * nouvelle (paires nom/identifiant). Les deux sont lues.
+ */
+export function toNamedArray(value: unknown): { components: string[]; componentIds: string[] } {
+  const parsed = parseJson<unknown>(value, []);
+  if (!Array.isArray(parsed)) return { components: [], componentIds: [] };
+  const components: string[] = [];
+  const componentIds: string[] = [];
+  for (const item of parsed) {
+    if (typeof item === 'string') {
+      components.push(item);
+      componentIds.push('');
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const pair = item as { name?: unknown; id?: unknown };
+      components.push(typeof pair.name === 'string' ? pair.name : '');
+      componentIds.push(typeof pair.id === 'string' ? pair.id : '');
+    }
+  }
+  return { components, componentIds };
+}
+
 /** Une valeur d'union de chaînes lue en base, ou `fallback` si inconnue. */
 export function pickOne<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   const text = typeof value === 'string' ? value : '';

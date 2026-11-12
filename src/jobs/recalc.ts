@@ -30,6 +30,7 @@ import { scoreCandidates } from './relevance';
 import type { ScoredCandidates } from './relevance';
 import { groupSpans } from './spans';
 import { purgeDisappearedZones } from './zoneLifecycle';
+import { syncComponentLabels } from './zoneRename';
 
 /**
  * Le recalcul d'**un** projet : lire, calculer, enregistrer, publier (§15).
@@ -49,6 +50,8 @@ const MAX_LINK_ISSUES = 300;
 
 /** Bilan du calcul d'un projet. */
 export interface ProjectRecalc {
+  /** Zones renommées détectées et migrées (B24). */
+  renamedZones?: string[];
   projectId: string;
   evidence: number;
   bills: number;
@@ -112,6 +115,9 @@ export async function recalcProject(
   const pending = await listInvalid(projectId);
   if (options.deadline?.expired()) return timedOut(projectId, pending.length);
   const gathered = await gatherInput(projectId, settings, now);
+  // Zones renommées (B24) : l'historique stocké suit le nouveau libellé, et la
+  // purge des zones disparues ne peut plus le prendre pour une zone effacée.
+  const renames = await syncComponentLabels(projectId, gathered.input.facts);
   const prepared = prepare(gathered.input);
   const scored = await scoreProject(projectId, prepared, options.deadline);
   // Les scores obtenus sont déjà en cache : s'arrêter ici ne perd rien (C34).
@@ -130,6 +136,7 @@ export async function recalcProject(
   await consumeMarks(projectId, now, options.enqueue);
   return {
     projectId,
+    renamedZones: renames.map((rename) => `${rename.from} → ${rename.to}`),
     evidence: result.evidence.length,
     bills: result.bills.length,
     fieldUpdated,
