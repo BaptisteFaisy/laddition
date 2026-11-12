@@ -84,3 +84,15 @@ jobs:
         run: npm run typecheck
       - name: Tests du domaine
         run: npm test
+      # item 83 — visibilité sur les branches non couvertes. La suite complète
+      # avec --experimental-test-coverage tient en ~5 s (mesuré le 12/11), donc
+      # pas besoin de la restreindre à test:core ; la sortie reste bornée par
+      # tail et le budget de 5 min du job n'est JAMAIS allongé (règle user
+      # 2026-10-24). Seuil franc : 97 % de lignes sur src/core (mesuré à
+      # 97,27 % le 2026-11-12, arrondi à l'entier inférieur) — rouge seulement
+      # si la couverture passe sous le seuil, pas pour un dixième de point.
+      - name: Couverture src/core (résumé + seuil 97 %)
+        run: |
+          set -eo pipefail
+          node --test tools/coverage_threshold.test.mjs
+          node tools/coverage_threshold.mjs 2>&1 | tail -20

@@ -376,7 +376,7 @@ Une mesure fine (taille, allers-retours, délai de première revue) demande une 
 
 Le coût se lit dans l'historique, qu'on ne peut pas antidater par l'API. Les instructions prévoient donc :
 
-1. **Jeu d'exemple.** Un bouton injecte dans les tables de l'app un projet fictif de 6 mois (3 dettes, 60 preuves, 1 remboursement). Un bandeau « données d'exemple » reste affiché. Tous les écrans, l'agent et les outils MCP fonctionnent dessus.
+1. **Jeu d'exemple.** Un bouton injecte dans les tables de l'app un projet fictif de 6 mois (10 dettes — 3 principales et 7 mortes —, 65 preuves, 1 remboursement ; composition mesurée le 11/11, voir `docs/VALIDATIONS.md`). Un bandeau « données d'exemple » reste affiché. Tous les écrans, l'agent et les outils MCP fonctionnent dessus.
 2. **Données réelles du site.** Un assistant en trois étapes : désigner la dette, choisir le mode de zone, lancer l'initialisation. Le résultat dépend de l'historique présent sur le site.
 
 ## 23. Plan jusqu'au 22 décembre

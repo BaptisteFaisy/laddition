@@ -1,6 +1,6 @@
 /**
- * Conversions d'unités (DT-15, DT-20) : points → jours, heures → j-p, j-p →
- * euros, vélocité observée.
+ * Conversions d'unités (DT-15, DT-20) : points (lecture du champ Jira, → jours),
+ * heures → j-p, j-p → euros, vélocité observée.
  *
  * Toutes les conversions sont pures et ne jettent jamais : une entrée
  * inutilisable rend `null` (valeur non chiffrable) ou `0`, jamais `NaN`.
@@ -44,6 +44,20 @@ export function pointsToDays(
   if (velocityPointsPerWeek <= 0 || daysPerWeek <= 0) return null;
   const weeks = Math.max(0, points) / velocityPointsPerWeek;
   return round2(weeks * daysPerWeek);
+}
+
+/**
+ * Story points d'un champ Jira : la valeur brute devient un nombre de points,
+ * `null` quand elle est absente ou illisible (§11, DT-15). Jamais 0 : un champ
+ * vide ne doit pas annuler la conversion, il doit la laisser « non chiffrée ».
+ */
+export function parseStoryPoints(raw: unknown): number | null {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /** Heures saisies → jours-personne, avec la journée de travail du projet (§9). */
