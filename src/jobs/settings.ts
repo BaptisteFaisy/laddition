@@ -12,9 +12,8 @@ import { nowIso } from './support';
  * ticket. Sans marque, les écrans affichent des chiffres calculés avec les
  * anciennes règles jusqu'à la nuit suivante, sans rien dire.
  *
- * TODO(integration) : l'écran des réglages (`src/resolvers/settings.ts`) appelle
- * encore `saveSettings` du dépôt directement ; il doit appeler
- * `saveProjectSettings` d'ici pour que la marque soit posée.
+ * Les deux chemins d'écriture des réglages passent par ici : l'écran
+ * (`src/resolvers/settings.ts`) et le jeu d'exemple (`src/resolvers/sample.ts`).
  */
 
 /** Cible « projet entier » : tout est à recalculer, pas une seule zone. */

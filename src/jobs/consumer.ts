@@ -138,9 +138,10 @@ export async function bootstrapBatch(event: unknown): Promise<QueueMessageResult
   try {
     await ensureReady();
     return await runBatch(payload);
-  } catch {
-    // Jira ou SQL indisponible : Forge rejoue ce lot, rien n'est perdu.
-    return retryLater();
+  } catch (error) {
+    // Échec avant `writeBatch` (réglages absents, page Jira illisible, SQL en
+    // panne) : la tentative est comptée quand même, plus de rejeu infini (B26).
+    return countedFailure(payload, messageOf(error));
   }
 }
 
@@ -159,6 +160,53 @@ function retryLater(): QueueResponse {
   const response = new QueueResponse();
   response.retry();
   return response;
+}
+
+/**
+ * Échec **avant** `writeBatch` (B26) : la tentative est comptée et écrite dans
+ * le registre des lots — sans cela, une exception dans `requireSettings` ou une
+ * page Jira illisible repartait en rejeu sans jamais incrémenter `attempts`.
+ * Au-delà de `MAX_BATCH_ATTEMPTS`, le lot part en lettre morte : son erreur
+ * reste dans `bootstrap_batch` (registre) et remonte dans la barre de
+ * progression (signal), et le message n'est plus rejoué.
+ */
+async function countedFailure(payload: BootstrapPayload, reason: string): Promise<QueueMessageResult> {
+  const token = payload.nextPageToken ?? '';
+  let state: BatchState;
+  try {
+    const previous = await readBatch(payload.projectId, token);
+    const attempts = (previous?.attempts ?? 0) + 1;
+    state = {
+      projectId: payload.projectId,
+      pageToken: token,
+      done: previous?.done ?? 0,
+      failed: previous?.failed ?? 0,
+      attempts,
+      ingested: previous?.ingested ?? false,
+      pushed: previous?.pushed ?? false,
+      finished: previous?.finished ?? false,
+      error:
+        attempts > MAX_BATCH_ATTEMPTS
+          ? `lot abandonné après ${MAX_BATCH_ATTEMPTS} tentatives : ${reason}`
+          : reason,
+      updatedAt: nowIso(),
+    };
+    await writeBatch(state);
+  } catch {
+    // Le registre lui-même est inaccessible (SQL hors service) : rien à
+    // compter, Forge rejoue le message.
+    return retryLater();
+  }
+  if (state.attempts <= MAX_BATCH_ATTEMPTS) return retryLater();
+  await advance(payload.projectId, await sumBatches(payload.projectId), state.finished, state);
+  return {
+    ok: false,
+    projectId: payload.projectId,
+    done: state.done,
+    failed: state.failed,
+    finished: state.finished,
+    error: state.error ?? reason,
+  };
 }
 
 /** Une page : lecture, enregistrement, progression, lot suivant. */
