@@ -20,6 +20,7 @@ import { buildBill } from '../core/bill';
 import { collectEvidence } from '../core/families/index';
 import { computeQuality } from '../core/quality';
 import { rankDebts } from '../core/ranking';
+import { contextVelocity } from '../core/units';
 import type { ZoneWeekInput } from '../platform/db/index';
 import { weeklyZoneCosts } from './zoneCosts';
 
@@ -79,6 +80,8 @@ export function prepare(input: RecomputeInput): Prepared {
     now: input.now,
     baselines,
     spansByIssue: input.spansByIssue,
+    /** Rythme du projet (DT-15) : convertit les points d'une dette en jours (§11). */
+    velocityPointsPerWeek: contextVelocity(input.facts, input.settings),
   };
   return {
     ctx,
