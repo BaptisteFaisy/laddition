@@ -2,7 +2,7 @@ import { Fragment, Heading, Text } from '../kit';
 import type { DataQuality } from '../../core/types';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
-import { familyLabel, formatNumber, formatPercent, pair } from '../format';
+import { familyLabel, formatNumber, formatPercentValue, pair } from '../format';
 
 /** Qualité des données affichée dans l'onglet Méthode (§14). */
 export function MethodQuality({ locale, quality }: { locale: Locale; quality: DataQuality }): JSX.Element {
@@ -12,9 +12,9 @@ export function MethodQuality({ locale, quality }: { locale: Locale; quality: Da
       <Text>{pair(locale, t(locale, 'method.quality.issues'), formatNumber(locale, quality.issuesTotal))}</Text>
       <Text>{pair(locale, t(locale, 'method.quality.withoutZone'), formatNumber(locale, quality.issuesWithoutZone))}</Text>
       <Text>
-        {pair(locale, t(locale, 'method.quality.unclassifiedShare'), formatPercent(locale, quality.unclassifiedShare))}
+        {pair(locale, t(locale, 'method.quality.unclassifiedShare'), formatPercentValue(locale, quality.unclassifiedShare))}
       </Text>
-      <Text>{pair(locale, t(locale, 'method.quality.loggedShare'), formatPercent(locale, quality.loggedShare))}</Text>
+      <Text>{pair(locale, t(locale, 'method.quality.loggedShare'), formatPercentValue(locale, quality.loggedShare))}</Text>
       <Text>
         {pair(locale, t(locale, 'method.quality.approximated'), formatNumber(locale, quality.approximatedIssues))}
       </Text>
