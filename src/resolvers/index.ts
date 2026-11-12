@@ -19,6 +19,7 @@ import { clearSampleData, loadSampleData } from './sample';
 import { draftDebtTicket, previewDebtTicket } from './draft';
 import { listDebtAttributions, listZoneEvidence } from './evidence';
 import { startBootstrap } from './bootstrap';
+import { simulateRepayment } from './simulation';
 
 /**
  * API des écrans (§14) : une clé par fonction appelée par l'UI.
@@ -58,4 +59,5 @@ export const RESOLVERS: Record<string, ResolverFunction> = {
   loadSampleData,
   clearSampleData,
   getDataQuality,
+  simulateRepayment,
 };

@@ -15,6 +15,7 @@
 import type { Request } from '@forge/resolver';
 import type { DebtBill, IssueFact, Repayment } from '../core/types';
 import type { SimulationDebtInput, SimulationResult } from '../core/simulation';
+import { MAX_SIMULATED_DEBTS } from '../core/simulation';
 import { simulateRepayment as runSimulation } from '../core/simulation';
 import type { Failure } from '../jobs/support';
 import { guard, nowIso, payloadOf, requireString } from '../jobs/support';
@@ -24,8 +25,8 @@ import { loadState } from './state';
 /** Clé du résolveur, à câbler dans `RESOLVERS` et `src/ui/api.ts`. */
 export const SIMULATION_RESOLVER_KEY = 'simulateRepayment';
 
-/** Borne de la sélection : une simulation reste lisible et bon marché. */
-export const MAX_SIMULATED_DEBTS = 50;
+/** Borne de la sélection, définie dans le domaine et réexportée pour les tests. */
+export { MAX_SIMULATED_DEBTS };
 
 /** Ce que l'écran reçoit : le résultat pur, tel quel. */
 export type SimulationView = SimulationResult;

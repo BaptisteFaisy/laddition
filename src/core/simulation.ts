@@ -20,6 +20,13 @@
 import type { DebtBill, Repayment } from './types';
 import { round2 } from './time';
 
+/**
+ * Borne d'une simulation : au-delà, le tableau n'est plus lisible et la
+ * sélection n'a plus de sens métier. Règle du domaine, donc partagée entre le
+ * résolveur (qui refuse) et l'écran (qui n'envoie jamais plus).
+ */
+export const MAX_SIMULATED_DEBTS = 50;
+
 /** D'où vient le chiffre d'une ligne de simulation. */
 export type SimulationMethod =
   /** Bulletin de remboursement publié : baisse observée avant/après. */

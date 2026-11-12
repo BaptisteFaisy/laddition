@@ -3,6 +3,7 @@ import { mountScreen } from './mount';
 import type { ScreenContext } from './context';
 import { t } from './i18n/index';
 import { BillView } from './components/BillView';
+import { CaseButton } from './components/CaseButton';
 import { ErrorState } from './components/ErrorState';
 import { ScreenShell } from './components/ScreenShell';
 
@@ -24,6 +25,7 @@ function IssuePanelContent({ context }: { context: ScreenContext }): JSX.Element
     <Fragment>
       <Heading size="medium">{t(locale, 'panel.title')}</Heading>
       <BillView locale={locale} debtIssueId={context.issueId} />
+      <CaseButton locale={locale} issueKey={context.issueKey} />
     </Fragment>
   );
 }
