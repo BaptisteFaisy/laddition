@@ -74,6 +74,16 @@ export interface PurgeReport {
   errors?: string[];
 }
 
+/** Exécute une instruction de purge ; l'échec est consigné, jamais relancé. */
+async function attempt<T>(report: PurgeReport, what: string, run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run();
+  } catch (error) {
+    report.errors?.push(`${what} : ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
 /**
  * Purge un projet : tout ce qui est plus vieux que les fenêtres conservées.
  *
@@ -86,23 +96,15 @@ export async function purgeProject(projectId: string, options: PurgeOptions = {}
   const cutoffs = purgeCutoffs(options);
   const batch = options.batchSize ?? PURGE_BATCH;
   const report: PurgeReport = { projectId, deleted: {}, trimmedDescriptions: 0, errors: [] };
-  const attempt = async <T>(what: string, run: () => Promise<T>): Promise<T | null> => {
-    try {
-      return await run();
-    } catch (error) {
-      report.errors?.push(`${what} : ${error instanceof Error ? error.message : String(error)}`);
-      return null;
-    }
-  };
 
-  report.deleted['attribution'] = (await attempt('attribution', () => deleteBounded(
+  report.deleted['attribution'] = (await attempt(report, 'attribution', () => deleteBounded(
     'attribution',
     batch,
     `project_id = ? AND evidence_id IN (
        SELECT evidence_id FROM evidence WHERE project_id = ? AND occurred_at < ?)`,
     [projectId, projectId, cutoffs.old],
   ))) ?? 0;
-  report.deleted['status_span'] = (await attempt('status_span', () => deleteBounded(
+  report.deleted['status_span'] = (await attempt(report, 'status_span', () => deleteBounded(
     'status_span',
     batch,
     `issue_id IN (
@@ -112,27 +114,27 @@ export async function purgeProject(projectId: string, options: PurgeOptions = {}
           AND COALESCE(resolved_at, closed_at, created_at) < ?)`,
     [projectId, cutoffs.old, cutoffs.old],
   ))) ?? 0;
-  report.deleted['evidence'] = (await attempt('evidence', () => deleteBounded(
+  report.deleted['evidence'] = (await attempt(report, 'evidence', () => deleteBounded(
     'evidence',
     batch,
     'project_id = ? AND occurred_at < ?',
     [projectId, cutoffs.old],
   ))) ?? 0;
-  report.trimmedDescriptions = (await attempt('descriptions', () => trimDescriptions(projectId, cutoffs.old, batch))) ?? 0;
-  report.deleted['zone_week'] = (await attempt('zone_week', () => deleteBounded(
+  report.trimmedDescriptions = (await attempt(report, 'descriptions', () => trimDescriptions(projectId, cutoffs.old, batch))) ?? 0;
+  report.deleted['zone_week'] = (await attempt(report, 'zone_week', () => deleteBounded(
     'zone_week',
     batch,
     'project_id = ? AND week < ?',
     [projectId, cutoffs.oldWeek],
   ))) ?? 0;
-  report.deleted['score_cache'] = (await attempt('score_cache', () => deleteBounded(
+  report.deleted['score_cache'] = (await attempt(report, 'score_cache', () => deleteBounded(
     'score_cache',
     batch,
     'project_id = ? AND computed_at < ?',
     [projectId, cutoffs.old],
   ))) ?? 0;
   // Après `evidence` : les confirmations perdues par la purge deviennent orphelines.
-  const decisions = await attempt('décisions', () => purgeDecisions(projectId, cutoffs.old, batch));
+  const decisions = await attempt(report, 'décisions', () => purgeDecisions(projectId, cutoffs.old, batch));
   if (decisions) Object.assign(report.deleted, decisions);
   return report;
 }
@@ -216,11 +218,10 @@ async function trimDescriptions(projectId: string, old: string, batchSize: numbe
   let total = 0;
   for (let round = 0; round < PURGE_MAX_ROUNDS; round += 1) {
     const result = await runStatement(
-      'UPDATE issue_fact SET description = NULL ' +
+      'UPDATE issue_fact SET description = ? ' +
         'WHERE project_id = ? AND created_at < ? ' +
-        'AND COALESCE(resolved_at, closed_at, created_at) < ? ' +
-        `AND description IS NOT NULL LIMIT ${safeLimitInt(batchSize, 1, MAX_PAGE_LIMIT)}`,
-      [projectId, old, old, batchSize],
+        `LIMIT ${safeLimitInt(batchSize, 1, MAX_PAGE_LIMIT)}`,
+      ['', projectId, old],
     );
     const affected = result.affectedRows ?? 0;
     total += affected;
