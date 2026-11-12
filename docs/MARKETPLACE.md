@@ -98,16 +98,18 @@ weekly cost.
 
 ## 4. Privacy policy
 
-*(Complete and self-contained — this is the text to paste into the Marketplace
-privacy-policy field.)*
+*(Complete and self-contained — same text as the publishable `docs/PRIVACY.md`;
+once hosted, the Marketplace privacy-policy field takes the published **URL**
+(publication plan: `docs/NOTES-DE-SOUMISSION.md`).)*
 
 **What the app reads.** L'addition reads, through Atlassian APIs only and only
 on the site where it is installed: issues and their status history (changelogs),
-issue links, components, labels, issue types, logged time, and, on incidents,
-the "affected services" field. It reads user display names solely to count the
-distinct participants of an incident (cost family C1). When a screen opens, it
-may read Teamwork Graph relationships (Compass components, owning teams) on
-behalf of the viewing user.
+issue links, comments, components, labels, issue types and logged time. It reads
+user identifiers (account IDs — never display names) solely to count the
+distinct participants of an incident (cost family C1). It declares three
+`read:graph:*` scopes that **only the operator diagnostic probe** calls
+(§5, decision G93): no screen a user opens reads Teamwork Graph data, and every
+shipped feature runs on Jira data through the documented fallbacks.
 
 **What the app stores.** Everything is stored in Forge SQL, inside the
 installation's own storage partition on the Atlassian platform: computed costs
@@ -123,7 +125,7 @@ dataset can be removed at any time from the project settings ("Remove sample
 data"), which deletes those rows from the app's tables.
 
 **No outbound network call.** The app calls only Atlassian APIs (Jira REST,
-Teamwork Graph, Forge SQL, Forge LLMs). It never contacts a third-party server.
+Forge SQL, Forge LLMs). It never contacts a third-party server.
 
 **Language model.** Text is processed only by Atlassian-hosted models (Forge
 LLMs, Claude family), under Atlassian's own data policies. The model only scores
@@ -147,31 +149,43 @@ storage as described above.
 
 | Scope | Why |
 |---|---|
-| `read:jira-work` | Read issues, changelogs, links, comments and components to reconstruct durations and proofs |
-| `write:jira-work` | Write the read-only computed field "Debt cost (p-d / 90 d)" on debt tickets after each recalculation (DT-11) — this is what the shipped code does today. Posting the repayment bulletin as a comment on the closed debt ticket is **still being implemented**; if it has not shipped by submission, the scope remains justified by the field write alone, and nothing else uses it |
-| `read:jira-user` | Count distinct participants on an incident (C1). Never used to rank or display a person |
-| `storage:app` | Reserved; the app stores in Forge SQL |
-| `read:graph:component:compass` | Zone mode "Compass component" (§8, priority 2) |
-| `read:graph:team:atlassian` | Team that owns a component, for cost per team (§8) |
-| `read:graph:issue:jira` | Incidents and affected services, PRs seen in the graph (§8, §15) |
+| `read:jira-work` | Read issues, changelogs, links, comments and components to reconstruct durations and proofs; comment and assignee account IDs are used solely to count the distinct participants of an incident (C1) — never to rank or display a person |
+| `write:jira-work` | Write the read-only computed field "Debt cost (p-d / 90 d)" on debt tickets after each recalculation (DT-11), and post the repayment bulletin as a comment on the closed debt ticket. Both are shipped: `src/jobs/repaymentComment.ts`, wired in `src/jobs/repayments.ts`. Nothing else uses this scope |
 
 **Rule (G92): a scope that the shipped code does not use is removed before
 submission.** The table above is re-checked against the code at freeze time
 (15 December, spec §23), and any scope left unused is dropped from
 `manifest.yml` rather than justified after the fact.
 
-**Actual state of the Teamwork Graph scopes (G93).** The three `read:graph:*`
-scopes are consumed today **only by the diagnostic probe** (`?action=probe`,
-`src/platform/graph.ts`, exercised on 11 November and recorded in
-`docs/VALIDATIONS.md`): on the demo site the graph returned nothing for
-affected services, pull requests and Compass components, because the
-organisation-level scopes are not granted there. By design, graph reads happen
-**on behalf of the user**, when a screen opens, and are cached; the nightly
-computation does without them and uses the Jira REST API. The documented
-fallbacks are what actually ships today: Jira components for zones, review-status
-time for PR slowness, no Compass dependency. Before submission, either these
-scopes are demonstrated from a real screen on a site whose organisation admin
-granted them, or they are removed per the rule above.
+**Decision on the Teamwork Graph scopes (G93, decided on 12 November 2026).** The
+three `read:graph:*` scopes are **kept in `manifest.yml` for now, and scheduled
+for removal at the freeze** (15 December) if the graph still cannot be
+demonstrated from a real screen. They are consumed **only by the diagnostic
+probe** (`?action=probe`, `src/jobs/opsValidate.ts` → `src/platform/graph.ts`),
+never by a screen a user opens. The probe was exercised on 11 November and recorded in
+`docs/VALIDATIONS.md`: on the demo site the graph returned nothing for affected
+services, pull requests and Compass components, because the organisation-level
+scopes are not granted there — and no site available before the freeze (15
+December) can grant them, so they could not be demonstrated before submission.
+Under the rule above, a scope the shipped product does not use for a shipped
+feature is dropped rather than justified after the fact; three
+organisation-level scopes that cannot be demonstrated are exactly what a
+Marketplace reviewer checks first. They are not dropped tonight for one
+operational reason: a scope change triggers a **major version upgrade** on
+deploy (`forge lint`, rule `MAJOR_VERSION_RULE`) and re-declaring them later
+would trigger a second one, so the change is made **once**, at the freeze,
+together with the removal of the graph code itself (`src/platform/graph.ts` and
+the V4/V5/V6 probe) — dropping the scopes while the code still calls the graph
+leaves a `teamwork-graph-scopes` warning in the build.
+
+Everything the product ships today works without them, through the documented
+fallbacks, which are the shipped behaviour: zones come from Jira components,
+pull-request slowness from review-status time, and there is no Compass
+dependency. The graph integration code stays in the repository (adapters and
+probe, on behalf of the user by design, §15); if they are dropped at the freeze,
+the scopes will be declared again in a later version, together with the §8
+priority-2 features (Compass zone mode, cost per team), once they can be
+demonstrated from a real screen on a site whose organisation admin granted them.
 
 ## 6. Versioning and support
 
@@ -197,9 +211,11 @@ granted them, or they are removed per the rule above.
 - Primary category: **Project management**
 - Secondary: **Reporting & analytics**
 - Labels: `technical debt`, `engineering effectiveness`, `cost`, `Jira`, `Rovo`,
-  `MCP`, `Teamwork Graph`, `Forge`, `Runs on Atlassian`. (`prioritization` was
+  `MCP`, `Forge`, `Runs on Atlassian`. (`prioritization` was
   removed on purpose — spec §24: the product measures a past cost and checks a
-  repayment, it does not score or rank the backlog.)
+  repayment, it does not score or rank the backlog. `Teamwork Graph` was
+  removed on 12 November — see §5, decision G93: no feature a user opens reads
+  the graph, and a label must match what the shipped app does for its user.)
 
 ## 8. Screenshots to produce (with their caption)
 
