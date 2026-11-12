@@ -89,14 +89,14 @@ test('une réouverture produit une preuve de reprise', () => {
   assert.equal(evidence.costJp, 9);
   assert.equal(evidence.detail.durationDays, 9);
   assert.equal(evidence.detail.familyLabel, 'Retouches');
-  assert.deepEqual(evidence.detail.inputs, { reouvertures: 1, joursReprise: 9, prRefusees: 0, revueJp: 0 });
+  assert.deepEqual(evidence.detail.inputs, { reouvertures: 1, joursReprise: 9, prRefusees: null, revueJp: 0 });
 });
 
 test('deux réouvertures cumulent les temps de reprise', () => {
   const ctx = makeCtx(new Map([['I-1', twoReworkSpans()]]));
   const evidence = only(c4Rework([makeFact()], ctx));
 
-  assert.deepEqual(evidence.detail.inputs, { reouvertures: 2, joursReprise: 6, prRefusees: 0, revueJp: 0 });
+  assert.deepEqual(evidence.detail.inputs, { reouvertures: 2, joursReprise: 6, prRefusees: null, revueJp: 0 });
   assert.equal(evidence.costJp, 6);
 });
 
@@ -242,4 +242,22 @@ test('A14 — le coût des PR refusées se partage entre les zones', () => {
   assert.equal(evidence.length, 2);
   const total = evidence.reduce((sum, item) => sum + item.costJp, 0);
   assert.equal(Math.round(total * 100) / 100, 10);
+});
+
+test('A14 — source PR absente : repli assumé, la formule dit d’où vient le chiffre', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = only(c4Rework([makeFact()], ctx));
+
+  assert.match(evidence.detail.formula, /PR refusées : source absente — repli assumé/);
+  assert.match(evidence.detail.formula, /temps passé en statut de revue \(séjours de statut\), pas de PR refusées/);
+  // Donnée absente : null, jamais 0 (qui prétendrait un fait mesuré).
+  assert.equal(evidence.detail.inputs.prRefusees, null);
+});
+
+test('A14 — source PR fournie et vide : zéro refus est un fait, pas une absence', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = only(c4Rework([makeFact()], ctx, []));
+
+  assert.equal(evidence.detail.inputs.prRefusees, 0);
+  assert.doesNotMatch(evidence.detail.formula, /source absente/);
 });

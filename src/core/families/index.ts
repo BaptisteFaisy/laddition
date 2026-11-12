@@ -24,6 +24,10 @@ export function collectEvidence(
     ...c1Incidents(facts, ctx),
     ...c2Bugs(facts, ctx),
     ...c3Slowness(facts, ctx),
+    // Item A14 : cette source n'expose pas les PR refusées. Appel sans
+    // troisième argument = repli **assumé explicitement** par c4Rework : le
+    // chiffre vient du temps en statut de revue (séjours de statut), et la
+    // formule de la preuve le dit au lieu de prétendre à des PR refusées.
     ...c4Rework(facts, ctx),
     ...c5Delay(facts, ctx, links),
   ];
