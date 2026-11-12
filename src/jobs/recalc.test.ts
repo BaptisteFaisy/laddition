@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { startFakeDb } from '../mcp/testing/seed';
+import { listAttributions, replaceAttributions } from '../platform/db/index';
+import { attribution } from '../platform/db/testFixtures';
 import { createDeadline, NO_DEADLINE } from './deadline';
+import { markInvalid } from './invalidation';
 import { stubForgeRuntime } from './testForge';
 import { makeFact, makeSettings } from './testFixtures';
 
 // `recalc` importe le scoreur LLM, qui exige le runtime Forge : double installé
 // avant l'import (aucun test n'appelle le modèle).
 stubForgeRuntime();
-const { mergeFacts, skipReason } = await import('./recalc');
+const { carryBeyondAttributions, consumeMarks, mergeFacts, skipReason, splitByLinkCap } =
+  await import('./recalc');
 
 /**
  * B16 — le jeu d'exemple n'est jamais recalculé ni écrit dans Jira.
@@ -56,4 +61,39 @@ test('C34 — la garde de durée expire après le budget', () => {
 test('C34 — une garde sans budget n’expire jamais', () => {
   assert.equal(NO_DEADLINE.expired(), false);
   assert.equal(NO_DEADLINE.remaining(), Number.POSITIVE_INFINITY);
+});
+
+test('B20 — une marque née pendant le recalcul est consommée : le projet est ré-enfilé', async (t) => {
+  await startFakeDb(t);
+  const startedAt = '2026-04-20T02:00:00.000Z';
+  const enqueued: string[] = [];
+  const enqueue = async (projectId: string): Promise<void> => {
+    enqueued.push(projectId);
+  };
+  await markInvalid('p1', 'zone', ['facturation'], '2026-04-20T01:00:00.000Z');
+  assert.equal(await consumeMarks('p1', startedAt, enqueue), 0, 'marque antérieure : déjà traitée');
+  assert.deepEqual(enqueued, [], 'rien de neuf : pas de ré-enfilage');
+  await markInvalid('p1', 'zone', ['taxes'], '2026-04-20T02:00:05.000Z');
+  assert.equal(await consumeMarks('p1', startedAt, enqueue), 1, 'marque pendant le calcul : à reprendre');
+  assert.deepEqual(enqueued, ['p1'], 'le projet est ré-enfilé sans attendre la nuit suivante');
+});
+
+test('C28 — le plafond garde les plus récents, les hors-plafond gardent leurs parts', async (t) => {
+  await startFakeDb(t);
+  const facts = Array.from({ length: 302 }, (_, index) =>
+    makeFact({
+      issueId: `i${index}`,
+      key: `PAY-${index}`,
+      createdAt: new Date(Date.UTC(2026, 0, 1 + index)).toISOString(),
+    }),
+  );
+  const { within, beyond } = splitByLinkCap(facts);
+  assert.equal(within.length, 300);
+  assert.equal(within[0]?.issueId, 'i2', 'le plafond garde les 300 plus récents, pas les plus anciens');
+  assert.deepEqual(beyond.map((fact) => fact.issueId), ['i0', 'i1']);
+  await replaceAttributions('p1', [attribution({ evidenceId: 'ev1', debtIssueId: 'i0' })]);
+  const carried = await carryBeyondAttributions('p1', beyond, [], []);
+  assert.equal(carried.length, 1, 'l’attribution du ticket hors plafond est rejouée, pas effacée');
+  assert.equal(carried[0]?.debtIssueId, 'i0');
+  assert.equal((await listAttributions('p1')).length, 1);
 });
