@@ -1,6 +1,5 @@
 /**
- * Champ « Coût de la dette (j-p / 90 j) » — DT-11 et DT-19,
- * et bulletin de remboursement publié en commentaire (G91).
+ * Champ « Coût de la dette (j-p / 90 j) » — DT-11 et DT-19.
  *
  * L'app tient un champ numérique par projet, écrit par le job d'initialisation
  * et par le recalcul nocturne. Le champ n'est jamais exposé dans un écran
@@ -13,7 +12,6 @@
  */
 import { route } from '@forge/api';
 import type { Route } from '@forge/api';
-import { createHash } from 'node:crypto';
 import { clamp, round2 } from '../core/time';
 import { jiraGetJson, jiraSendJson, searchIssues } from './jira';
 import type { SearchPage, SendResult } from './jira';
@@ -40,12 +38,6 @@ const WRITE_CONCURRENCY = 5;
 /** Plafond de tentatives par PUT (C29) : on ne martèle jamais un 403. */
 const PUT_ATTEMPTS = 2;
 
-/** Marqueur d'idempotence d'un bulletin (G91) : dans le corps du commentaire. */
-const COMMENT_MARKER_PREFIX = 'laddition:bulletin:';
-
-const COMMENT_PAGE_SIZE = 100;
-const COMMENT_MAX_PAGES = 10;
-
 /** Résultat de la mise en place du champ. */
 export interface FieldSetup {
   ok: boolean;
@@ -68,24 +60,11 @@ export interface TopDebtsQuery {
   maxResults: number;
 }
 
-/** Bilan d'une publication de bulletin : posté, déjà là, ou refusé. */
-export interface CommentOutcome {
-  ok: boolean;
-  posted: boolean;
-  reason: string | null;
-}
-
 interface JiraField {
   id?: string;
   name?: string;
   custom?: boolean;
   schema?: { type?: string };
-}
-
-interface ReadCommentPage {
-  comments?: Array<{ body?: unknown }>;
-  total?: number;
-  startAt?: number;
 }
 
 /** Surface HTTP Jira utilisée par ce module (injectable pour les tests). */
@@ -292,74 +271,6 @@ export function jqlForTopDebts(fieldId: string, limit: number): TopDebtsQuery {
     jql: `${ref} is not EMPTY AND ${ref} > 0 ORDER BY ${ref} DESC`,
     maxResults: clamp(Math.round(limit), 1, MAX_TOP_DEBTS),
   };
-}
-
-// ---------------------------------------------------------------------------
-// Bulletin de remboursement (G91)
-// ---------------------------------------------------------------------------
-
-/**
- * Publie le bulletin de remboursement d'un ticket en commentaire Jira.
- *
- * Au nom de l'app, au sens « un commentaire de plus, jamais une réécriture » :
- * idempotent par marqueur dans le corps (l'empreinte du texte), donc le même
- * bulletin n'est jamais reposté et aucun commentaire existant n'est écrasé.
- * Le lot D appelle cette fonction pour la brancher ; elle n'est volontairement
- * pas appelée ici.
- */
-export async function postRepaymentComment(issueKey: string, texte: string): Promise<CommentOutcome> {
-  const key = issueKey.trim();
-  const body = texte.trim();
-  if (key.length === 0 || body.length === 0) return { ok: false, posted: false, reason: 'ticket ou bulletin vide' };
-  const marker = bulletinMarker(body);
-  const already = await commentHasMarker(key, marker);
-  if (already === null) return { ok: false, posted: false, reason: 'commentaires illisibles' };
-  if (already) return { ok: true, posted: false, reason: null };
-  const sent = await http.sendJson<{ id?: string }>(
-    'POST',
-    route`/rest/api/3/issue/${key}/comment`,
-    { body: commentAdf(marker, body) },
-    `postRepaymentComment ${key}`,
-  );
-  if (!sent.ok) return { ok: false, posted: false, reason: 'publication du bulletin refusée' };
-  return { ok: true, posted: true, reason: null };
-}
-
-/** Marqueur d'idempotence : préfixe fixe + empreinte courte du texte. */
-function bulletinMarker(body: string): string {
-  const hash = createHash('sha256').update(body).digest('hex').slice(0, 16);
-  return `<!-- ${COMMENT_MARKER_PREFIX}${hash} -->`;
-}
-
-/** Vrai si un commentaire porte déjà le marqueur ; `null` si illisible. */
-async function commentHasMarker(key: string, marker: string): Promise<boolean | null> {
-  let startAt = 0;
-  for (let page = 0; page < COMMENT_MAX_PAGES; page += 1) {
-    const data = await http.getJson<ReadCommentPage>(
-      route`/rest/api/3/issue/${key}/comment?startAt=${startAt}&maxResults=${COMMENT_PAGE_SIZE}`,
-      `readComments ${key}`,
-    );
-    if (!data) return null;
-    const comments = data.comments ?? [];
-    if (comments.some((comment) => commentBodyHas(comment, marker))) return true;
-    startAt += comments.length;
-    if (comments.length === 0) break;
-    if (data.total !== undefined && startAt >= data.total) break;
-  }
-  return false;
-}
-
-/** Le marqueur est un texte littéral dans le corps (jamais un HTML commenté). */
-function commentBodyHas(comment: { body?: unknown }, marker: string): boolean {
-  return JSON.stringify(comment.body ?? '').includes(marker);
-}
-
-/** Document ADF : le marqueur puis une ligne par paragraphe non vide. */
-function commentAdf(marker: string, body: string): Record<string, unknown> {
-  const content = [marker, ...body.split('\n')]
-    .filter((line) => line.trim().length > 0)
-    .map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] }));
-  return { type: 'doc', version: 1, content };
 }
 
 /** `customfield_10042` → `cf[10042]` ; tout autre identifiant → nom cité. */

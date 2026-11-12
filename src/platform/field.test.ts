@@ -1,8 +1,8 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import * as field from './field';
 import {
   jqlForTopDebts,
-  postRepaymentComment,
   setJiraHttp,
   writeDebtCost,
 } from './field';
@@ -10,9 +10,9 @@ import type { JiraHttp } from './field';
 import type { Route } from '@forge/api';
 
 /**
- * C29 (écritures parallèles bornées), C42 (comparaison arrondie, chaîne
- * tolérée) et G91 (bulletin idempotent en commentaire). Transport HTTP injecté,
- * aucun réseau ; le champ est identifié par une constante locale.
+ * C29 (écritures parallèles bornées) et C42 (comparaison arrondie, chaîne
+ * tolérée). Transport HTTP injecté, aucun réseau ; le champ est identifié par
+ * une constante locale.
  */
 
 const FIELD = 'customfield_10042';
@@ -20,10 +20,7 @@ const FIELD = 'customfield_10042';
 interface FakeState {
   current: Map<string, number | string>;
   fail: Map<string, number>;
-  comments: Array<{ body?: unknown }>;
-  postOk: boolean;
   puts: Array<{ key: string; value: number }>;
-  posts: Array<{ payload: Record<string, unknown> }>;
   inFlight: number;
   maxInFlight: number;
 }
@@ -31,22 +28,16 @@ interface FakeState {
 function makeHttp(init: {
   current?: Record<string, number | string>;
   fail?: Record<string, number>;
-  comments?: Array<{ body?: unknown }>;
-  postOk?: boolean;
 } = {}) {
   const state: FakeState = {
     current: new Map(Object.entries(init.current ?? {})),
     fail: new Map(Object.entries(init.fail ?? {})),
-    comments: init.comments ?? [],
-    postOk: init.postOk ?? true,
     puts: [],
-    posts: [],
     inFlight: 0,
     maxInFlight: 0,
   };
   const http: JiraHttp = {
     async getJson<T>(_url: Route, what: string): Promise<T | null> {
-      if (what.startsWith('readComments')) return { comments: state.comments, total: state.comments.length, startAt: 0 } as T;
       if (what === 'listFields') return [] as T;
       return null;
     },
@@ -61,10 +52,6 @@ function makeHttp(init: {
         const remain = state.fail.get(key) ?? 0;
         if (remain > 0) state.fail.set(key, remain - 1);
         return { ok: remain <= 0, data: null };
-      }
-      if (what.startsWith('postRepaymentComment')) {
-        state.posts.push({ payload: payload as Record<string, unknown> });
-        return state.postOk ? { ok: true, data: null } : { ok: false, data: null };
       }
       return { ok: true, data: null };
     },
@@ -136,67 +123,12 @@ test('C29 : plafond de tentatives — un échec persistant échoue, sans dépass
   assert.equal(state.puts.length, 5);
 });
 
-test('G91 : le bulletin est posté une fois, avec un marqueur dans le corps', async () => {
-  const { state, http } = makeHttp();
-  setJiraHttp(http);
-
-  const first = await postRepaymentComment('DT-1', 'Avant 3,4 — après 0,6 j-p/semaine.');
-  assert.equal(first.ok, true);
-  assert.equal(first.posted, true);
-  assert.equal(state.posts.length, 1);
-
-  const body = state.posts[0]?.payload.body as { content?: Array<{ content?: Array<{ text?: string }> }> };
-  const firstText = body.content?.[0]?.content?.[0]?.text ?? '';
-  assert.match(firstText, /^<!-- laddition:bulletin:/);
-});
-
-test('G91 : le même bulletin n’est jamais reposté (idempotent)', async () => {
-  const { state, http } = makeHttp();
-  setJiraHttp(http);
-
-  await postRepaymentComment('DT-1', 'Bulletin identique.');
-  const postedBody = state.posts[0]?.payload.body;
-  state.comments = [{ body: postedBody }];
-
-  const second = await postRepaymentComment('DT-1', 'Bulletin identique.');
-  assert.equal(second.ok, true);
-  assert.equal(second.posted, false);
-  assert.equal(state.posts.length, 1);
-});
-
-test('G91 : un commentaire existant n’est jamais écrasé, on ajoute', async () => {
-  const { state, http } = makeHttp({
-    comments: [{ body: { type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'autre commentaire' }] }] } }],
-  });
-  setJiraHttp(http);
-
-  const outcome = await postRepaymentComment('DT-1', 'Nouveau bulletin.');
-  assert.equal(outcome.ok, true);
-  assert.equal(outcome.posted, true);
-  assert.equal(state.posts.length, 1); // on poste, on ne réécrit pas l'existant
-  assert.equal(state.comments.length, 1);
-});
-
-test('G91 : publication refusée → échec explicite, jamais un throw', async () => {
-  const { http } = makeHttp({ postOk: false });
-  setJiraHttp(http);
-
-  const outcome = await postRepaymentComment('DT-1', 'Bulletin.');
-  assert.equal(outcome.ok, false);
-  assert.equal(outcome.posted, false);
-  assert.equal(outcome.reason, 'publication du bulletin refusée');
-});
-
-test('G91 : ticket ou texte vide → refus immédiat', async () => {
-  const { http } = makeHttp();
-  setJiraHttp(http);
-
-  assert.equal((await postRepaymentComment('', 'x')).ok, false);
-  assert.equal((await postRepaymentComment('DT-1', '   ')).ok, false);
-});
-
 test('jqlForTopDebts borne le plafond et cite le champ', () => {
   const query = jqlForTopDebts(FIELD, 500);
   assert.equal(query.maxResults, 50);
   assert.match(query.jql, /cf\[10042\]/);
+});
+
+test('reliquat B19 : le module ne réexporte plus de doublon mort de postRepaymentComment', () => {
+  assert.equal('postRepaymentComment' in field, false);
 });
