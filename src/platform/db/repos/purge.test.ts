@@ -13,7 +13,8 @@ import assert from 'node:assert/strict';
 
 import { makeSettings } from '../../../core/settings';
 import { addDays, weekKey } from '../../../core/time';
-import { toDbDate, zeroFamilyNumbers } from '../rows';
+import { toDbDate, toDbDateRequired, zeroFamilyNumbers } from '../rows';
+import { runDdl, runStatement, selectRows } from '../query';
 import { restoreSql, useFakeSql } from '../fakeSql';
 import { ensureSchema } from '../index';
 
@@ -158,6 +159,7 @@ test('C37 — la purge est idempotente', async (t) => {
     evidence: 0,
     zone_week: 0,
     score_cache: 0,
+    rejection: 0,
   });
   assert.equal(second.trimmedDescriptions, 0);
 });
@@ -193,4 +195,55 @@ test('C37 — les seuils respectent la dette morte et les bulletins', () => {
   const longBulletins = purgeCutoffs({ now: NOW, deadDays: 30, bulletinWeeks: 20 });
   assert.equal(longBulletins.old, toDbDate(addDays(NOW, -30)));
   assert.equal(longBulletins.oldWeek, weekKey(addDays(NOW, -140)));
+});
+
+/**
+ * DDL de `confirmation` : la table vit hors du schéma §16 (il appartient à
+ * `jobs/confirmations.ts`, qui contourne l'exécuteur) ; le double la recrée
+ * ici telle quelle pour couvrir le DELETE de la purge.
+ */
+const CONFIRMATION_DDL =
+  'CREATE TABLE IF NOT EXISTS confirmation (' +
+  'evidence_id VARCHAR(255) NOT NULL, debt_issue_id VARCHAR(64) NOT NULL, ' +
+  'project_id VARCHAR(64) NOT NULL, confirmed_by VARCHAR(128) NOT NULL, ' +
+  'confirmed_at DATETIME(3) NOT NULL, PRIMARY KEY (evidence_id, debt_issue_id)' +
+  ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin';
+
+const INSERT_REJECTION =
+  'INSERT INTO rejection (evidence_id, debt_issue_id, project_id, rejected_by, rejected_at) VALUES (?, ?, ?, ?, ?)';
+const INSERT_CONFIRMATION =
+  'INSERT INTO confirmation (evidence_id, debt_issue_id, project_id, confirmed_by, confirmed_at) VALUES (?, ?, ?, ?, ?)';
+
+test('C37 — vieux rejets rendus, confirmations orphelines suivies (reliquat item 22)', async (t) => {
+  await installed(t);
+  await seed();
+  await runDdl(CONFIRMATION_DDL);
+  // Rejets : un hors de la fenêtre de 180 jours, un récent qui reste.
+  await runStatement(INSERT_REJECTION, ['p1-e-old', 'p1-d1', 'p1', 'u', toDbDateRequired(OLD)]);
+  await runStatement(INSERT_REJECTION, ['p1-e-new', 'p1-d1', 'p1', 'u', toDbDateRequired(RECENT)]);
+  // Confirmations : une sur une preuve vivante, une déjà orpheline (preuve inconnue).
+  await runStatement(INSERT_CONFIRMATION, ['p1-e-new', 'p1-d1', 'p1', 'u', toDbDateRequired(RECENT)]);
+  await runStatement(INSERT_CONFIRMATION, ['p1-e-gone', 'p1-d1', 'p1', 'u', toDbDateRequired(RECENT)]);
+
+  const report = await purgeProject('p1', { now: NOW });
+
+  assert.equal(report.deleted['rejection'], 1, 'seul le rejet sorti de la fenêtre est rendu');
+  assert.equal(report.deleted['confirmation'], 1, 'la confirmation orpheline suit sa preuve');
+  const rejections = await selectRows<{ evidence_id: string }>(
+    'SELECT evidence_id FROM rejection WHERE project_id = ?',
+    ['p1'],
+  );
+  assert.deepEqual(rejections.map((row) => row.evidence_id), ['p1-e-new']);
+  const confirmations = await selectRows<{ evidence_id: string }>(
+    'SELECT evidence_id FROM confirmation WHERE project_id = ?',
+    ['p1'],
+  );
+  assert.deepEqual(confirmations.map((row) => row.evidence_id), ['p1-e-new']);
+});
+
+test('C37 — sans table `confirmation` (installation neuve), la purge ne jette pas', async (t) => {
+  await installed(t);
+  await seed();
+  const report = await purgeProject('p1', { now: NOW });
+  assert.equal(report.deleted['confirmation'], undefined, 'table absente : rien à purger, pas d’erreur');
 });
