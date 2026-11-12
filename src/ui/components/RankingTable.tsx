@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import { Button, Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { RankedDebt } from '../../core/types';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
@@ -83,3 +83,6 @@ function RankingRow({
     </Row>
   );
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(RankingRow);

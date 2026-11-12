@@ -1,4 +1,5 @@
 import React, { Children, isValidElement } from 'react';
+import { createTableParser, markTableRow } from './table-parse';
 import {
   Badge as ForgeBadge,
   Box,
@@ -152,6 +153,11 @@ export function Cell({ children }: { children: React.ReactNode }): JSX.Element {
   return <Fragment>{children}</Fragment>;
 }
 
+/** Le parseur de tableaux : il connaît les composants `Head` et `Row` ci-dessus. */
+const { parseTable } = createTableParser({ Head, Row });
+
+export { markTableRow };
+
 function cellsOf(node: React.ReactNode): Array<{ content: React.ReactNode; key: string }> {
   const cells: Array<{ content: React.ReactNode; key: string }> = [];
   Children.forEach(node, (child, index) => {
@@ -198,20 +204,6 @@ type ParsedTable = {
 };
 
 /** Lit l'arbre JSX du tableau : un `Head`, puis autant de `Row` que déclarés. */
-function parseTable(children: React.ReactNode): ParsedTable {
-  let head: ParsedTable['head'];
-  const rows: ParsedTable['rows'] = [];
-  const push = (node: React.ReactNode) => {
-    if (!isValidElement(node)) return;
-    const props = node.props as { children?: React.ReactNode };
-    if (node.type === Head) head = { cells: cellsOf(props.children) };
-    else if (node.type === Row) rows.push({ key: `r-${rows.length}`, cells: cellsOf(props.children) });
-    else if (node.type === Fragment) Children.forEach(props.children, push);
-  };
-  Children.forEach(children, push);
-  return { head, rows };
-}
-
 /* ------------------------------------------------------------------- Tabs */
 
 export function TabEntry({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {

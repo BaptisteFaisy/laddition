@@ -1,4 +1,4 @@
-import { Cell, Head, Row, Table, Text } from '../kit';
+import { Cell, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { Evidence, Family } from '../../core/types';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
@@ -80,3 +80,6 @@ function CostCell({ locale, evidence }: { locale: Locale; evidence: Evidence }):
   if (evidence.insufficient) return <Text>{t(locale, 'common.insufficient')}</Text>;
   return <Text>{formatJp(locale, evidence.costJp)}</Text>;
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(EvidenceRow);
