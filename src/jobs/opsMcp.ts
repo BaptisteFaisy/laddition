@@ -76,11 +76,36 @@ async function confirmOneMatch(projectKey: string): Promise<ToolCall> {
   // preuve confirmée dans la fourchette basse. Sans lui, rien ne bougerait.
   await nightlyRecalc();
   const after = await lowBandOf(projectId, target.key);
+  await restoreInferred(projectId, target);
+  const restored = await lowBandOf(projectId, target.key);
   return {
     tool: 'confirm-evidence',
     ok: true,
-    summary: `${target.key} : fourchette basse ${before} → ${after} j-p après confirmation et recalcul`,
+    summary:
+      `${target.key} : fourchette basse ${before} → ${after} j-p après confirmation, ` +
+      `remise à ${restored} après annulation (la sonde ne laisse pas de trace)`,
   };
+}
+
+/**
+ * Annule la confirmation posée par la sonde, puis recalcule.
+ *
+ * Une sonde qui écrit laisse le site dans un état que personne n'a demandé :
+ * constaté le 12/11 sur le site de démo, où la confirmation d'exercice faisait
+ * passer PAY-41 de 1–2 à 2–2 j-p et rendait la recette §20 n°3 injouable — le
+ * rapprochement était déjà confirmé. `recalc` est injectable pour les tests.
+ */
+export async function restoreInferred(
+  projectId: string,
+  target: { evidenceId: string; key: string },
+  recalc: () => Promise<unknown> = nightlyRecalc,
+): Promise<void> {
+  await invokeAction('confirm-evidence', {
+    evidenceKey: target.evidenceId,
+    debtKey: target.key,
+    confirmed: false,
+  });
+  await recalc();
 }
 
 /** Premier rapprochement déduit (fourchette haute seule) et sa dette cible. */
