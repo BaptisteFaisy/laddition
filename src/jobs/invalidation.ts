@@ -1,5 +1,6 @@
 import { insertRows, onDuplicateUpdate, runDdl, runStatement, selectRows } from '../platform/db/query';
 import { toDbDateRequired, toIso, toText } from '../platform/db/rows';
+import { oncePerExecutor } from '../platform/db/once';
 
 /**
  * « À recalculer » (§15) : le trigger ne calcule rien, il laisse une trace.
@@ -33,16 +34,8 @@ const DDL =
   'PRIMARY KEY (project_id, kind, target)' +
   ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin';
 
-let tableReady: Promise<void> | null = null;
-
-/** Crée la table de marques une seule fois par instance. */
-function ensureTable(): Promise<void> {
-  tableReady ??= runDdl(DDL).catch((error: unknown) => {
-    tableReady = null;
-    throw error;
-  });
-  return tableReady;
-}
+/** Crée la table de marques une fois par exécuteur (voir `oncePerExecutor`). */
+const ensureTable = oncePerExecutor(() => runDdl(DDL));
 
 /** Marque des cibles « à recalculer » ; rejouer la marque ne duplique rien. */
 export async function markInvalid(

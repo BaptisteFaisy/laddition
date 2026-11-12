@@ -83,6 +83,15 @@ const forgeExecutor: SqlExecutor = {
 let executor: SqlExecutor = forgeExecutor;
 
 /**
+ * Génération de l'exécuteur courant : incrémentée à chaque changement.
+ *
+ * Sert aux mémos de création de table (`oncePerExecutor`) : un double SQL
+ * installé par un test est un nouvel exécuteur, donc les mémos des tests
+ * précédents ne doivent pas survivre.
+ */
+let generation = 0;
+
+/**
  * Change l'exécuteur (un double en mémoire dans les tests) ; `null` rend
  * l'exécuteur de Forge. La fonction renvoie l'exécuteur précédent, pour le
  * rétablir dans un `finally`.
@@ -90,7 +99,13 @@ let executor: SqlExecutor = forgeExecutor;
 export function setSqlExecutor(next: SqlExecutor | null): SqlExecutor {
   const previous = executor;
   executor = next ?? forgeExecutor;
+  generation += 1;
   return previous;
+}
+
+/** Génération courante de l'exécuteur (voir `oncePerExecutor`). */
+export function sqlGeneration(): number {
+  return generation;
 }
 
 /** L'exécuteur courant (Forge par défaut). */

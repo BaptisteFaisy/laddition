@@ -1,4 +1,5 @@
 import { ensureSchema } from '../platform/db/index';
+import { oncePerExecutor } from '../platform/db/once';
 
 /**
  * Création du schéma, une seule fois par instance d'exécution.
@@ -7,13 +8,5 @@ import { ensureSchema } from '../platform/db/index';
  * coûteraient cher pour rien. La promesse est mémorisée ; si elle échoue, elle
  * est oubliée pour qu'une invocation ultérieure puisse réessayer.
  */
-let ready: Promise<void> | null = null;
-
 /** Garantit que les tables du §16 existent avant tout accès. */
-export function ensureReady(): Promise<void> {
-  ready ??= ensureSchema().catch((error: unknown) => {
-    ready = null;
-    throw error;
-  });
-  return ready;
-}
+export const ensureReady = oncePerExecutor(ensureSchema);

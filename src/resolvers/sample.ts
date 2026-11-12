@@ -130,12 +130,22 @@ export async function clearSampleData(request: Request<unknown>): Promise<{ ok: 
   });
 }
 
-/** Effacement table par table, dans l'ordre des dépendances (§17 : pas de clé étrangère). */
+/**
+ * Effacement table par table, dans l'ordre des dépendances (§17 : pas de clé
+ * étrangère).
+ *
+ * Les **décisions humaines** (`confirmation`) partent avec le reste : un jeu
+ * d'exemple retiré puis réinjecté doit revenir à l'état vierge, sinon une
+ * confirmation posée pendant une démo continue de gonfler la fourchette basse
+ * d'une preuve identique (constat du 12/11 sur le site de démo : la recette
+ * §20 n°3 n'était plus jouable, le rapprochement étant déjà confirmé).
+ */
 const CLEAR_STATEMENTS = [
   'DELETE FROM status_span WHERE issue_id IN (SELECT issue_id FROM issue_fact WHERE project_id = ?)',
   'DELETE FROM evidence WHERE project_id = ?',
   'DELETE FROM attribution WHERE project_id = ?',
   'DELETE FROM rejection WHERE project_id = ?',
+  'DELETE FROM confirmation WHERE project_id = ?',
   'DELETE FROM debt_bill WHERE debt_issue_id IN (SELECT issue_id FROM issue_fact WHERE project_id = ?)',
   'DELETE FROM zone_week WHERE project_id = ?',
   'DELETE FROM baseline WHERE project_id = ?',
