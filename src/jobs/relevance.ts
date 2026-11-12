@@ -23,7 +23,7 @@ import type { CallGuard } from './llmGuard';
 const MAX_DEBTS_PER_EVIDENCE = 5;
 
 /** Plafond d'appels au modèle par recalcul : le budget LLM est fini (§18). */
-const MAX_SCORED_PAIRS = 300;
+export const MAX_SCORED_PAIRS = 300;
 
 /** Garde-fous du score : débit du modèle et budget de temps. */
 export interface ScoringOptions {
@@ -31,6 +31,22 @@ export interface ScoringOptions {
   guard?: CallGuard;
   /** Garde de durée (§15) ; absent, on va au bout du budget de couples. */
   deadline?: Deadline;
+}
+
+/**
+ * Résultat d'un passage de score (C44).
+ *
+ * `truncated` est vrai quand le budget s'est épuisé avant le dernier couple
+ * candidat — plafond `MAX_SCORED_PAIRS` (tronque en ordre de tri) ou garde de
+ * durée expirée. Les durées calculées en aval reposent alors sur des
+ * pertinences partielles : l'appelant doit remonter ce drapeau (DataQuality,
+ * onglet Méthode), jamais l'avaler.
+ */
+export interface ScoredCandidates {
+  /** Couples effectivement notés, en ordre de tri. */
+  scores: RelevanceScore[];
+  /** Vrai si le budget a arrêté le passage avant la fin des candidats. */
+  truncated: boolean;
 }
 
 /**
@@ -42,14 +58,14 @@ export async function scoreCandidates(
   debts: IssueFact[],
   cache: ScoreCache,
   options: ScoringOptions = {},
-): Promise<RelevanceScore[]> {
+): Promise<ScoredCandidates> {
   const scores: RelevanceScore[] = [];
   for (const item of evidence) {
     if (!BILLED_FAMILIES.includes(item.family)) continue;
     if (item.costJp <= 0) continue;
     for (const debt of candidatesFor(item, debts)) {
-      if (scores.length >= MAX_SCORED_PAIRS) return scores;
-      if (options.deadline?.expired()) return scores;
+      if (scores.length >= MAX_SCORED_PAIRS) return { scores, truncated: true };
+      if (options.deadline?.expired()) return { scores, truncated: true };
       const scored = await scorePair(item, debt, cache, options.guard);
       scores.push({
         evidenceId: item.id,
@@ -60,7 +76,7 @@ export async function scoreCandidates(
       });
     }
   }
-  return scores;
+  return { scores, truncated: false };
 }
 
 /** Un couple noté, en respectant le débit du modèle. */
@@ -83,11 +99,11 @@ function candidatesFor(item: Evidence, debts: IssueFact[]): IssueFact[] {
 }
 
 /** Texte comparé pour une preuve : sa formule et son origine, rien de plus. */
-function evidenceText(item: Evidence): string {
+export function evidenceText(item: Evidence): string {
   return `${item.sourceKey} ${item.detail.familyLabel} ${item.detail.formula}`;
 }
 
 /** Texte comparé pour un ticket de dette : son titre et son corps. */
-function debtText(debt: IssueFact): string {
+export function debtText(debt: IssueFact): string {
   return `${debt.key} ${debt.summary} ${debt.description ?? ''}`;
 }

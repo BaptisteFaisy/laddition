@@ -33,6 +33,7 @@ function fakePorts(options: {
   const marks: Array<{ projectId: string; kind: InvalidationKind; targets: string[] }> = [];
   const deleted: string[] = [];
   const dropped: string[] = [];
+  const enqueued: string[] = [];
   const logs: string[] = [];
   const ports: TriggerPorts = {
     ensureReady: async () => undefined,
@@ -49,31 +50,36 @@ function fakePorts(options: {
     deleteIssue: async (issueId) => {
       deleted.push(issueId);
     },
+    enqueueRecalc: async (projectId) => {
+      enqueued.push(projectId);
+    },
     log: (message) => logs.push(message),
   };
-  return { ports, marks, deleted, dropped, logs };
+  return { ports, marks, deleted, dropped, enqueued, logs };
 }
 
 const WORKLOG_EVENT = { body: { issue: { id: 'i1', key: 'PAY-1' }, worklog: { id: 'w1' } } };
 const COMMENT_EVENT = { body: { issue: { id: 'i1', key: 'PAY-1' }, comment: { id: 'c1' } } };
 
-test('B21 — un temps saisi modifie le ticket : sa zone est marquée à recalculer', async () => {
+test('B21 — un temps saisi marque la zone et remet le projet en file', async () => {
   const stored = makeFact({ issueId: 'i1', zones: ['facturation'] });
-  const { ports, marks } = fakePorts({ issue: issueJson('i1', 'PAY-1'), stored });
+  const { ports, marks, enqueued } = fakePorts({ issue: issueJson('i1', 'PAY-1'), stored });
   const result = await worklogChanged(WORKLOG_EVENT, ports);
   assert.equal(result.ok, true);
   assert.equal(result.issueId, 'i1');
   assert.deepEqual(marks[0]?.targets, ['facturation']);
   assert.equal(marks[0]?.kind, 'zone');
+  assert.deepEqual(enqueued, ['p1'], 'les chiffres changent : le recalcul n’attend pas la nuit');
 });
 
-test('B22 — un commentaire ajoute un intervenant : C1 change, la zone est marquée', async () => {
+test('B22 — un commentaire ajoute un intervenant : zone marquée et projet en file', async () => {
   const stored = makeFact({ issueId: 'i1', zones: ['facturation'], participants: 2 });
-  const { ports, marks } = fakePorts({ issue: issueJson('i1', 'PAY-1'), stored });
+  const { ports, marks, enqueued } = fakePorts({ issue: issueJson('i1', 'PAY-1'), stored });
   const result = await issueCommented(COMMENT_EVENT, ports);
   assert.equal(result.ok, true);
   assert.equal(marks.length, 1);
   assert.deepEqual(marks[0]?.targets, ['facturation']);
+  assert.deepEqual(enqueued, ['p1'], 'C1 change : le recalcul n’attend pas la nuit');
 });
 
 test('B23 — un ticket supprimé sort de la base, marques comprises', async () => {
@@ -86,12 +92,31 @@ test('B23 — un ticket supprimé sort de la base, marques comprises', async () 
   assert.deepEqual(marks[0]?.targets, ['facturation'], 'la zone perd un ticket : elle est à recalculer');
 });
 
-test('B23 — un projet sans réglages échoue en le disant, pas en silence', async () => {
+test('B23 — un projet sans réglages lève pour être rejoué, pas un échec muet', async () => {
   const { ports, marks, logs } = fakePorts({ issue: issueJson('i1', 'PAY-1', 'p2'), settings: null });
-  const result = await issueCreated({ body: { issue: { id: 'i1', key: 'PAY-1' } } }, ports);
-  assert.equal(result.ok, false);
-  assert.match(result.error ?? '', /projet p2 sans réglages/);
-  assert.deepEqual(marks, [], 'sans réglages, aucune zone n’est sûre : on ne marque rien');
+  await assert.rejects(
+    issueCreated({ body: { issue: { id: 'i1', key: 'PAY-1' } } }, ports),
+    /projet p2 sans réglages/,
+  );
+  assert.deepEqual(marks, [], 'ticket inconnu : rien à détacher');
+  assert.equal(logs.length, 1, 'l’échec est journalisé');
+});
+
+test('B23 — un ticket déplacé vers un projet sans réglages quitte l’ancien projet', async () => {
+  const previous = makeFact({ issueId: 'i1', projectId: 'p1', zones: ['facturation'] });
+  const { ports, deleted, dropped, marks, enqueued, logs } = fakePorts({
+    issue: issueJson('i1', 'PAY-1', 'p2'),
+    settings: null,
+    previous,
+  });
+  await assert.rejects(
+    issueCreated({ body: { issue: { id: 'i1', key: 'PAY-1' } } }, ports),
+    /projet p2 sans réglages/,
+  );
+  assert.deepEqual(deleted, ['i1'], 'l’ancien projet perd le fait, ses preuves et son addition');
+  assert.deepEqual(dropped, ['i1'], 'et la marque qui l’attendait');
+  assert.deepEqual(marks[0]?.targets, ['facturation'], 'les zones de l’ancien projet bougent');
+  assert.deepEqual(enqueued, ['p1'], 'l’ancien projet est remis en file pour recalcul');
   assert.equal(logs.length, 1, 'l’échec est journalisé');
 });
 

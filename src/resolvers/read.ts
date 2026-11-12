@@ -14,20 +14,26 @@ import type {
 import { findDeadDebt } from '../core/dead';
 import { findPhantomDebt } from '../core/phantom';
 import { computeQuality } from '../core/quality';
+import { rankDebts } from '../core/ranking';
 import { makeSettings } from '../core/settings';
+import { addDays, weeksBetween } from '../core/time';
 import {
   bootstrapProgress as readProgress,
   getBill,
   getIssueFact,
   getSettings as readSettings,
+  listAttributions,
+  listBills,
+  listDebtIssues,
   listEvidence,
   listRepayments,
+  listZoneWeeks,
 } from '../platform/db/index';
 import type { Failure } from '../jobs/support';
 import { guard, nowIso, optionalString, payloadOf, requireString } from '../jobs/support';
 import type { QuarterCost, TeamCost } from './aggregate';
 import { costByQuarter, costByTeam } from './aggregate';
-import { projectIdOf } from '../jobs/projects';
+import { projectIdOf, requireSettings } from '../jobs/projects';
 import { loadState } from './state';
 
 /**
@@ -82,20 +88,50 @@ export async function getZoneCosts(request: Request<unknown>): Promise<ZoneCosts
   });
 }
 
-/** DT-08 : zones coûteuses sans aucun ticket de dette. */
+/**
+ * Item 38/40 — lectures réduites des écrans secondaires.
+ *
+ * Seule la page projet a besoin de l'état complet (`loadState`, sept
+ * lectures) ; l'onglet Fantôme, l'onglet Mort et le gadget n'en consomment
+ * qu'une partie. Ils vont ici directement au dépôt, pour quatre tables
+ * seulement — mêmes replis purs, mêmes chiffres rendus.
+ */
+
+/** Réglages du projet, puis les semaines ISO de sa fenêtre d'analyse. */
+async function settingsAndWeeks(
+  projectId: string,
+  now: string,
+): Promise<{ settings: ProjectSettings; weeks: string[] }> {
+  const settings = await requireSettings(projectId);
+  return { settings, weeks: weeksBetween(addDays(now, -settings.windowDays), now) };
+}
+
+/** DT-08 : zones coûteuses sans aucun ticket de dette (zone_week + dettes + preuves). */
 export async function listPhantomDebt(request: Request<unknown>): Promise<PhantomDebt[] | Failure> {
   return guard(async () => {
-    const state = await loadState(await projectIdOf(payloadOf(request)), nowIso());
-    return findPhantomDebt(state.zoneCosts, state.debts, state.evidence, state.settings);
+    const projectId = await projectIdOf(payloadOf(request));
+    const { settings, weeks } = await settingsAndWeeks(projectId, nowIso());
+    const [debts, evidence, zoneCosts] = await Promise.all([
+      listDebtIssues(projectId),
+      listEvidence(projectId),
+      listZoneWeeks(projectId, weeks),
+    ]);
+    return findPhantomDebt(zoneCosts, debts, evidence, settings);
   });
 }
 
-/** DT-09 : tickets de dette sans preuve depuis trop longtemps. */
+/** DT-09 : tickets de dette sans preuve depuis trop longtemps (dettes + preuves + parts). */
 export async function listDeadDebt(request: Request<unknown>): Promise<DeadDebt[] | Failure> {
   return guard(async () => {
     const now = nowIso();
-    const state = await loadState(await projectIdOf(payloadOf(request)), now);
-    return findDeadDebt(state.debts, state.evidence, state.attributions, state.settings, now);
+    const projectId = await projectIdOf(payloadOf(request));
+    const [settings, debts, evidence, attributions] = await Promise.all([
+      requireSettings(projectId),
+      listDebtIssues(projectId),
+      listEvidence(projectId),
+      listAttributions(projectId),
+    ]);
+    return findDeadDebt(debts, evidence, attributions, settings, now);
   });
 }
 
@@ -175,15 +211,21 @@ export async function getIssueCost(request: Request<unknown>): Promise<IssueCost
   });
 }
 
-/** Écran 5 : les trois lignes du gadget, sans le classement complet du projet. */
+/** Écran 5 : les trois lignes du gadget (item 40 : top 5 + dettes + zone_week). */
 export async function getGadgetData(request: Request<unknown>): Promise<GadgetData | Failure> {
   return guard(async () => {
-    const state = await loadState(await projectIdOf(payloadOf(request)), nowIso());
+    const projectId = await projectIdOf(payloadOf(request));
+    const { settings, weeks } = await settingsAndWeeks(projectId, nowIso());
+    const [debts, bills, zoneCosts] = await Promise.all([
+      listDebtIssues(projectId),
+      listBills(projectId),
+      listZoneWeeks(projectId, weeks),
+    ]);
     return {
-      debts: state.ranking.slice(0, GADGET_TOP_DEBTS),
-      costByTeam: costByTeam(state.zoneCosts),
-      costByQuarter: costByQuarter(state.zoneCosts, state.weeks),
-      demoData: state.settings.demoData,
+      debts: rankDebts(bills, debts).slice(0, GADGET_TOP_DEBTS),
+      costByTeam: costByTeam(zoneCosts),
+      costByQuarter: costByQuarter(zoneCosts, weeks),
+      demoData: settings.demoData,
     };
   });
 }

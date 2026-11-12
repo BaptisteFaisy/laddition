@@ -20,6 +20,7 @@ import { buildBill } from '../core/bill';
 import { collectEvidence } from '../core/families/index';
 import { computeQuality } from '../core/quality';
 import { rankDebts } from '../core/ranking';
+import { contextVelocity } from '../core/units';
 import type { ZoneWeekInput } from '../platform/db/index';
 import { weeklyZoneCosts } from './zoneCosts';
 
@@ -79,6 +80,8 @@ export function prepare(input: RecomputeInput): Prepared {
     now: input.now,
     baselines,
     spansByIssue: input.spansByIssue,
+    /** Rythme du projet (DT-15) : convertit les points d'une dette en jours (§11). */
+    velocityPointsPerWeek: contextVelocity(input.facts, input.settings),
   };
   return {
     ctx,
@@ -108,7 +111,11 @@ export function recomputeAll(input: RecomputeInput): RecomputeResult {
  * quand l'appelant a dû les lire avant (c'est le cas du calcul nocturne, qui
  * demande des scores au modèle à partir des preuves).
  */
-export function finish(input: RecomputeInput, prepared: Prepared): RecomputeResult {
+export function finish(
+  input: RecomputeInput,
+  prepared: Prepared,
+  scoresTruncated = false,
+): RecomputeResult {
   const attributions = attributeEvidence(
     prepared.evidence,
     prepared.debts,
@@ -128,7 +135,7 @@ export function finish(input: RecomputeInput, prepared: Prepared): RecomputeResu
     ranking: rankDebts(bills, prepared.debts),
     zoneWeeks: weeklyZoneCosts(prepared.evidence, input.projectId, input.settings.teamByZone),
     baselines: [...prepared.ctx.baselines.values()],
-    quality: computeQuality(input.facts, prepared.evidence, input.settings),
+    quality: computeQuality(input.facts, prepared.evidence, input.settings, scoresTruncated),
   };
 }
 

@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { QueueResponse } from '@forge/events';
 import type { BatchState } from './bootstrapState';
+import type { BatchResult } from './consumer';
+import { startFakeDb } from '../mcp/testing/seed';
 import { stubForgeRuntime } from './testForge';
 
 // `consumer` aiguille vers le recalcul, qui importe le scoreur LLM : double
 // installé avant l'import (aucun test n'appelle Forge).
 stubForgeRuntime();
-const { MAX_BATCH_ATTEMPTS, MAX_BOOTSTRAP_BATCHES, planBatch, progressFrom } = await import('./consumer');
+const { MAX_BATCH_ATTEMPTS, MAX_BOOTSTRAP_BATCHES, bootstrapBatch, planBatch, progressFrom } = await import('./consumer');
 
 /**
  * B25, B26 — un lot rejouable, des échecs qui se voient.
@@ -137,4 +140,36 @@ test('un message sans projet rend un bilan explicite, pas un rejeu infini', asyn
   const bilan = result as { ok: boolean; error?: string };
   assert.equal(bilan.ok, false);
   assert.match(bilan.error ?? '', /projectId/);
+});
+
+/**
+ * B26 (item 26) : une exception **avant** `writeBatch` — ici les réglages
+ * absents, `requireSettings` jette — ne comptait aucune tentative :
+ * `retryLater()` rejouait le message à l'infini, sans lettre morte. Chaque
+ * livraison doit incrémenter `attempts` dans le registre des lots ; au-delà du
+ * maximum, le lot part en lettre morte : erreur explicite rendue (le message
+ * n'est plus rejoué) et motif remonté dans la barre de progression (signal).
+ */
+test('un lot qui échoue avant writeBatch compte ses tentatives, puis part en lettre morte (B26)', async (t) => {
+  await startFakeDb(t);
+  const { readBatch } = await import('./bootstrapState');
+  const { bootstrapProgress } = await import('../platform/db/index');
+  const event = { body: { projectId: 'sans-reglages' } };
+
+  for (let attempt = 1; attempt <= MAX_BATCH_ATTEMPTS; attempt += 1) {
+    const retried = await bootstrapBatch(event);
+    assert.ok(retried instanceof QueueResponse, `livraison ${attempt} : rejeu demandé`);
+    const state = await readBatch('sans-reglages', '');
+    assert.equal(state?.attempts, attempt, `livraison ${attempt} : tentative comptée dans le registre`);
+    assert.match(state?.error ?? '', /sans réglages/);
+  }
+
+  const dead = await bootstrapBatch(event);
+  assert.ok(!(dead instanceof QueueResponse), 'au-delà du maximum : plus de rejeu');
+  const result = dead as BatchResult;
+  assert.equal(result.ok, false);
+  assert.match(result.error ?? '', /abandonné après/);
+  assert.equal((await readBatch('sans-reglages', ''))?.attempts, MAX_BATCH_ATTEMPTS + 1);
+  const progress = await bootstrapProgress('sans-reglages');
+  assert.match(progress?.error ?? '', /abandonné/, 'la lettre morte remonte dans la barre de progression');
 });

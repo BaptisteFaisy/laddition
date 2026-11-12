@@ -8,12 +8,12 @@ import {
   replaceAttributions,
   replaceEvidence,
   replaceStatusSpans,
-  saveSettings,
   upsertBill,
   upsertIssueFacts,
   upsertRepayment,
   upsertZoneWeek,
 } from '../platform/db/index';
+import { saveProjectSettings } from '../jobs/settings';
 import { buildSampleData, sampleContext, sampleProjectSettings } from '../sample/load';
 import { weeklyZoneCosts } from '../jobs/zoneCosts';
 import { projectIdOf } from '../jobs/projects';
@@ -57,7 +57,8 @@ export async function loadSampleData(request: Request<unknown>): Promise<SampleR
     await upsertZoneWeek(weeklyZoneCosts(data.evidence, projectId, sampleProjectSettings().teamByZone));
     await writeBills(facts, data.evidence, data.attributions, now);
     for (const repayment of data.repayment) await upsertRepayment(repayment);
-    await saveSettings(demoSettings(projectId, existing));
+    // B27 : le jeu d'exemple change les réglages, la marque est posée.
+    await saveProjectSettings(demoSettings(projectId, existing));
     return { ok: true, projectId, facts: facts.length, evidence: data.evidence.length, zones: data.zones.length };
   });
 }
@@ -124,7 +125,7 @@ export async function clearSampleData(request: Request<unknown>): Promise<{ ok: 
       throw new Error('ce projet ne contient pas de données d\'exemple : rien à effacer');
     }
     for (const statement of CLEAR_STATEMENTS) await runStatement(statement, [projectId]);
-    await saveSettings({ ...settings, demoData: false });
+    await saveProjectSettings({ ...settings, demoData: false });
     return { ok: true };
   });
 }

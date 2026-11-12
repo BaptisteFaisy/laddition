@@ -18,7 +18,8 @@
  * **Ce qui est effacé**, enfants avant parents (§17 : pas de clé étrangère) :
  * attributions des vieilles preuves → séjours des tickets dont la dernière
  * activité est antérieure à la fenêtre → vieilles preuves → descriptions des
- * vieux tickets → vieilles semaines → vieux scores.
+ * vieux tickets → vieilles semaines → vieux scores → vieux rejets →
+ * confirmations orphelines.
  *
  * Chaque instruction est bornée (`LIMIT`) et rejouée jusqu'à épuisement : la
  * purge ne dépasse jamais 5 s par requête et peut s'arrêter à tout moment sans
@@ -113,6 +114,8 @@ export async function purgeProject(projectId: string, options: PurgeOptions = {}
     'project_id = ? AND computed_at < ?',
     [projectId, cutoffs.old],
   );
+  // Après `evidence` : les confirmations perdues par la purge deviennent orphelines.
+  Object.assign(report.deleted, await purgeDecisions(projectId, cutoffs.old, batch));
   return report;
 }
 
@@ -206,4 +209,51 @@ async function trimDescriptions(projectId: string, old: string, batchSize: numbe
     if (affected < batchSize) break;
   }
   return total;
+}
+
+/**
+ * Tables de décision (§7.4, §10 règle 2) : les vieux rejets sont rendus au
+ * plafond et les confirmations dont la preuve n'existe plus — purgée à
+ * l'instant ou disparue avant — suivent comme orphelines (reliquat item 22).
+ * Une confirmation est une décision, pas un calcul : tant que sa preuve vit,
+ * elle reste, quel que soit son âge.
+ */
+async function purgeDecisions(
+  projectId: string,
+  old: string,
+  batch: number,
+): Promise<Record<string, number>> {
+  const deleted: Record<string, number> = {};
+  deleted['rejection'] = await deleteBounded(
+    'rejection',
+    batch,
+    'project_id = ? AND rejected_at < ?',
+    [projectId, old],
+  );
+  // `confirmation` vit hors du schéma §16 (DDL dans `jobs/confirmations.ts`) :
+  // installation neuve sans table = rien à purger, pas une erreur SQL.
+  if (await tableExists('confirmation')) {
+    deleted['confirmation'] = await deleteBounded(
+      'confirmation',
+      batch,
+      `project_id = ? AND evidence_id NOT IN (
+         SELECT evidence_id FROM evidence WHERE project_id = ?)`,
+      [projectId, projectId],
+    );
+  }
+  return deleted;
+}
+
+/** Vrai quand la table est présente dans la base de l'app (même requête que `isSchemaReady`). */
+async function tableExists(table: string): Promise<boolean> {
+  try {
+    const rows = await selectRows<{ name: unknown }>(
+      'SELECT table_name AS name FROM information_schema.tables ' +
+        'WHERE table_schema = DATABASE() AND table_name = ?',
+      [table],
+    );
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
 }

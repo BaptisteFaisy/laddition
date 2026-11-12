@@ -10,15 +10,17 @@
  * partir de ces faits, conformément au principe « le modèle rapproche et rédige,
  * il ne calcule pas » (§5, règle 5).
  *
- * TODO(integration) : `writeArgumentaire()` de `src/platform/llm.ts` reste sans
- * appelant. Si l'on veut une rédaction Markdown côté serveur plutôt que côté
- * agent, c'est ici qu'il faut l'injecter (import depuis `platform/`, avec repli
- * sur ces données) — à valider avec le lot plateforme avant de brancher.
+ * DT-17 : la rédaction Markdown est branchée côté résolveur
+ * (`src/resolvers/case.ts`), qui appelle `writeArgumentaire()` sur ces mêmes
+ * faits, avec son repli déterministe (le gabarit). Cette action, elle,
+ * n'appelle pas le modèle : elle rend les chiffres, l'agent rédige à partir
+ * des mêmes faits.
  */
 
 import type {
   Attribution,
   AttributionBasis,
+  DebtBill,
   Evidence,
   Family,
   FamilyTotal,
@@ -112,7 +114,26 @@ export async function getDebtCase(payload: JsonPayload): Promise<ActionEnvelope<
  * Jette un motif actionnable (ticket inconnu, pas une dette, aucune addition) ;
  * l'action et le résolveur l'enveloppent chacun à leur façon.
  */
-export async function buildDebtCase(issueKey: string): Promise<DebtCaseData> {
+/** Les faits d'une dette, et les matières premières du texte rédigé (DT-17). */
+export interface CollectedCase {
+  /** La page telle que l'action MCP la rend. */
+  data: DebtCaseData;
+  /** L'addition calculée : chiffres, remboursement et retour. */
+  bill: DebtBill;
+  /** Preuves lisibles par ce lecteur : les masquées le restent (§18). */
+  evidence: Evidence[];
+  /** Réglages du projet : la méthode qui a produit ces chiffres. */
+  settings: ProjectSettings;
+}
+
+/**
+ * Construit la page d'argumentaire d'un ticket de dette, avec les matières
+ * premières du texte rédigé.
+ *
+ * Jette un motif actionnable (ticket inconnu, pas une dette, aucune addition) ;
+ * l'action et le résolveur l'enveloppent chacun à leur façon.
+ */
+export async function collectDebtCase(issueKey: string): Promise<CollectedCase> {
   const located = await locateDebt(issueKey);
   const projectId = located.project.projectId;
   const bill = await billOf(projectId, issueKey);
@@ -122,7 +143,7 @@ export async function buildDebtCase(issueKey: string): Promise<DebtCaseData> {
   ]);
   const masked = maskEvidence(stored);
   const shares = sharesOf(attributions, bill.debtIssueId);
-  return {
+  const data: DebtCaseData = {
     projectKey: located.project.projectKey,
     issueKey: bill.key,
     summary: located.debt.summary,
@@ -139,6 +160,12 @@ export async function buildDebtCase(issueKey: string): Promise<DebtCaseData> {
     paybackDays: bill.paybackDays,
     method: caseMethod(located.project.settings),
   };
+  return { data, bill, evidence: masked.evidence, settings: located.project.settings };
+}
+
+/** La page seule : l'action MCP et le résolveur partagent cette construction. */
+export async function buildDebtCase(issueKey: string): Promise<DebtCaseData> {
+  return (await collectDebtCase(issueKey)).data;
 }
 
 /** Parts imputées à cette dette, indexées par preuve. */

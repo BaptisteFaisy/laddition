@@ -61,7 +61,7 @@ export async function runRecalcMessage(
 ): Promise<ProjectRecalc> {
   const deadline: Deadline = createDeadline(budgetMs);
   try {
-    return await recalcProject(projectId, now, { deadline });
+    return await recalcProject(projectId, now, { deadline, enqueue: enqueueRecalc });
   } catch (error) {
     return { projectId, evidence: 0, bills: 0, fieldUpdated: 0, error: messageOf(error) };
   }
