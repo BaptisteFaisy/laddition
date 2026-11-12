@@ -92,6 +92,20 @@ describe('getDebtBill — hiddenCount réel et masquage (§18)', () => {
   });
 });
 
+describe('getDebtBill — lecture des droits du lecteur (item 4, §18)', () => {
+  it('une lecture en échec ne masque rien de plus et signale le trou', async (t) => {
+    await startFakeDb(t);
+    await seedPayProject();
+    const view = viewOf(await getDebtBill(request({ debtIssueId: 'd77' })));
+    // Hors Forge, la recherche au nom du lecteur n'aboutit pas :
+    // `visibleKeysForUser` rend `null`, le doute ne masque rien.
+    assert.equal(view.visibilityUnchecked, true, 'le trou est signalé, jamais silencieux');
+    assert.equal(view.hiddenCount, 1, 'le masquage déjà enregistré (ev2) reste appliqué');
+    assert.equal(view.bill.hiddenCount, 1);
+    assert.equal(view.evidence.find((item) => item.id === 'ev1')?.sourceKey, 'PAY-101', 'rien d’autre n’est masqué');
+  });
+});
+
 describe('getDebtBill — erreurs actionnables (item D45)', () => {
   it('ticket inconnu et payload vide rendent une phrase, jamais une exception', async (t) => {
     await startFakeDb(t);

@@ -9,6 +9,7 @@ import type {
 } from '../core/types';
 import { rankDebts } from '../core/ranking';
 import { addDays, weeksBetween } from '../core/time';
+import { visibleKeysForUser } from '../platform/jira';
 import {
   listAttributions,
   listBills,
@@ -73,4 +74,40 @@ function mergeFacts(inWindow: IssueFact[], debts: IssueFact[]): IssueFact[] {
   for (const fact of inWindow) byId.set(fact.issueId, fact);
   for (const debt of debts) if (!byId.has(debt.issueId)) byId.set(debt.issueId, debt);
   return [...byId.values()];
+}
+
+/* ------------------------------------------------- droits du lecteur (§18) */
+
+/** Lecture des clés visibles par le lecteur ; `null` quand elle échoue. */
+export type VisibilityReader = (issueKeys: readonly string[]) => Promise<Set<string> | null>;
+
+/** Issue de la lecture des droits du lecteur sur des preuves (item 4, §18). */
+export interface ReaderRights {
+  /** Preuves d'entrée ; celles hors des droits du lecteur portent `visible: false`. */
+  evidence: Evidence[];
+  /** Faux quand la lecture des droits a échoué : rien n'a été masqué à ce titre. */
+  checked: boolean;
+}
+
+/**
+ * Marque les preuves que le lecteur courant ne peut pas ouvrir (item 4, §18).
+ *
+ * La recherche au nom du lecteur ne rend que les tickets qu'il voit : une clé
+ * absente du résultat vaut « masqué ». Une lecture en échec ne masque rien —
+ * le doute n'efface pas les faits — mais `checked` reste faux, pour que le
+ * résultat signale le trou au lieu de le taire.
+ */
+export async function withReaderRights(
+  evidence: readonly Evidence[],
+  read: VisibilityReader = visibleKeysForUser,
+): Promise<ReaderRights> {
+  const keys = [...new Set(evidence.map((item) => item.sourceKey).filter((key) => key.trim().length > 0))];
+  const visible = await read(keys);
+  if (visible === null) return { evidence: [...evidence], checked: false };
+  return {
+    evidence: evidence.map((item) =>
+      item.sourceKey.trim().length > 0 && !visible.has(item.sourceKey) ? { ...item, visible: false } : item,
+    ),
+    checked: true,
+  };
 }

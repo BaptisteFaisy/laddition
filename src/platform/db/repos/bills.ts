@@ -10,6 +10,7 @@
  */
 
 import type { DebtBill, Family, ZoneCost } from '../../../core/types';
+import { DEFAULT_SETTINGS } from '../../../core/settings';
 import { UNCLASSIFIED_ZONE } from '../../../core/zones';
 import type { SqlValue } from '../query';
 import { insertRows, onDuplicateUpdate, projectIdsOfIssues, selectRows } from '../query';
@@ -170,20 +171,28 @@ interface ZoneAccumulator {
   team?: string;
 }
 
+/** Ligne zone × semaine, avec le seuil de références du projet (joint). */
+interface ZoneWeekSampleRow extends ZoneWeekRow {
+  min_baseline_sample: unknown;
+}
+
+/** La famille dont le coût dépend d'un échantillon de références (§9) : C3. */
+const BASELINE_FAMILY: Family = 'C3';
+
 /** Coûts par zone sur les semaines demandées, séries alignées sur `weeks`. */
 export async function listZoneWeeks(projectId: string, weeks: string[]): Promise<ZoneCost[]> {
   if (weeks.length === 0) return [];
   const ordered = [...new Set(weeks)].sort();
   const placeholders = ordered.map(() => '?').join(', ');
-  const rows = await selectRows<ZoneWeekRow>(
-    `SELECT zw.zone, zw.week, zw.cost_jp, zw.by_family, zw.team, s.project_key
+  const rows = await selectRows<ZoneWeekSampleRow>(
+    `SELECT zw.zone, zw.week, zw.cost_jp, zw.by_family, zw.team, s.project_key, s.min_baseline_sample
        FROM zone_week zw
        LEFT JOIN settings s ON s.project_id = zw.project_id
       WHERE zw.project_id = ? AND zw.week IN (${placeholders})
       ORDER BY zw.zone, zw.week`,
     [projectId, ...ordered],
   );
-  return buildZoneCosts(rows, ordered);
+  return withInsufficientFamilies(buildZoneCosts(rows, ordered), rows, projectId);
 }
 
 function buildZoneCosts(rows: ZoneWeekRow[], weeks: string[]): ZoneCost[] {
@@ -230,4 +239,51 @@ function toZoneCost(accumulator: ZoneAccumulator, weeks: string[], unclassifiedS
   };
   if (accumulator.team !== undefined) cost.team = accumulator.team;
   return cost;
+}
+
+/* ------------------------------------------- familles non chiffrables (item 56, §9) */
+
+/**
+ * Drapeau `insufficientByFamily` (item 56) : C3 est marqué non chiffrable sur
+ * une zone quand ses tickets de référence distincts sont moins nombreux que le
+ * seuil du projet (`minBaselineSample`, §9). Le drapeau est calculé là où
+ * `ZoneCost` est construit — c'est là que l'écran vient le lire.
+ */
+async function withInsufficientFamilies(
+  costs: ZoneCost[],
+  rows: ZoneWeekSampleRow[],
+  projectId: string,
+): Promise<ZoneCost[]> {
+  const min = minBaselineSampleOf(rows);
+  const refs = await baselineReferenceCounts(projectId);
+  return costs.map((cost) => {
+    const count = refs.get(cost.zone) ?? 0;
+    const usesBaseline = count > 0 || cost.byFamily[BASELINE_FAMILY] !== 0;
+    if (!usesBaseline || count >= min) return cost;
+    return { ...cost, insufficientByFamily: { ...cost.insufficientByFamily, [BASELINE_FAMILY]: true } };
+  });
+}
+
+/** Seuil de références du projet, lu dans la jointure ; à défaut le réglage par défaut. */
+function minBaselineSampleOf(rows: ZoneWeekSampleRow[]): number {
+  for (const row of rows) {
+    const sample = toNumber(row.min_baseline_sample, 0);
+    if (sample > 0) return sample;
+  }
+  return DEFAULT_SETTINGS.minBaselineSample;
+}
+
+/** Nombre de tickets de référence C3 distincts par zone. */
+async function baselineReferenceCounts(projectId: string): Promise<Map<string, number>> {
+  const rows = await selectRows<{ zone: string; source_issue_id: unknown }>(
+    'SELECT zone, source_issue_id FROM evidence WHERE project_id = ? AND family = ?',
+    [projectId, BASELINE_FAMILY],
+  );
+  const byZone = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const sources = byZone.get(row.zone) ?? new Set<string>();
+    sources.add(toText(row.source_issue_id));
+    byZone.set(row.zone, sources);
+  }
+  return new Map([...byZone].map(([zone, sources]) => [zone, sources.size]));
 }
