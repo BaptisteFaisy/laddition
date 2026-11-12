@@ -15,6 +15,8 @@ import {
 } from '../platform/db/index';
 import { saveProjectSettings } from '../jobs/settings';
 import { buildSampleData, sampleContext, sampleProjectSettings } from '../sample/load';
+import { alignIssueIds } from '../sample/align';
+import { searchIssues } from '../platform/jira';
 import { weeklyZoneCosts } from '../jobs/zoneCosts';
 import { projectIdOf } from '../jobs/projects';
 import type { Failure } from '../jobs/support';
@@ -48,7 +50,12 @@ export async function loadSampleData(request: Request<unknown>): Promise<SampleR
     const existing = await readSettings(projectId);
     await assertEmptyOrDemo(projectId, existing);
     const now = nowIso();
-    const data = buildSampleData(now);
+    // Les identifiants internes du jeu sont fictifs ; sur un site réel, les
+    // écrans reçoivent l'identifiant Jira du ticket ouvert (item §7.2). On
+    // aligne donc le jeu sur les tickets qui existent, sans rien inventer.
+    const built = buildSampleData(now);
+    const realIds = await realIssueIdsOf(built.facts.map((fact) => fact.key));
+    const data = await alignIssueIds(built, async (key) => realIds.get(key) ?? null);
     const facts = retag(data.facts, projectId);
     await upsertIssueFacts(facts);
     await replaceStatusSpansMany(data.spans);
@@ -152,3 +159,27 @@ const CLEAR_STATEMENTS = [
   'DELETE FROM repayment WHERE debt_issue_id IN (SELECT issue_id FROM issue_fact WHERE project_id = ?)',
   'DELETE FROM issue_fact WHERE project_id = ?',
 ];
+
+/**
+ * Identifiants Jira réels des tickets du jeu, en une ou deux requêtes.
+ *
+ * Les clés viennent du jeu d'exemple (données internes), jamais d'une saisie :
+ * elles sont filtrées avant d'entrer dans le JQL. Un ticket absent du site
+ * n'apparaît pas dans la réponse : il garde son identifiant fictif.
+ */
+async function realIssueIdsOf(keys: readonly string[]): Promise<Map<string, string>> {
+  const wanted = [...new Set(
+    keys.map((key) => key.trim().toUpperCase()).filter((key) => /^[A-Z][A-Z0-9_]*-[0-9]+$/.test(key)),
+  )];
+  const found = new Map<string, string>();
+  if (wanted.length === 0) return found;
+  let token: string | undefined;
+  do {
+    const page = await searchIssues(`key in (${wanted.join(', ')})`, ['id', 'key'], wanted.length, token, 'app');
+    for (const issue of page?.issues ?? []) {
+      if (typeof issue.id === 'string' && typeof issue.key === 'string') found.set(issue.key, issue.id);
+    }
+    token = page?.nextPageToken ?? undefined;
+  } while (token);
+  return found;
+}
