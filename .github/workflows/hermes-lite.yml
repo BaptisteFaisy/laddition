@@ -83,6 +83,13 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+          # Le workspace d'un runner self-hosted est partagé entre les jobs du
+          # même dépôt : `clean: true` (le défaut) lance `git clean -ffdx`, qui
+          # supprime les ~150 000 fichiers de node_modules. Deux effets mesurés
+          # le 12/11 : ce job dépasse seul le budget de 5 min quand le worker est
+          # chargé, et le job suivant doit tout recopier (cp -al) ou réinstaller
+          # (npm ci) — d'où les annulations en cascade sur ci et couche0.
+          clean: false
       - name: Gate
         run: |
           export INPUT_PR_NUMBER="${{ github.event.inputs.pr_number }}"
