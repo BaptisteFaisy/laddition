@@ -65,6 +65,16 @@ export function formatPercent(locale: Locale, ratio: number | null | undefined):
   return t(locale, 'common.percent', { value: formatNumber(locale, Math.round(ratio * 1000) / 10) });
 }
 
+/**
+ * Un pourcentage **déjà calculé** (0-100), comme les parts de `DataQuality`
+ * (`src/core/quality.ts` les rend en pourcentage, pas en ratio). `formatPercent`
+ * attend, lui, un ratio 0-1 : les mélanger affichait « 147 % » pour 1,47 %.
+ */
+export function formatPercentValue(locale: Locale, value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return t(locale, 'common.none');
+  return t(locale, 'common.percent', { value: formatNumber(locale, value) });
+}
+
 /** Un rapport (retour sur investissement). */
 export function formatRatio(locale: Locale, value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return t(locale, 'common.none');

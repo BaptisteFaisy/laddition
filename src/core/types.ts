@@ -261,6 +261,8 @@ export interface ZoneCost {
   /** Coût par semaine ISO, du plus ancien au plus récent. */
   weeklyJp: number[];
   /** Part du coût portée par des tickets sans zone. */
+  /** Part du coût non classé, en **ratio** (0-1) — attention, pas un pourcentage. */
+  /** Part du coût non classé, en **pourcentage** (0-100) — voir `core/quality.ts`. */
   unclassifiedShare: number;
   team?: string;
   /** Familles non chiffrables pour cette zone (§9 C3 : moins de 5 références). */
