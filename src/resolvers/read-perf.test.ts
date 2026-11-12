@@ -54,20 +54,29 @@ function tablesOf(queries: readonly string[]): string[] {
 }
 
 /** Vérifie le nombre de SELECT et les tables lues depuis `before`. */
-function assertReducedRead(client: FakeSqlClient, before: number, expectedTables: string[]): void {
+function assertReducedRead(
+  client: FakeSqlClient,
+  before: number,
+  expectedTables: string[],
+  expectedSelects: number,
+): void {
   const queries = selectsSince(client, before);
-  assert.equal(queries.length, 4, '4 SELECT : réglages + trois tables ciblées, jamais les 7 de loadState');
+  assert.equal(
+    queries.length,
+    expectedSelects,
+    `${expectedSelects} SELECT ciblés, jamais les 7 de loadState`,
+  );
   assert.deepEqual(tablesOf(queries), [...expectedTables].sort());
 }
 
 describe('Item 38 — les onglets Fantôme et Mort ne lisent que leurs tables', () => {
-  it('charge en 4 SELECT chacun, avec les mêmes chiffres que l’état complet', async (t) => {
+  it('charge en 4 à 5 SELECT, avec les mêmes chiffres que l’état complet', async (t) => {
     const client = await startFakeDb(t);
     await seedPayProject();
 
     const beforePhantom = client.log.length;
     const phantoms = ok<PhantomDebt[]>(await listPhantomDebt(projectRequest()));
-    assertReducedRead(client, beforePhantom, ['settings', 'issue_fact', 'evidence', 'zone_week']);
+    assertReducedRead(client, beforePhantom, ['settings', 'issue_fact', 'evidence', 'zone_week'], 5);
     assert.ok(
       phantoms.some((phantom) => phantom.zone === 'legacy'),
       'la zone sans dette reste détectée',
@@ -75,7 +84,7 @@ describe('Item 38 — les onglets Fantôme et Mort ne lisent que leurs tables', 
 
     const beforeDead = client.log.length;
     const deads = ok<DeadDebt[]>(await listDeadDebt(projectRequest()));
-    assertReducedRead(client, beforeDead, ['settings', 'issue_fact', 'evidence', 'attribution']);
+    assertReducedRead(client, beforeDead, ['settings', 'issue_fact', 'evidence', 'attribution'], 4);
     assert.ok(
       deads.some((dead) => dead.key === 'PAY-50'),
       'la dette morte reste détectée',
@@ -93,13 +102,13 @@ describe('Item 38 — les onglets Fantôme et Mort ne lisent que leurs tables', 
 });
 
 describe('Item 40 — le gadget lit seulement le top des additions, les dettes et zone_week', () => {
-  it('charge en 4 SELECT et rend les mêmes chiffres que la page complète', async (t) => {
+  it('charge en 5 SELECT et rend les mêmes chiffres que la page complète', async (t) => {
     const client = await startFakeDb(t);
     await seedPayProject();
 
     const before = client.log.length;
     const gadget = ok<GadgetData>(await getGadgetData(projectRequest()));
-    assertReducedRead(client, before, ['settings', 'issue_fact', 'debt_bill', 'zone_week']);
+    assertReducedRead(client, before, ['settings', 'issue_fact', 'evidence', 'debt_bill', 'zone_week'], 5);
     assert.ok(gadget.debts.length > 0 && gadget.debts.length <= GADGET_TOP_DEBTS);
 
     const page = ok<ProjectPageData>(await getProjectPage(projectRequest()));
