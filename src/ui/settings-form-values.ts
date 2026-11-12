@@ -20,7 +20,7 @@ export const ZONE_MODE_LABELS: Record<ZoneMode, MessageKey> = {
 
 export type NumberField = { name: string; label: MessageKey; value: number };
 
-/** Les douze nombres réglables : nom du champ et libellé, dans l'ordre affiché. */
+/** Les nombres réglables : nom du champ et libellé, dans l'ordre affiché. */
 const NUMBER_FIELD_DEFS: Array<{ name: string; label: MessageKey }> = [
   { name: 'hoursPerDay', label: 'settings.hoursPerDay' },
   { name: 'daysPerWeek', label: 'settings.daysPerWeek' },
@@ -34,9 +34,10 @@ const NUMBER_FIELD_DEFS: Array<{ name: string; label: MessageKey }> = [
   { name: 'postMortemBonusJp', label: 'settings.postMortemBonusJp' },
   { name: 'relevanceFloor', label: 'settings.relevanceFloor' },
   { name: 'phantomThresholdJp', label: 'settings.phantomThresholdJp' },
+  { name: 'dayRateEur', label: 'settings.dayRateEur' },
 ];
 
-/** Les douze nombres réglables, avec leur valeur en vigueur. */
+/** Les nombres réglables, avec leur valeur en vigueur. */
 export function numberFields(settings: ProjectSettings): NumberField[] {
   const values: Record<string, number> = {
     hoursPerDay: settings.hoursPerDay,
@@ -51,6 +52,7 @@ export function numberFields(settings: ProjectSettings): NumberField[] {
     postMortemBonusJp: settings.postMortemBonusJp,
     relevanceFloor: settings.relevanceFloor,
     phantomThresholdJp: settings.phantomThresholdJp,
+    dayRateEur: settings.dayRateEur ?? 0,
   };
   return NUMBER_FIELD_DEFS.map((field) => ({
     name: field.name,
@@ -88,7 +90,20 @@ export function patchFromForm(data: Record<string, unknown>): Partial<ProjectSet
     relevanceFloor: readNumber(data['relevanceFloor']),
     phantomThresholdJp: readNumber(data['phantomThresholdJp']),
     jsmProjectKeys: readList(data['jsmProjectKeys']),
+    ...optionalPatch(data),
   };
+}
+
+/**
+ * Les deux réglages optionnels (items 8 et 65) : absents du formulaire, ils
+ * restent absents du correctif. Une équipe par zone ou un taux journalier que
+ * l'utilisateur n'a pas touchés ne sont donc jamais écrasés par du vide.
+ */
+function optionalPatch(data: Record<string, unknown>): Partial<ProjectSettings> {
+  const patch: Partial<ProjectSettings> = {};
+  if ('teamByZone' in data) patch.teamByZone = teamByZoneOf(data['teamByZone']);
+  if ('dayRateEur' in data) patch.dayRateEur = readNumber(data['dayRateEur']);
+  return patch;
 }
 
 /** Bornes des nombres réglables, alignées sur `core/settings.ts`. */
@@ -105,6 +120,7 @@ const BOUNDS: Record<string, { min: number; max: number }> = {
   postMortemBonusJp: { min: 0, max: 10 },
   relevanceFloor: { min: 0, max: 1 },
   phantomThresholdJp: { min: 0, max: 1000 },
+  dayRateEur: { min: 0, max: 100000 },
 };
 
 /** Un refus de saisie, nommé pour que l'écran dise quoi corriger (item D59). */
@@ -150,6 +166,30 @@ function readList(value: unknown): string[] {
     .split(',')
     .map((entry) => entry.trim())
     .filter((entry) => entry !== '');
+}
+
+/**
+ * Équipes saisies → équipes par zone (item 8) : `zone=équipe`, une entrée par
+ * zone. Une entrée sans `=`, sans zone ou sans équipe est ignorée : on ne
+ * devine jamais une équipe (§15).
+ */
+export function teamByZoneOf(value: unknown): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const entry of readList(value)) {
+    const at = entry.indexOf('=');
+    if (at <= 0) continue;
+    const zone = entry.slice(0, at).trim();
+    const team = entry.slice(at + 1).trim();
+    if (zone !== '' && team !== '') found[zone] = team;
+  }
+  return found;
+}
+
+/** Texte du champ « équipe par zone », à partir des équipes en vigueur. */
+export function teamByZoneText(teamByZone: Record<string, string>): string {
+  return Object.entries(teamByZone)
+    .map(([zone, team]) => `${zone}=${team}`)
+    .join(', ');
 }
 
 /** Type de règle lu depuis une chaîne : toute valeur inconnue retombe sur `label`. */

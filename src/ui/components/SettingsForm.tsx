@@ -5,13 +5,14 @@ import { saveSettings } from '../api';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
 import { formatNumber } from '../format';
-import { Banner, Form, Fragment, Text } from '../kit';
+import { Banner, Form, Fragment, Text, TextField } from '../kit';
 import type { FieldProblem } from '../settings-form-values';
-import { fieldLabel, patchFromForm, validatePatch } from '../settings-form-values';
+import { fieldLabel, patchFromForm, teamByZoneText, validatePatch } from '../settings-form-values';
 import { useAction } from '../use-action';
 import { ErrorState } from './ErrorState';
 import { SettingsNumbersFields } from './SettingsNumbersFields';
 import { SettingsRuleFields } from './SettingsRuleFields';
+import type { FieldChange } from './SettingsRuleFields';
 
 /**
  * Les réglages, en un seul formulaire (écran 6).
@@ -55,6 +56,7 @@ export function SettingsForm({
       <Text>{t(locale, 'settings.body')}</Text>
       <Form onSubmit={submit} submitButtonText={t(locale, 'settings.save')} isDisabled={action.busy}>
         <SettingsRuleFields locale={locale} values={settings} onChange={update} />
+        <TeamByZoneField locale={locale} values={settings} onChange={update} />
         <SettingsNumbersFields locale={locale} values={settings} onChange={update} />
       </Form>
       {action.busy ? <Text>{t(locale, 'settings.saving')}</Text> : null}
@@ -77,6 +79,29 @@ function InvalidList({ locale, problems }: { locale: Locale; problems: FieldProb
         <Text key={`${problem.field}:${problem.kind}`}>{problemText(locale, problem)}</Text>
       ))}
     </Banner>
+  );
+}
+
+/**
+ * Quelle équipe porte chaque zone (item 8) : sans cette saisie, le « coût par
+ * équipe » du gadget restait vide hors jeu d'exemple (DT-18).
+ */
+function TeamByZoneField({
+  locale,
+  values,
+  onChange,
+}: {
+  locale: Locale;
+  values: ProjectSettings;
+  onChange: FieldChange;
+}): JSX.Element {
+  return (
+    <TextField
+      name="teamByZone"
+      label={t(locale, 'settings.teamByZone')}
+      defaultValue={teamByZoneText(values.teamByZone)}
+      onChange={(value) => onChange('teamByZone', value)}
+    />
   );
 }
 

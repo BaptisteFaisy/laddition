@@ -4,7 +4,7 @@ import { t } from '../i18n/index';
 import { Fragment, TextField } from '../kit';
 import { numberFields } from '../settings-form-values';
 
-/** Journée de travail, fenêtre et coefficients : douze nombres, une seule boucle. */
+/** Journée de travail, fenêtre, coefficients et taux journalier : une seule boucle. */
 export function SettingsNumbersFields({
   locale,
   values,

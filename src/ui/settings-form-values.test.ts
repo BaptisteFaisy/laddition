@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { debtRuleKindOf, fieldLabel, validatePatch, zoneModeOf } from './settings-form-values';
+import { debtRuleKindOf, fieldLabel, patchFromForm, teamByZoneOf, teamByZoneText, validatePatch, zoneModeOf } from './settings-form-values';
 
 test('une saisie vide ne déclenche aucun refus (rien à vérifier)', () => {
   assert.deepEqual(validatePatch({}), []);
@@ -39,4 +39,22 @@ test('chaque champ refusé a un libellé traduisible', () => {
   assert.equal(fieldLabel('windowDays'), 'settings.windowDays');
   assert.equal(fieldLabel('debtRuleValue'), 'settings.debtRuleValue');
   assert.equal(fieldLabel('inconnu'), 'settings.debtRule');
+});
+
+test('les équipes par zone sont saisissables et jamais devinées (item 8)', () => {
+  assert.deepEqual(patchFromForm({ teamByZone: 'facturation=Équipe A, socle = Équipe B' }).teamByZone, {
+    facturation: 'Équipe A',
+    socle: 'Équipe B',
+  });
+  assert.deepEqual(teamByZoneOf('sans-signe, =sans-zone, zone='), {});
+  assert.equal(teamByZoneText({ facturation: 'Équipe A' }), 'facturation=Équipe A');
+  assert.equal('teamByZone' in patchFromForm({}), false);
+});
+
+test('le taux journalier est saisissable et borné (item 65)', () => {
+  assert.equal(patchFromForm({ dayRateEur: '550,5' }).dayRateEur, 550.5);
+  assert.deepEqual(validatePatch({ dayRateEur: -1 }), [
+    { field: 'dayRateEur', kind: 'range', min: 0, max: 100000 },
+  ]);
+  assert.equal('dayRateEur' in patchFromForm({}), false);
 });
