@@ -15,7 +15,7 @@
 | Search summary | Measures what each technical-debt ticket actually cost over the last 90 days — incidents, bugs, slow tickets — compares it to the cost of fixing it, then checks what changed once it was repaid. | 250 chars: 197 ✓ |
 | Category | Project management / Reporting |  |
 | Pricing | Free (hackathon entry) |  |
-| Deployment | **Runs on Atlassian** (verified eligible: no outbound network call, Forge SQL storage, Atlassian-hosted model) |  |
+| Deployment | **Runs on Atlassian — targeted, not yet granted.** The app meets the programme's technical shape (no outbound network call, Forge SQL storage, Atlassian-hosted model), but `forge eligibility` (12 November 2026) reports one blocker: "App is using a webtrigger module that can egress data". The two operator webtriggers are removed at the freeze (15 December), after which eligibility is re-checked and this row is either confirmed or dropped. |  |
 | Products | Jira Cloud (Software, Service Management) |  |
 
 ## 2. Long description
@@ -211,7 +211,10 @@ demonstrated from a real screen on a site whose organisation admin granted them.
 - Primary category: **Project management**
 - Secondary: **Reporting & analytics**
 - Labels: `technical debt`, `engineering effectiveness`, `cost`, `Jira`, `Rovo`,
-  `MCP`, `Forge`, `Runs on Atlassian`. (`prioritization` was
+  `MCP`, `Forge`. (`Runs on Atlassian` is **not** claimed as a label yet: see §1,
+  the two operator webtriggers currently disqualify the build — the label is added
+  only if `forge eligibility` turns green after they are removed at the freeze.
+  `prioritization` was
   removed on purpose — spec §24: the product measures a past cost and checks a
   repayment, it does not score or rank the backlog. `Teamwork Graph` was
   removed on 12 November — see §5, decision G93: no feature a user opens reads

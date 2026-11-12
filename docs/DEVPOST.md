@@ -140,7 +140,12 @@ One Forge app installed on Jira. **No outbound network call.**
   probes**, not by opinion: 200–250 ms per issue including its history, which
   projects to 17–21 minutes for 5 000 issues — above the 15-minute budget, so the
   documented fallback (90-day window, batches of 50 in a queue) is what ships.
-- **Confirmed eligible for "Runs on Atlassian"** by `forge eligibility`.
+- **"Runs on Atlassian" is targeted, not yet granted**: `forge eligibility`
+  (12 November 2026) reports exactly one blocker — "App is using a webtrigger
+  module that can egress data". The two operator webtriggers (token-protected,
+  fail-closed) are removed at the freeze, and eligibility is re-checked then.
+  Everything else already matches the programme's shape: no outbound network
+  call, Forge SQL storage, Atlassian-hosted model.
 
 ## What we learned
 

@@ -250,3 +250,58 @@ statut sur 20 tickets ITO.
   et la lenteur repose sur les statuts de revue.
 - **V6 échoue** → Compass sort du périmètre de la V1 ; les zones sont les
   composants Jira.
+
+## Vérification du 12/11 — les 26 surfaces de lecture répondent sur le site
+
+Mesuré le **12 novembre 2026** sur `<DEMO_SITE>`, app installée en **production**
+(version 3.1.0, installation mise à jour), projet **PAY** avec le jeu d'exemple
+(68 faits, 65 preuves, 5 zones, `dayRateEur = 650`, `storyPointField =
+customfield_10016`).
+
+Outil : la sonde `?action=screens` (`src/jobs/opsScreens.ts`), ajoutée ce jour.
+Elle joue **toutes les clés en lecture** du registre des résolveurs et **tous les
+outils MCP en verbe GET**, avec les mêmes payloads que les écrans, et rend une
+ligne par surface. Les listes sont dérivées des registres : une surface ajoutée
+sans écran ni outil fait rougir `src/jobs/opsScreens.test.ts`.
+
+| Surface | Verdict | Ce qui prouve qu'elle a travaillé |
+|---|---|---|
+| `getProjectPage` | ok | 10 dettes au classement, 5 zones |
+| `getDebtBill` | ok | PAY-77 : 19–34 j-p, 19 preuves |
+| `getDebtCase` (`&llm=1`) | ok | argumentaire DT-17 rédigé pour PAY-77 |
+| `getZoneCosts` | ok | 1 zone, 14 semaines |
+| `listPhantomDebt` | ok | 1 zone sans ticket (notifications, 22 j-p) |
+| `listDeadDebt` | ok | 7 dettes mortes |
+| `getRepaymentReport` | ok | 1 bulletin (PAY-41 : 3,4 → 0,6 j-p/semaine) |
+| `listZoneEvidence` | ok | 19 preuves pour la zone `facturation` |
+| `listDebtAttributions` | ok | 19 parts d'attribution |
+| `getIssueCost` | ok | PAY-77 : 19–34 j-p sur 90 jours |
+| `getGadgetData` | ok | 5 dettes, 4 équipes, 2 trimestres |
+| `getSettings` | ok | règle de dette, mode de zone, 7 h/jour |
+| `bootstrapProgress` | ok | vide (aucune initialisation en cours) |
+| `getDataQuality` | ok | 68 tickets, 1 sans zone (1,47 %), aucune troncature |
+| `simulateRepayment` | ok | DT-21 : 3 dettes simulées + totaux |
+| `previewDebtTicket` (`&llm=1`) | ok | brouillon « Dette technique facturation : 34 j-p… » |
+| 10 outils MCP `GET` | ok | dont `get-debt-case`, `list-zone-evidence`, `list-projects` |
+
+**Bilan : `allOk = true`, 26 surfaces jouées, 0 échec.** Surfaces volontairement
+non jouées (elles écrivent) : `saveSettings`, `loadSampleData`, `clearSampleData`,
+`startBootstrap`, `confirmEvidence`, `rejectEvidence`, `draftDebtTicket`,
+`confirm-evidence`.
+
+Vérifications complémentaires du même jour, sur le même site :
+
+- **Recette §20 n° 9** (mêmes chiffres partout) : `?action=bill&key=PAY-77` rend
+  `identical: true` — l'outil MCP `get-debt-bill` et le résolveur du panneau
+  donnent 19–34 j-p et 19 preuves.
+- **Sécurité des webtriggers** (items G85-G87) : 403 « jeton d'exploitation
+  absent ou invalide » sans jeton, 200 avec. Une clé de projet fantaisie est
+  refusée avant d'entrer dans un JQL.
+- **La sonde ne laisse plus de trace** : `exerciseMcp` confirme un rapprochement
+  pour mesurer le gain (recette §20 n° 3) puis l'annule et recalcule
+  (`restoreInferred`). PAY-41 est revenu à 1–2 j-p, la recette est rejouable par
+  un juge — avant ce correctif, la sonde laissait PAY-41 à 2–2 j-p.
+
+Ce que cette sonde **ne prouve pas** : le rendu UI Kit 2 dans le navigateur
+(item H98) et les captures (item H99). Ces deux points exigent une session
+Atlassian authentifiée ; la procédure est prête dans `docs/CAPTURES.md`.

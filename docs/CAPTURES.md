@@ -1,4 +1,4 @@
-# Screenshots checklist — Marketplace gallery (12 captures)
+# Screenshots checklist — Marketplace gallery (14 captures)
 
 This is the shot list for the Marketplace gallery. Captions live in
 `docs/MARKETPLACE.md` §8 — the table below adds, for each capture: the screen to
@@ -7,7 +7,7 @@ open, the project/ticket to display, the acceptance point of the specification
 
 **No image has been produced yet.** This document only prepares the shoot.
 
-## Language and setup — mandatory for all 12 captures
+## Language and setup — mandatory for all 14 captures
 
 - **Language: English.** The app's default UI language is English
   (`src/ui/i18n/en.ts`); the UI follows the Jira account language, so set the
@@ -32,7 +32,7 @@ open, the project/ticket to display, the acceptance point of the specification
   wording is narrative — the screens show the dataset's own summaries), fix the
   caption, not the screen.
 
-## The 12 captures
+## The 14 captures
 
 | # | Screen (how to open) | Project / ticket shown | Spec §20 point | File (`docs/captures/`) |
 |---|---|---|---|---|
@@ -48,12 +48,24 @@ open, the project/ticket to display, the acceptance point of the specification
 | 10 | A Jira **dashboard** with the L'addition gadget added | Gadget on the sample project: top debts, cost per team, cost per quarter | #10 | `10-dashboard-gadget.png` |
 | 11 | **Rovo Chat** with the L'addition agent | Prompt: *"Prepare the argument for PAY-77"* → the one-page case, with the method's limits | #9 (agent/MCP figures identical to the panel) | `11-rovo-chat-argument.png` |
 | 12 | Project page → **Settings** tab (or the settings page) | Project PAY settings: what counts as debt, zone mode, working day, coefficients; the *Load/Remove sample data* controls | — (settings drive the data-quality warnings of #7) | `12-project-settings.png` |
+| 13 | Project page → **Simulation** tab: three debts selected, simulation run | DT-21 (added 12 November): capacity recovered if PAY-77 / PAY-41 / PAY-90 were repaid — every figure comes from stored numbers, each with its method | — (spec §14: the "what if we repay these" answer) | `13-simulation-tab.png` |
+| 14 | Project page → select **PAY-77** → *Make the case* button → the case page | DT-17 (wired 12 November): the one-page argument, its figures, and the method's limits — the same content as the MCP tool `get-debt-case` | #9 (agent/MCP figures identical to the panel) | `14-debt-case.png` |
 
 ## Shoot order (suggestion)
 
-Setup (English UI + sample data) → 1, 5, 6, 7, 8, 12 (project page, one
-place) → 2, 3 (PAY-77 panel) → 4 (bug context) → 9 (navigator) → 10
-(dashboard) → 11 (Rovo chat, last: it may consume agent quota).
+Setup (English UI + sample data) → 1, 5, 6, 7, 8, 13, 12 (project page, one
+place) → 2, 3, 14 (PAY-77 panel, then *Make the case*) → 4 (bug context) → 9
+(navigator) → 10 (dashboard) → 11 (Rovo chat, last: it may consume agent quota).
 
-Before committing the images: `ls docs/captures/` must show exactly these 12
+Before committing the images: `ls docs/captures/` must show exactly these 14
 files, each caption re-checked against `docs/MARKETPLACE.md` §8.
+
+## State of the shoot (12 November 2026)
+
+Not shot yet: it needs an authenticated Atlassian session in the browser, and
+the agent never types credentials. Everything else is ready — the app is
+deployed (`production` 3.1.0, installed and upgraded), the sample dataset is
+loaded on **PAY** (68 facts, 65 evidence, 5 zones, 650 €/day), and the data path
+of all 26 read surfaces was verified live the same day (`?action=screens`, see
+`docs/VALIDATIONS.md`). What only a browser can prove: that UI Kit 2 renders
+without a runtime error, and the images themselves.
