@@ -27,6 +27,7 @@ import { requireSettings } from './projects';
 import type { Prepared, RecomputeInput, RecomputeResult } from './recompute';
 import { debtFieldValues, finish, prepare } from './recompute';
 import { scoreCandidates } from './relevance';
+import type { ScoredCandidates } from './relevance';
 import { groupSpans } from './spans';
 import { purgeDisappearedZones } from './zoneLifecycle';
 
@@ -112,10 +113,10 @@ export async function recalcProject(
   if (options.deadline?.expired()) return timedOut(projectId, pending.length);
   const gathered = await gatherInput(projectId, settings, now);
   const prepared = prepare(gathered.input);
-  const scores = await scoreProject(projectId, prepared, options.deadline);
+  const scored = await scoreProject(projectId, prepared, options.deadline);
   // Les scores obtenus sont déjà en cache : s'arrêter ici ne perd rien (C34).
   if (options.deadline?.expired()) return timedOut(projectId, pending.length);
-  const result = finish({ ...gathered.input, scores }, prepared);
+  const result = finish({ ...gathered.input, scores: scored.scores }, prepared, scored.truncated);
   const attributions = await carryBeyondAttributions(
     projectId,
     gathered.beyond,
@@ -285,19 +286,19 @@ async function scoreProject(
   projectId: string,
   prepared: Prepared,
   deadline?: Deadline,
-): Promise<RelevanceScore[]> {
+): Promise<ScoredCandidates> {
   const cache = await loadCache(projectId);
   const guard = createCallGuard(LLM_CALLS_PER_MINUTE);
-  const scores = await scoreCandidates(prepared.evidence, prepared.debts, cache, { guard, deadline });
+  const scored = await scoreCandidates(prepared.evidence, prepared.debts, cache, { guard, deadline });
   await saveScores(
     projectId,
-    scores.map((score) => ({
+    scored.scores.map((score) => ({
       fingerprint: score.fingerprint,
       relevance: score.relevance,
       rationale: score.rationale,
     })),
   );
-  return scores;
+  return scored;
 }
 
 /** Cache des scores d'un projet, préchargé en mémoire (C30). */

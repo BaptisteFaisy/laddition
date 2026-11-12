@@ -326,6 +326,10 @@ export interface DataQuality {
   approximatedIssues: number;
   /** Part de chaque méthode de calcul, en pourcentage (§19 cas 7). */
   methodShares?: { logged: number; computed: number; approximated: number };
+  /** Au moins un ticket a son historique de statuts tronqué (C41) : durées sur base partielle. */
+  historyTruncated?: boolean;
+  /** Le budget de score s'est arrêté avant la fin des couples (C44) : pertinences manquantes. */
+  scoresTruncated?: boolean;
 }
 
 /** État de l'initialisation (DT-12), pour la barre de progression. */

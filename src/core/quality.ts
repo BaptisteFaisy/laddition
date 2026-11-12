@@ -29,11 +29,16 @@ const METHODS: readonly CostMethod[] = ['logged', 'computed', 'approximated'];
  * `methodShares` répond au §19 cas 7 : une équipe qui saisit du temps sur
  * certains tickets seulement voit la part de chaque méthode, pas seulement la
  * part du temps saisi.
+ *
+ * `historyTruncated` (C41) se lit sur les faits ; `scoresTruncated` (C44)
+ * vient du passage de score — le lot jobs passe le drapeau de
+ * `scoreCandidates`, les autres appelants laissent le défaut.
  */
 export function computeQuality(
   facts: IssueFact[],
   evidence: Evidence[],
   settings: ProjectSettings,
+  scoresTruncated = false,
 ): DataQuality {
   const issuesWithoutZone = facts.filter((fact) =>
     isUnclassified(zonesForIssue(fact, settings)),
@@ -47,6 +52,8 @@ export function computeQuality(
     loggedShare: shares.logged,
     approximatedIssues: approximatedTickets(evidence),
     methodShares: shares,
+    historyTruncated: facts.some((fact) => fact.historyTruncated === true),
+    scoresTruncated,
   };
 }
 

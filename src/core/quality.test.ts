@@ -176,5 +176,22 @@ test('jeu vide : tout à zéro, jamais NaN', () => {
     loggedShare: 0,
     approximatedIssues: 0,
     methodShares: { logged: 0, computed: 0, approximated: 0 },
+    historyTruncated: false,
+    scoresTruncated: false,
   });
+});
+
+test('C41/C44 — les troncatures d’historique et de budget remontent dans DataQuality', () => {
+  const clean = computeQuality([issueFact('i1', ['api'])], [], SETTINGS);
+  assert.equal(clean.historyTruncated, false, 'historique complet : pas de signal');
+  assert.equal(clean.scoresTruncated, false, 'budget de score intact par défaut');
+
+  const partial = computeQuality(
+    [{ ...issueFact('i2', ['api']), historyTruncated: true }],
+    [],
+    SETTINGS,
+    true,
+  );
+  assert.equal(partial.historyTruncated, true, 'un seul ticket tronqué suffit à signaler');
+  assert.equal(partial.scoresTruncated, true, 'le drapeau du passage de score est recopié');
 });
