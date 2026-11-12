@@ -1,11 +1,11 @@
 /**
- * Formes JSON de l'API REST Jira et lecteurs purs de ces formes : aucune I/O
- * ici, `jira.ts` porte les appels réseau. La séparation sert la taille des
- * fichiers (< 500 lignes) et la testabilité du mappage sans Forge.
+ * Formes JSON de l'API REST Jira et lecteurs purs : aucune I/O ici, `jira.ts`
+ * porte les appels réseau ; séparation = fichiers < 500 lignes, tests sans Forge.
  */
 
 import type { HistoryEntry } from '../core/duration';
 import { secondsToJp } from '../core/time';
+import { parseStoryPoints } from '../core/units';
 import type { IssueFact, IssueLink, ProjectSettings, StatusCategory } from '../core/types';
 
 /* ------------------------------------------------------------------ formes */
@@ -156,9 +156,8 @@ export interface IssueFactExtras {
 }
 
 /**
- * Mappe un JSON Jira vers `IssueFact`. Les zones et la classe de taille restent
- * vides : `zonesForIssue` et `sizeClassOf` décident (§8, §9). Le plafond des
- * intervenants est posé par le domaine (C1), pas ici.
+ * Mappe un JSON Jira vers `IssueFact`. Zones et classe de taille restent vides
+ * (`zonesForIssue`, `sizeClassOf` décident, §8/§9) ; plafond C1 au domaine.
  */
 export function toIssueFact(
   issueJson: JiraIssueJson,
@@ -184,6 +183,7 @@ export function toIssueFact(
     closedAt: isDone(fields.status) ? resolvedAt : null,
     size: 'unknown',
     estimateJp: secondsToJp(fields.timeoriginalestimate ?? null, settings.hoursPerDay),
+    storyPoints: parseStoryPoints(fields[settings.storyPointField?.trim() ?? '']),
     loggedSeconds: fields.timetracking?.timeSpentSeconds ?? fields.aggregatetimespent ?? null,
     labels: fields.labels ?? [],
     components: (fields.components ?? []).map((component) => component.name ?? '').filter(Boolean),
