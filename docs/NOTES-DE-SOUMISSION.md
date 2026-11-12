@@ -190,6 +190,17 @@
       en réel le 12/11 : 403 sans jeton, 200 avec.
 - [ ] Exécuter la procédure de gel (version 1.0.0 + tag) au gel du 15/12 —
       procédure ci-dessous.
+- [ ] **Rejouer le recalcul d'un projet réel sur l'installation de production**
+      (ouvert le 12/11) : `?action=recalc&project=ENGS` échoue par
+      « Unknown SQL execution error », la sonde `?action=write-path` localisant
+      l'échec dans `purgeProject` (les lectures et les écritures unitaires
+      passent, les six formes SQL testées aussi). Le schéma a été recréé
+      (`?action=reset-schema`) et le jeu d'exemple réinjecté, sans changement :
+      c'est la purge qu'il faut instrumenter (statements par table). Tant que
+      ce point est ouvert, **le passage nocturne ne peut pas être considéré
+      comme vérifié sur l'installation de production** — le projet de démo
+      (PAY) est en `demoData` et n'est donc pas recalculé, ce qui masque le
+      défaut.
 
 ## Publication de PRIVACY.md et TERMS.md — plan (item G95)
 
