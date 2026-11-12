@@ -12,9 +12,14 @@ import assert from 'node:assert/strict';
 
 import { restoreSql, useFakeSql } from '../fakeSql';
 import { ensureSchema } from '../index';
-import { getBill, listBills, upsertBill, upsertBills } from './bills';
+import { makeSettings } from '../../../core/settings';
+import type { Family } from '../../../core/types';
+import { zeroFamilyNumbers } from '../rows';
+import { getBill, listBills, listZoneWeeks, upsertBill, upsertBills, upsertZoneWeek } from './bills';
+import { replaceEvidence } from './costs';
 import { upsertIssueFacts } from './issues';
-import { debtBill, issueFact } from '../testFixtures';
+import { saveSettings } from './project';
+import { debtBill, evidence, issueFact } from '../testFixtures';
 
 /** Double installé, schéma créé. */
 async function installed(t: { after(hook: () => void): void }) {
@@ -102,4 +107,52 @@ test('les additions sont rendues de la plus lourde à la plus légère, sans SEL
   const reads = fake.log.filter((call) => call.kind === 'select');
   assert.ok(reads.length > 0);
   for (const call of reads) assert.ok(!/\bSELECT \*/i.test(call.query), `SELECT * subsistant : ${call.query}`);
+});
+
+/* ------------------------------------------------ coûts de zone (item 56, §9) */
+
+/** Case zone × semaine, ventilation complète à partir de valeurs partielles. */
+function zoneWeek(zone: string, week: string, costJp: number, values: Partial<Record<Family, number>>) {
+  const byFamily = zeroFamilyNumbers();
+  for (const family of Object.keys(byFamily) as Family[]) byFamily[family] = values[family] ?? 0;
+  return { projectId: 'p1', zone, week, costJp, byFamily };
+}
+
+test('item 56 — C3 sous le seuil de références marque la zone « données insuffisantes »', async (t) => {
+  await installed(t);
+  await saveSettings(makeSettings('p1', 'PAY'));
+  await replaceEvidence('p1', [
+    evidence({ id: 'c1', zone: 'taxes', family: 'C3', sourceIssueId: 's1', sourceKey: 'PAY-1' }),
+    evidence({ id: 'c2', zone: 'taxes', family: 'C3', sourceIssueId: 's2', sourceKey: 'PAY-2' }),
+    evidence({ id: 'c3', zone: 'taxes', family: 'C3', sourceIssueId: 's2', sourceKey: 'PAY-2' }),
+    evidence({ id: 'r1', zone: 'taxes', family: 'C4', sourceIssueId: 's9', sourceKey: 'PAY-9' }),
+  ]);
+  await upsertZoneWeek([
+    zoneWeek('taxes', '2026-11-02', 3, { C3: 2, C4: 1 }),
+    zoneWeek('api', '2026-11-02', 1, { C3: 1 }),
+  ]);
+
+  const costs = await listZoneWeeks('p1', ['2026-11-02']);
+  const taxes = costs.find((cost) => cost.zone === 'taxes');
+  assert.equal(taxes?.insufficientByFamily?.C3, true, 'deux tickets de référence distincts < 5 (§9)');
+  assert.equal(taxes?.insufficientByFamily?.C4, undefined, 'seule C3 dépend de l’échantillon de références');
+  const api = costs.find((cost) => cost.zone === 'api');
+  assert.equal(api?.insufficientByFamily?.C3, true, 'un coût C3 sans aucune référence n’est pas chiffrable');
+});
+
+test('item 56 — échantillon suffisant : aucun drapeau, seuil lu dans les réglages', async (t) => {
+  await installed(t);
+  await saveSettings(makeSettings('p1', 'PAY', { minBaselineSample: 3 }));
+  await replaceEvidence(
+    'p1',
+    [1, 2, 3].map((n) =>
+      evidence({ id: `c${n}`, zone: 'api', family: 'C3', sourceIssueId: `s${n}`, sourceKey: `PAY-${n}` }),
+    ),
+  );
+  await upsertZoneWeek([zoneWeek('api', '2026-11-02', 6, { C3: 6 })]);
+
+  const costs = await listZoneWeeks('p1', ['2026-11-02']);
+  assert.equal(costs.length, 1);
+  assert.equal(costs[0]?.insufficientByFamily, undefined, '3 références distinctes ≥ seuil de 3');
+  assert.equal(costs[0]?.totalJp, 6);
 });
