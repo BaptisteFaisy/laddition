@@ -106,6 +106,12 @@ export interface IssueFact {
   loggedSeconds: number | null;
   labels: string[];
   components: string[];
+  /**
+   * Identifiants Jira des composants, **dans le même ordre** que `components`
+   * (item B24) : c'est l'identifiant qui survit à un renommage, le nom ne
+   * survit pas. Vide quand Jira n'a pas donné d'identifiant.
+   */
+  componentIds?: string[];
   /** Services affectés d'un incident JSM. */
   affectedServices: string[];
   /** Un post-mortem est lié à l'incident. */

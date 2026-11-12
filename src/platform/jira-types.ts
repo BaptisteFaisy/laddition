@@ -7,6 +7,8 @@ import type { HistoryEntry } from '../core/duration';
 import { secondsToJp } from '../core/time';
 import { parseStoryPoints } from '../core/units';
 import type { IssueFact, IssueLink, ProjectSettings, StatusCategory } from '../core/types';
+import { componentsOf } from './jira-components';
+import { adfToText } from './jira-adf';
 
 /* ------------------------------------------------------------------ formes */
 
@@ -122,12 +124,6 @@ export interface JiraFieldMeta {
 
 /* --------------------------------------------------------------- constantes */
 
-/** Blocs Atlassian Document Format qui doivent produire un saut de ligne. */
-const ADF_BLOCKS: ReadonlySet<string> = new Set([
-  'paragraph', 'heading', 'listItem', 'bulletList', 'orderedList',
-  'blockquote', 'codeBlock', 'tableRow', 'panel', 'rule',
-]);
-
 /** Types de lien Jira qui désignent un post-mortem (JSM : « Post-incident review »). */
 const POST_MORTEM_LINK_NAMES: ReadonlySet<string> = new Set(['postincidentreview', 'postincident', 'postmortem', 'review']);
 
@@ -168,6 +164,7 @@ export function toIssueFact(
   const type = fields.issuetype?.name ?? 'Inconnu';
   const resolvedAt = fields.resolutiondate ?? null;
   const links = extras.links ?? fields.issuelinks ?? [];
+  const components = componentsOf(fields);
   return {
     issueId: issueJson.id,
     key: issueJson.key,
@@ -186,7 +183,8 @@ export function toIssueFact(
     storyPoints: parseStoryPoints(fields[settings.storyPointField?.trim() ?? '']),
     loggedSeconds: fields.timetracking?.timeSpentSeconds ?? fields.aggregatetimespent ?? null,
     labels: fields.labels ?? [],
-    components: (fields.components ?? []).map((component) => component.name ?? '').filter(Boolean),
+    components: components.components,
+    componentIds: components.componentIds,
     affectedServices: affectedServicesOf(fields, extras.serviceFieldIds ?? knownServiceFieldIds()),
     hasPostMortem: extras.postMortem ?? postMortemFromLinks(links),
     participants: participantIdsOf(fields, extras.commentAuthors ?? []).length,
@@ -486,14 +484,4 @@ export function descriptionText(description: unknown): string | undefined {
   if (typeof description === 'string') return description.trim() || undefined;
   const text = adfToText(description, 0).replace(/\n{3,}/g, '\n\n').trim();
   return text.length > 0 ? text : undefined;
-}
-
-function adfToText(node: unknown, depth: number): string {
-  if (depth > 12 || node === null || typeof node !== 'object') return '';
-  const record = node as { type?: string; text?: string; content?: unknown[] };
-  if (record.type === 'text') return record.text ?? '';
-  if (record.type === 'hardBreak') return '\n';
-  const children = Array.isArray(record.content) ? record.content : [];
-  const inner = children.map((child) => adfToText(child, depth + 1)).join('');
-  return ADF_BLOCKS.has(record.type ?? '') ? `${inner}\n` : inner;
 }

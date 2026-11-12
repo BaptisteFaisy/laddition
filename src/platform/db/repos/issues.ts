@@ -95,7 +95,7 @@ function issueFactValues(fact: IssueFact): SqlValue[] {
     fact.estimateJp,
     fact.loggedSeconds,
     toJson(fact.labels),
-    toJson(fact.components),
+    toJson(componentPairs(fact)),
     toJson(fact.affectedServices),
     toDbBool(fact.hasPostMortem),
     fact.participants,
@@ -270,4 +270,16 @@ async function listSpansOfIssues(issueIds: readonly string[]): Promise<StatusSpa
     spans.push(...rows.map(toStatusSpan));
   }
   return spans;
+}
+
+/**
+ * Composants à écrire : paires nom/identifiant quand Jira les a donnés.
+ *
+ * L'ancienne écriture (noms seuls) reste lisible ; la nouvelle permet de
+ * reconnaître un composant renommé (item B24).
+ */
+function componentPairs(fact: IssueFact): unknown {
+  const ids = fact.componentIds ?? [];
+  if (ids.length === 0) return fact.components;
+  return fact.components.map((name, index) => ({ id: ids[index] ?? '', name }));
 }
