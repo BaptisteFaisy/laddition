@@ -13,6 +13,7 @@ import type {
   Repayment,
   ZoneCost,
 } from '../core/types';
+import type { SimulationResult } from '../core/simulation';
 import { unwrap } from './envelope';
 import type { DebtCaseView } from '../resolvers/case';
 
@@ -46,7 +47,8 @@ export type ResolverKey =
   | 'listZoneEvidence'
   | 'listDebtAttributions'
   | 'getIssueCost'
-  | 'getGadgetData';
+  | 'getGadgetData'
+  | 'simulateRepayment';
 
 /** Un rapprochement proposé, en attente de confirmation humaine (§10). */
 export type PendingMatch = {
@@ -242,6 +244,14 @@ export function getIssueCost(issueId: string): Promise<IssueCost> {
 // seules lignes du gadget, sans le classement complet du projet.
 export function getGadgetData(projectId: string, projectKey: string): Promise<GadgetData> {
   return call<GadgetData>('getGadgetData', { projectId, projectKey });
+}
+
+/**
+ * Simulation DT-21 (item 66) : capacité retrouvée si ces dettes étaient
+ * remboursées. Le résolveur n'additionne que des chiffres déjà stockés.
+ */
+export function simulateRepayment(projectId: string, debtIssueIds: readonly string[]): Promise<SimulationResult> {
+  return call<SimulationResult>('simulateRepayment', { projectId, debtIssueIds: [...debtIssueIds] });
 }
 
 /**

@@ -11,6 +11,7 @@ import type { Locale } from './i18n/index';
 import { t } from './i18n/index';
 import { AsyncView } from './components/AsyncView';
 import { BillView } from './components/BillView';
+import { CaseButton } from './components/CaseButton';
 import { DeadTab } from './components/DeadTab';
 import { MethodTab } from './components/MethodTab';
 import { PhantomTab } from './components/PhantomTab';
@@ -19,7 +20,9 @@ import { RankingTable } from './components/RankingTable';
 import { RepaymentTab } from './components/RepaymentTab';
 import { SampleDataButton } from './components/SampleDataButton';
 import { ScreenShell } from './components/ScreenShell';
+import { SimulationPane } from './components/SimulationPane';
 import { ZoneTab } from './components/ZoneTab';
+import type { RankedDebt } from '../core/types';
 
 /** Écran 1 (§14) : le classement, puis les cinq onglets du projet. */
 export default function ProjectPageScreen(): JSX.Element {
@@ -73,8 +76,30 @@ function ProjectPageBody({
         emptyAction={emptyAction(locale, context.projectId, data.settings.demoData, loaded)}
       />
       {selected === null ? <Text>{t(locale, 'project.selectHint')}</Text> : null}
-      {selected ? <BillView locale={locale} debtIssueId={selected} /> : null}
+      {selected ? <SelectedDebt locale={locale} debtIssueId={selected} ranking={data.ranking} /> : null}
       <ProjectTabs context={context} data={data} />
+    </Fragment>
+  );
+}
+
+/**
+ * Une dette ouverte : son addition, puis son argumentaire à la demande (DT-17).
+ * L'argumentaire appelle le modèle : il n'est jamais chargé sans un clic.
+ */
+function SelectedDebt({
+  locale,
+  debtIssueId,
+  ranking,
+}: {
+  locale: Locale;
+  debtIssueId: string;
+  ranking: readonly RankedDebt[];
+}): JSX.Element {
+  const key = ranking.find((debt) => debt.debtIssueId === debtIssueId)?.key ?? null;
+  return (
+    <Fragment>
+      <BillView locale={locale} debtIssueId={debtIssueId} />
+      <CaseButton locale={locale} issueKey={key} />
     </Fragment>
   );
 }
@@ -111,6 +136,9 @@ function ProjectTabs({ context, data }: { context: ScreenContext; data: ProjectP
       </TabEntry>
       <TabEntry label={t(locale, 'project.tab.repayments')}>
         <RepaymentTab locale={locale} projectId={context.projectId} />
+      </TabEntry>
+      <TabEntry label={t(locale, 'project.tab.simulation')}>
+        <SimulationPane locale={locale} projectId={context.projectId} ranking={data.ranking} />
       </TabEntry>
       <TabEntry label={t(locale, 'project.tab.method')}>
         <MethodTab locale={locale} settings={data.settings} quality={data.quality} />
