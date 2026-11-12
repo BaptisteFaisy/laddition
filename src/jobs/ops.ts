@@ -88,6 +88,20 @@ const NUMBER_SETTINGS = {
 /** Nom d'un réglage numérique réglable par l'outillage. */
 type NumberSetting = keyof typeof NUMBER_SETTINGS;
 
+/**
+ * Paramètres de réglage acceptés par `?action=init`, dans une seule liste :
+ * le webtrigger les lit, `settingsPatch` les interprète. Ajouter un réglage
+ * numérique à `NUMBER_SETTINGS` suffit — aucune liste à recopier ailleurs.
+ */
+export const SETTINGS_PARAMS: readonly string[] = [
+  'debtRuleKind',
+  'debtRuleValue',
+  'zoneMode',
+  'zoneLabelField',
+  'storyPointField',
+  ...Object.keys(NUMBER_SETTINGS),
+];
+
 /** Traduit les réglages passés en query string en correctif typé. */
 export function settingsPatch(raw: Record<string, string>): Partial<ProjectSettings> {
   const patch: Partial<ProjectSettings> = { ...numberSettings(raw) };

@@ -1,5 +1,6 @@
 import type { WebTriggerRequest, WebTriggerResponse } from './smokeTrigger';
 import {
+  SETTINGS_PARAMS,
   opsBootstrap,
   opsInit,
   opsResetSchema,
@@ -149,9 +150,9 @@ async function runAction<T>(action: string, body: () => Promise<T>): Promise<Ops
  * Réglages passés en query string lors de l'initialisation, par exemple
  * `?action=init&debtRuleKind=label&debtRuleValue=tech-debt&zoneMode=component`.
  */
-function initPatch(request: WebTriggerRequest): Record<string, string> {
+export function initPatch(request: WebTriggerRequest): Record<string, string> {
   const patch: Record<string, string> = {};
-  for (const key of ['debtRuleKind', 'debtRuleValue', 'zoneMode', 'zoneLabelField']) {
+  for (const key of SETTINGS_PARAMS) {
     const value = firstParam(request, key);
     if (value) patch[key] = value;
   }
