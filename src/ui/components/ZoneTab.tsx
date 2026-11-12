@@ -1,4 +1,4 @@
-import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import { Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { Family, ProjectSettings, RankedDebt, ZoneCost } from '../../core/types';
 import { BILLED_FAMILIES } from '../../core/types';
 import { teamLabel } from '../domain-strings';
@@ -122,3 +122,6 @@ function hasInsufficient(zone: ZoneCost): boolean {
   const flags = zone.insufficientByFamily ?? {};
   return BILLED_FAMILIES.some((family: Family) => flags[family] === true);
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(ZoneRow);

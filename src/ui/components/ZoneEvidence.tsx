@@ -1,4 +1,4 @@
-import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import { Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { ZoneEvidenceLine } from '../api';
 import { listZoneEvidence } from '../api';
 import { useResolver } from '../async';
@@ -94,3 +94,6 @@ function ShareCell({ locale, line }: { locale: Locale; line: ZoneEvidenceLine })
     </Fragment>
   );
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(ZoneEvidenceRow);

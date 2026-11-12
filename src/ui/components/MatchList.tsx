@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import { Button, Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { PendingMatch } from '../api';
 import { confirmEvidence, rejectEvidence } from '../api';
 import { errorMessage } from '../async';
@@ -126,3 +126,6 @@ function MatchRow({
     </Row>
   );
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(MatchRow);

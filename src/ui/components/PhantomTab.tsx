@@ -1,4 +1,4 @@
-import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import { Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { PhantomDebt } from '../../core/types';
 import { listPhantomDebt } from '../api';
 import { useResolver } from '../async';
@@ -112,3 +112,6 @@ function PhantomRow({
     </Row>
   );
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(PhantomRow);

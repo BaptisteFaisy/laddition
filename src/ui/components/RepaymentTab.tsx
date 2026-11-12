@@ -1,4 +1,4 @@
-import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
+import { Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { Repayment } from '../../core/types';
 import { getRepaymentReport } from '../api';
 import { useResolver } from '../async';
@@ -69,3 +69,6 @@ function Caveats({ locale, caveats }: { locale: Locale; caveats: string[] }): JS
   const text = caveats.map((caveat) => caveatLabel(locale, caveat)).join(' · ');
   return <Text>{pair(locale, t(locale, 'repay.caveats'), text)}</Text>;
 }
+
+/** Ligne de tableau : `parseTable` doit savoir la résoudre (kit.tsx). */
+markTableRow(RepaymentRow);
