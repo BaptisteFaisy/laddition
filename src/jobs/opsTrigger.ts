@@ -12,6 +12,7 @@ import {
 } from './ops';
 import { compareBill, injectSample, readReport, removeSample } from './opsReport';
 import { exerciseMcp } from './opsMcp';
+import { exerciseScreens } from './opsScreens';
 import { runProbe } from './opsValidate';
 import { OpsAuthError, requireOpsToken, safeProjectKey } from './opsAuth';
 import type { OpsReport } from './ops';
@@ -23,6 +24,7 @@ import { messageOf, nowIso } from './support';
  *
  * `?project=PAY&action=init|bootstrap|progress|recalc|repayments|sample|report|clear-sample`
  * `?action=recalc-all` (tous les projets)
+ * `?action=screens` (toutes les surfaces de lecture ; `&llm=1` pour le modèle)
  *
  * Un paramètre absent ou inconnu rend la liste des actions disponibles, jamais
  * un 500 : ce point d'entrée sert aussi à diagnostiquer.
@@ -49,6 +51,7 @@ const ACTIONS = [
   'recalc-path',
   'write-path',
   'sql-forms',
+  'screens',
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -108,6 +111,15 @@ const HANDLERS: Record<Action, Handler> = {
   'sql-forms': (key) => runAction('sql-forms', () => runProbe('sql-forms', key, 0)),
   'schema-health': () => opsSchemaHealth(),
   'reset-schema': () => opsResetSchema(),
+  screens: (key, request) =>
+    runAction('screens', () =>
+      exerciseScreens(
+        key,
+        firstParam(request, 'key') ?? '',
+        firstParam(request, 'zone') ?? '',
+        firstParam(request, 'llm') === '1',
+      ),
+    ),
   probe: (key, request) =>
     runAction('probe', () =>
       runProbe(
