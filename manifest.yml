@@ -435,6 +435,3 @@ permissions:
   scopes:
     - read:jira-work
     - write:jira-work
-    - read:graph:component:compass
-    - read:graph:team:atlassian
-    - read:graph:issue:jira
