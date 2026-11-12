@@ -14,6 +14,9 @@ import type {
   ZoneCost,
 } from '../core/types';
 import { unwrap } from './envelope';
+import type { DebtCaseView } from '../resolvers/case';
+
+export type { DebtCaseView };
 
 /**
  * Passerelle typée vers les resolvers (§14). Chaque écran appelle une fonction
@@ -25,6 +28,7 @@ import { unwrap } from './envelope';
 export type ResolverKey =
   | 'getProjectPage'
   | 'getDebtBill'
+  | 'getDebtCase'
   | 'listPhantomDebt'
   | 'listDeadDebt'
   | 'getRepaymentReport'
@@ -139,6 +143,11 @@ export function getProjectPage(projectId: string, projectKey: string): Promise<P
 
 export function getDebtBill(debtIssueId: string): Promise<DebtBillView> {
   return call<DebtBillView>('getDebtBill', { debtIssueId });
+}
+
+/** La page d'argumentaire d'une dette : chiffres, limites et texte rédigé. */
+export function getDebtCase(issueKey: string): Promise<DebtCaseView> {
+  return call<DebtCaseView>('getDebtCase', { issueKey });
 }
 
 export function listPhantomDebt(projectId: string, projectKey: string): Promise<PhantomDebt[]> {
