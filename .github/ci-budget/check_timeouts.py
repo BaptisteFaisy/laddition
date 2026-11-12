@@ -6,7 +6,9 @@ self-hosted n'ont pas PyYAML garanti). Analyse volontairement simple :
 on lit les workflows ligne à ligne, on repère la section `jobs:` et, pour
 chaque job (clé à 2 espaces), le `timeout-minutes:` à 4 espaces.
 
-Erreurs (exit 1) : job sans `timeout-minutes`, ou timeout > MAX_MINUTES.
+Erreurs (exit 1) : job sans `timeout-minutes`, timeout > MAX_MINUTES, ou
+checkout sans `clean: false` sur un runner self-hosted (le `git clean -ffdx`
+du défaut supprime node_modules du workspace partagé).
 Avertissements (exit 0) : `concurrency` absent, checkout sans fetch-depth: 1.
 """
 
@@ -72,6 +74,12 @@ def check_file(path, errors, warnings):
                         % rel)
     if "actions/checkout" in "\n".join(lines) and "fetch-depth: 1" not in "\n".join(lines):
         warnings.append("%s: checkout sans fetch-depth: 1" % rel)
+    text = "\n".join(lines)
+    if "actions/checkout" in text and "self-hosted" in text and "clean: false" not in text:
+        errors.append(
+            "%s: checkout sans 'clean: false' sur runner self-hosted — le défaut "
+            "lance 'git clean -ffdx', qui supprime node_modules (~150 000 fichiers) "
+            "du workspace partagé et fait dépasser le budget au job suivant" % rel)
 
 
 def main():
