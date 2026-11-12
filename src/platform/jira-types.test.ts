@@ -206,3 +206,13 @@ test('toIssueFact : le reste du contrat reste stable', () => {
   assert.equal(built.summary, 'Paiement en panne');
   assert.equal(built.historyTruncated, undefined);
 });
+
+test('DT-15 — toIssueFact lit les story points dans le champ configuré (§11)', () => {
+  const settings: ProjectSettings = { ...SETTINGS, storyPointField: 'customfield_10016' };
+  assert.equal(toIssueFact(issue({ customfield_10016: 13 }), settings).storyPoints, 13);
+  assert.equal(toIssueFact(issue({ customfield_10016: '8' }), settings).storyPoints, 8);
+  // Champ non configuré, absent ou illisible : null, jamais 0.
+  assert.equal(fact({ customfield_10016: 13 }).storyPoints, null);
+  assert.equal(toIssueFact(issue({}), settings).storyPoints, null);
+  assert.equal(toIssueFact(issue({ customfield_10016: 'abc' }), settings).storyPoints, null);
+});

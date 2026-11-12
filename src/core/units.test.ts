@@ -7,6 +7,7 @@ import {
   contextVelocity,
   hoursToJp,
   jpToEuros,
+  parseStoryPoints,
   pointsToDays,
   velocityFromClosedIssues,
 } from './units';
@@ -138,4 +139,15 @@ test('A7 — les points convertis au rythme du contexte donnent des jours', () =
 
   // 20 points ÷ 5,44 points/semaine × 5 jours = 18,38 jours.
   assert.equal(pointsToDays(20, velocity, settings.daysPerWeek), 18.38);
+});
+
+test('DT-15 — parseStoryPoints lit le champ Jira, null si illisible, jamais 0', () => {
+  assert.equal(parseStoryPoints(13), 13);
+  assert.equal(parseStoryPoints('8'), 8);
+  assert.equal(parseStoryPoints(' 5 '), 5);
+  assert.equal(parseStoryPoints(null), null);
+  assert.equal(parseStoryPoints(undefined), null);
+  assert.equal(parseStoryPoints(''), null);
+  assert.equal(parseStoryPoints('abc'), null);
+  assert.equal(parseStoryPoints(Number.NaN), null);
 });

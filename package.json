@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types --import ./tools/strip_ts_loader.mjs \"src/**/*.test.ts\"",
     "test:core": "node --test --experimental-strip-types --import ./tools/strip_ts_loader.mjs \"src/core/*.test.ts\"",
+    "coverage": "node --test --experimental-strip-types --experimental-test-coverage --import ./tools/strip_ts_loader.mjs \"src/**/*.test.ts\"",
     "lint": "forge lint",
     "build": "forge build",
     "check": "npm run typecheck && npm run test",
