@@ -1,52 +1,133 @@
-import { DashboardGadget, Fragment, Heading, Text } from './kit';
+import { useState } from 'react';
+import { Button, DashboardGadget, Fragment, Heading, Text, TextField } from './kit';
 import { mountScreen } from './mount';
-import type { ProjectPageData } from './api';
-import { getProjectPage } from './api';
+import type { GadgetData } from './api';
+import { getGadgetData, getProjectPage } from './api';
 import { useResolver } from './async';
 import type { ScreenContext } from './context';
+import { dataOfPage } from './gadget-data';
 import type { Locale } from './i18n/index';
 import { t } from './i18n/index';
 import { AsyncView } from './components/AsyncView';
-import { DemoBanner } from './components/DemoBanner';
 import { Disclosure } from './components/Disclosure';
+import { FormulaList } from './components/FormulaList';
 import { QuarterCostTable, TeamCostTable, TopDebtsTable } from './components/GadgetTables';
-import { MethodFormulas } from './components/MethodFormulas';
+import { ProjectLink } from './components/ProjectLink';
 import { ScreenShell } from './components/ScreenShell';
 
-/** Écran 5 (§14) : le gadget de tableau de bord — dettes, équipes, trimestres. */
+/**
+ * Écran 5 (§14) : le gadget de tableau de bord — dettes, équipes, trimestres.
+ *
+ * Le contexte d'un `jira:dashboardGadget` ne fournit pas de projet : l'écran
+ * demande donc une clé de projet et le dit explicitement (item D49), et ne lit
+ * que les trois lignes qu'il affiche (item D40).
+ */
 export default function GadgetScreen(): JSX.Element {
+  const [chosen, setChosen] = useState('');
   return (
     <DashboardGadget>
-      <ScreenShell>{(context) => <GadgetContent context={context} />}</ScreenShell>
+      <ScreenShell projectKeyHint={chosen}>
+        {(context) => <GadgetContent context={context} chosen={chosen} onChoose={setChosen} />}
+      </ScreenShell>
     </DashboardGadget>
   );
 }
 
-function GadgetContent({ context }: { context: ScreenContext }): JSX.Element {
-  const resolver = useResolver(context.projectId, () => getProjectPage(context.projectId, context.projectKey));
+function GadgetContent({
+  context,
+  chosen,
+  onChoose,
+}: {
+  context: ScreenContext;
+  chosen: string;
+  onChoose: (projectKey: string) => void;
+}): JSX.Element {
+  const projectKey = chosen === '' ? context.projectKey : chosen;
+  if (projectKey === '') return <GadgetProjectPicker locale={context.locale} onChoose={onChoose} />;
+  return <GadgetData locale={context.locale} projectId={context.projectId} projectKey={projectKey} />;
+}
+
+/** Repli explicite : sans projet dans le contexte, on en saisit la clé. */
+function GadgetProjectPicker({
+  locale,
+  onChoose,
+}: {
+  locale: Locale;
+  onChoose: (projectKey: string) => void;
+}): JSX.Element {
+  const [value, setValue] = useState('');
+  const invalid = value.trim() === '';
+  return (
+    <Fragment>
+      <Heading size="small">{t(locale, 'app.title')}</Heading>
+      <Text>{t(locale, 'gadget.projectHint')}</Text>
+      <TextField
+        name="gadgetProjectKey"
+        label={t(locale, 'gadget.project')}
+        defaultValue=""
+        onChange={setValue}
+      />
+      <Button
+        text={t(locale, 'gadget.projectLoad')}
+        disabled={invalid}
+        onClick={() => onChoose(value.trim())}
+      />
+      {invalid ? <Text>{t(locale, 'gadget.noProject')}</Text> : null}
+    </Fragment>
+  );
+}
+
+function GadgetData({
+  locale,
+  projectId,
+  projectKey,
+}: {
+  locale: Locale;
+  projectId: string;
+  projectKey: string;
+}): JSX.Element {
+  const resolver = useResolver(`${projectId}#${projectKey}`, () => gadgetDataOf(projectId, projectKey));
   return (
     <AsyncView
       state={resolver.state}
-      locale={context.locale}
+      locale={locale}
       retry={resolver.reload}
-      render={(data) => <GadgetBody locale={context.locale} data={data} />}
+      render={(data) => <GadgetBody locale={locale} projectKey={projectKey} data={data} />}
     />
   );
 }
 
-function GadgetBody({ locale, data }: { locale: Locale; data: ProjectPageData }): JSX.Element {
+/** Les lignes du gadget : la clé réduite d'abord, la page projet en repli. */
+async function gadgetDataOf(projectId: string, projectKey: string): Promise<GadgetData> {
+  try {
+    return await getGadgetData(projectId, projectKey);
+  } catch {
+    // TODO(integration): retirer ce repli dès que `getGadgetData` est exposé.
+    return dataOfPage(await getProjectPage(projectId, projectKey));
+  }
+}
+
+function GadgetBody({
+  locale,
+  projectKey,
+  data,
+}: {
+  locale: Locale;
+  projectKey: string;
+  data: GadgetData;
+}): JSX.Element {
   return (
     <Fragment>
-      <Heading size="small">{t(locale, 'gadget.title')}</Heading>
-      <DemoBanner locale={locale} demoData={data.settings.demoData} />
+      <Heading size="small">{t(locale, 'app.title')}</Heading>
+      <ProjectLink projectKey={projectKey} label={t(locale, 'gadget.open')} />
       <Text>{t(locale, 'gadget.top')}</Text>
-      <TopDebtsTable locale={locale} debts={data.ranking.slice(0, 5)} />
+      <TopDebtsTable locale={locale} debts={data.debts} />
       <Text>{t(locale, 'gadget.team')}</Text>
       <TeamCostTable locale={locale} rows={data.costByTeam} />
       <Text>{t(locale, 'gadget.quarter')}</Text>
       <QuarterCostTable locale={locale} rows={data.costByQuarter} />
       <Disclosure label={t(locale, 'common.method')} labelOpen={t(locale, 'common.hideFormula')}>
-        <MethodFormulas locale={locale} settings={data.settings} />
+        <FormulaList locale={locale} />
       </Disclosure>
     </Fragment>
   );

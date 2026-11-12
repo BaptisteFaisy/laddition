@@ -9,21 +9,28 @@ const FAMILY_LABEL = 'Retard induit (hors addition)';
 /** Type de lien Jira qui exprime un blocage. */
 const BLOCKS = 'blocks';
 
-/** Un ticket bloqué et l'instant à partir duquel il l'a été. */
+/** Un ticket bloqué, la dette qui le bloque, et la fenêtre de blocage mesurée. */
 interface BlockedPair {
   blocked: IssueFact;
   blocker: IssueFact;
-  /** Fin du blocage : résolution du ticket de dette, ou `now` s'il court encore. */
-  blockedAt: string;
+  /** Début retenu du blocage, jamais avant la création des deux tickets. */
+  from: string;
+  /** Fin du blocage : la dette est résolue, ou le ticket bloqué l'est, ou `now`. */
+  to: string;
 }
 
 /**
  * C5 — retard induit (§9).
  *
- * Un ticket bloqué par un ticket de dette (`lien blocks`, de la dette vers le
- * ticket bloqué) subit un retard. Le coût retenu est le nombre de jours
- * calendaires passés bloqué, entre la résolution du ticket de dette et la
- * résolution du ticket bloqué (ou `now` s'il n'est pas encore résolu).
+ * Un ticket bloqué par un ticket de dette (lien `blocks`, de la dette vers le
+ * ticket bloqué) subit un retard. Le chiffre retenu est le nombre de jours
+ * calendaires passés bloqué **pendant que la dette était ouverte** : depuis la
+ * création du ticket bloqué (jamais avant celle de la dette) jusqu'à la
+ * résolution de la dette, ou jusqu'à la résolution du ticket bloqué s'il a été
+ * débloqué avant, ou jusqu'à `now` quand les deux courent encore.
+ *
+ * Une dette encore ouverte et un ticket encore bloqué produisent donc bien un
+ * retard — le retard s'accumule, il n'attend pas la clôture de la dette.
  *
  * C5 est **hors addition** : c'est un délai, pas un effort. Il ne doit jamais
  * être additionné aux familles C1-C4 (`BILLED_FAMILIES`) ; la preuve le
@@ -34,7 +41,7 @@ export function c5Delay(facts: IssueFact[], ctx: CostContext, links: IssueLink[]
   const debtIds = new Set(facts.filter((fact) => fact.isDebt).map((fact) => fact.issueId));
   const evidence: Evidence[] = [];
   for (const pair of blockedPairs(factsById, debtIds, links, ctx.now)) {
-    const delai = blockedCalendarDays(pair, ctx.now);
+    const delai = blockedCalendarDays(pair);
     if (delai <= 0) continue;
     for (const share of splitAcrossZones(delai, zonesForIssue(pair.blocked, ctx.settings))) {
       evidence.push(buildEvidence(pair, share.zone, round2(share.costJp), delai));
@@ -60,12 +67,26 @@ function blockedPairs(
     if (!debtIds.has(link.fromIssueId)) continue;
     if (link.fromIssueId === link.toIssueId) continue;
     const blocked = factsById.get(link.toIssueId);
-    if (!blocked) continue;
     const blocker = factsById.get(link.fromIssueId);
-    if (!blocker) continue;
-    pairs.push({ blocked, blocker, blockedAt: blocker.resolvedAt ?? nowIso });
+    if (!blocked || !blocker) continue;
+    pairs.push(windowOf(blocked, blocker, nowIso));
   }
   return pairs;
+}
+
+/**
+ * Fenêtre de blocage : le blocage ne peut pas commencer avant la création du
+ * ticket bloqué ni avant celle de la dette, et s'arrête au premier des deux
+ * événements qui le termine — la dette résolue, le ticket bloqué résolu, ou
+ * `now` quand rien n'est encore terminé.
+ */
+function windowOf(blocked: IssueFact, blocker: IssueFact, nowIso: string): BlockedPair {
+  return {
+    blocked,
+    blocker,
+    from: latest(blocked.createdAt, blocker.createdAt),
+    to: earliest(blocked.resolvedAt ?? nowIso, blocker.resolvedAt ?? nowIso),
+  };
 }
 
 /** Normalise un type de lien Jira (`Blocks`, `blocks ` … → `blocks`). */
@@ -73,15 +94,19 @@ function normalizeType(type: string): string {
   return type.trim().toLowerCase();
 }
 
-/**
- * Jours calendaires passés bloqué : de la résolution du ticket de dette à la
- * résolution du ticket bloqué, ou à `now` tant qu'il n'est pas résolu. Le
- * blocage ne peut pas commencer avant la création du ticket bloqué.
- */
-function blockedCalendarDays(pair: BlockedPair, nowIso: string): number {
-  const end = pair.blocked.resolvedAt ?? nowIso;
-  const from = pair.blockedAt > pair.blocked.createdAt ? pair.blockedAt : pair.blocked.createdAt;
-  return round2(Math.max(0, diffDays(from, end)));
+/** Jours calendaires de la fenêtre de blocage, jamais négatifs. */
+function blockedCalendarDays(pair: BlockedPair): number {
+  return round2(Math.max(0, diffDays(pair.from, pair.to)));
+}
+
+/** La plus récente des deux dates ISO. */
+function latest(a: string, b: string): string {
+  return a > b ? a : b;
+}
+
+/** La plus ancienne des deux dates ISO. */
+function earliest(a: string, b: string): string {
+  return a < b ? a : b;
 }
 
 /** Construit la preuve d'une zone du ticket bloqué. */
@@ -93,15 +118,20 @@ function buildEvidence(pair: BlockedPair, zone: string, costJp: number, delai: n
     family: FAMILY,
     sourceIssueId: blocked.issueId,
     sourceKey: blocked.key,
-    occurredAt: pair.blockedAt,
+    occurredAt: pair.to,
     costJp,
     method: 'computed',
     visible: blocked.visible,
     detail: {
       durationDays: delai,
       method: 'computed',
-      formula: formulaFor(blocked, blocker, zone, costJp, delai),
-      inputs: { delai: true, joursBloques: delai, ticketBloquant: blocker.key },
+      formula: formulaFor(pair, zone, costJp, delai),
+      inputs: {
+        delai: true,
+        joursBloques: delai,
+        ticketBloquant: blocker.key,
+        detteEncoreOuverte: blocker.resolvedAt === null,
+      },
       familyLabel: FAMILY_LABEL,
       sourceSummary: blocked.visible ? blocked.summary : undefined,
     },
@@ -109,17 +139,32 @@ function buildEvidence(pair: BlockedPair, zone: string, costJp: number, delai: n
 }
 
 /** Texte de formule lisible : le délai n'entre jamais dans l'addition. */
-function formulaFor(
-  blocked: IssueFact,
-  blocker: IssueFact,
-  zone: string,
-  costJp: number,
-  delai: number,
-): string {
-  const fin = blocked.resolvedAt ? `résolution du ${blocked.resolvedAt.slice(0, 10)}` : 'aujourd’hui (non résolu)';
+function formulaFor(pair: BlockedPair, zone: string, costJp: number, delai: number): string {
   return (
-    `Bloqué par ${blocker.key} (ticket de dette) : ${delai} jours calendaires` +
-    ` jusqu’à la ${fin} ; part de la zone « ${zone} » : ${costJp} jours de retard.` +
+    `Bloqué par ${pair.blocker.key} (ticket de dette) : ${delai} jours calendaires passés bloqué` +
+    ` pendant que la dette était ouverte (du ${day(pair.from)} ${endLabel(pair)}) ;` +
+    ` part de la zone « ${zone} » : ${costJp} jours de retard.` +
     ` Délai, pas effort : hors addition.`
   );
+}
+
+/**
+ * Ce qui a mis fin au blocage, en clair : la dette résolue, le ticket bloqué
+ * résolu le premier, ou rien encore — le retard continue de courir.
+ */
+function endLabel(pair: BlockedPair): string {
+  const { blocked, blocker } = pair;
+  const debtEnd = blocker.resolvedAt;
+  const ticketEnd = blocked.resolvedAt;
+  if (debtEnd === null && ticketEnd === null) return "jusqu'à aujourd'hui, blocage toujours en cours";
+  if (debtEnd === null) return `jusqu'à la résolution du ticket bloqué le ${day(ticketEnd)}`;
+  if (ticketEnd === null) return `jusqu'à la résolution de la dette le ${day(debtEnd)}`;
+  return ticketEnd <= debtEnd
+    ? `jusqu'à la résolution du ticket bloqué le ${day(ticketEnd)}`
+    : `jusqu'à la résolution de la dette le ${day(debtEnd)}`;
+}
+
+/** Date ISO réduite au jour, pour la formule affichée. */
+function day(iso: string | null): string {
+  return iso === null ? 'aujourd’hui' : iso.slice(0, 10);
 }

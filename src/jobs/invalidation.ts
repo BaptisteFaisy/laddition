@@ -1,5 +1,4 @@
-import { sql } from '@forge/sql';
-import { insertRows, onDuplicateUpdate, runStatement, selectRows } from '../platform/db/query';
+import { insertRows, onDuplicateUpdate, runDdl, runStatement, selectRows } from '../platform/db/query';
 import { toDbDateRequired, toIso, toText } from '../platform/db/rows';
 
 /**
@@ -38,13 +37,10 @@ let tableReady: Promise<void> | null = null;
 
 /** Crée la table de marques une seule fois par instance. */
 function ensureTable(): Promise<void> {
-  tableReady ??= sql
-    .executeDDL(DDL)
-    .then(() => undefined)
-    .catch((error: unknown) => {
-      tableReady = null;
-      throw error;
-    });
+  tableReady ??= runDdl(DDL).catch((error: unknown) => {
+    tableReady = null;
+    throw error;
+  });
   return tableReady;
 }
 
@@ -82,24 +78,27 @@ export async function listInvalid(projectId: string): Promise<Invalidation[]> {
 }
 
 /**
- * Efface les marques d'un projet après un recalcul complet.
- * Sans filtre, tout est effacé : c'est ce que fait la nuit.
+ * Efface les marques **traitées** par un recalcul (B20).
+ *
+ * `at` est l'instant où le recalcul a commencé : une modification survenue
+ * après (pendant le calcul) garde sa marque et sera reprise au tour suivant.
+ * Un effacement sans filtre, lui, perdait cette modification.
  */
-export async function clearInvalid(
-  projectId: string,
-  kind?: InvalidationKind,
-  targets?: string[],
-): Promise<void> {
+export async function clearInvalidBefore(projectId: string, at: string): Promise<void> {
   await ensureTable();
-  const clauses = ['project_id = ?'];
-  const params: Array<string> = [projectId];
-  if (kind) {
-    clauses.push('kind = ?');
-    params.push(kind);
-  }
-  if (targets && targets.length > 0) {
-    clauses.push(`target IN (${targets.map(() => '?').join(', ')})`);
-    params.push(...targets);
-  }
-  await runStatement(`DELETE FROM ${TABLE} WHERE ${clauses.join(' AND ')}`, params);
+  await runStatement(`DELETE FROM ${TABLE} WHERE project_id = ? AND marked_at <= ?`, [
+    projectId,
+    toDbDateRequired(at),
+  ]);
+}
+
+/** Marques nées après `at` : elles attendent encore un recalcul. */
+export function marksAfter(marks: Invalidation[], at: string): Invalidation[] {
+  return marks.filter((mark) => mark.at.length > 0 && mark.at > at);
+}
+
+/** Retire les marques d'une cible disparue (ticket supprimé, B23). */
+export async function dropInvalidTarget(projectId: string, target: string): Promise<void> {
+  await ensureTable();
+  await runStatement(`DELETE FROM ${TABLE} WHERE project_id = ? AND target = ?`, [projectId, target]);
 }

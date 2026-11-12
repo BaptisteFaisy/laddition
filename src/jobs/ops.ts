@@ -3,10 +3,13 @@ import type { BootstrapProgress, ProjectSettings } from '../core/types';
 import { makeSettings, mergeSettings } from '../core/settings';
 import { startBootstrap } from './consumer';
 import { projectIdByKey } from './projects';
+import type { ProjectRecalc } from './recalc';
+import { recalcProject } from './recalc';
 import { nightlyRecalc, publishRepayments } from './scheduled';
-import { bootstrapProgress, getSettings, saveSettings } from '../platform/db/index';
-import { jiraGetJson } from '../platform/jira';
 import type { NightlyResult, RepaymentResult } from './scheduled';
+import { saveProjectSettings } from './settings';
+import { bootstrapProgress, findMissingColumns, getSettings, resetSchema } from '../platform/db/index';
+import { jiraGetJson } from '../platform/jira';
 import { ensureReady } from './schema';
 import { messageOf, nowIso } from './support';
 
@@ -56,16 +59,11 @@ export async function opsInit(
     const stored = await projectIdByKey(projectKey);
     if (stored) {
       const existing = await getSettings(stored);
-      if (existing) {
-        const merged = mergeSettings(existing, patch);
-        await saveSettings(merged);
-        return merged;
-      }
+      if (existing) return saveProjectSettings(mergeSettings(existing, patch));
     }
     const project = await readJiraProject(projectKey);
     const settings = mergeSettings(makeSettings(project.id, project.key), patch);
-    await saveSettings(settings);
-    return settings;
+    return saveProjectSettings(settings);
   });
 }
 
@@ -117,6 +115,29 @@ async function runOps<T>(action: string, body: () => Promise<T>): Promise<OpsRep
 }
 
 /**
+ * Santé du schéma : liste les colonnes attendues absentes de l'installation.
+ *
+ * Forge SQL refuse `ALTER TABLE` (mesuré le 11/11) : une installation créée
+ * avant l'ajout d'une colonne ne peut pas être migrée. Cette action le détecte
+ * au lieu de laisser chaque requête échouer sur une erreur générique.
+ */
+export async function opsSchemaHealth(): Promise<OpsReport<{ missing: unknown[] }>> {
+  return runOps('schema-health', async () => ({ missing: await findMissingColumns() }));
+}
+
+/**
+ * Recrée le schéma de zéro — **destructif**, réservé aux sites de démo
+ * (Forge SQL n'accepte pas ALTER TABLE). Les données se réinjectent ensuite :
+ * initialisation + recalcul, ou jeu d'exemple.
+ */
+export async function opsResetSchema(): Promise<OpsReport<{ dropped: string[]; missing: unknown[] }>> {
+  return runOps('reset-schema', async () => {
+    const result = await resetSchema();
+    return { dropped: result.dropped, missing: result.missingAfterReset };
+  });
+}
+
+/**
  * DT-12 : initialise 180 jours d'historique pour un projet, par lots de 50
  * poussés dans la file (`consumer`). Rend l'état de progression initial.
  */
@@ -129,18 +150,30 @@ export async function opsProgress(projectKey: string): Promise<OpsReport<Bootstr
   return runOps('progress', async () => bootstrapProgress(await requireProjectId(projectKey)));
 }
 
-/** Recalcul complet d'un projet : preuves, attributions, additions, champ. */
+/** Recalcul complet d'un projet, sans passer par la file : preuves, attributions, additions, champ. */
 export async function opsRecalc(projectKey: string): Promise<OpsReport<NightlyResult>> {
   return runOps('recalc', async () => {
     const projectId = await requireProjectId(projectKey);
-    const result = await nightlyRecalc();
-    return { ...result, projects: result.projects.filter((item) => item.projectId === projectId) };
+    const startedAt = nowIso();
+    const outcome: ProjectRecalc = await recalcProject(projectId, startedAt);
+    return toNightly([outcome], startedAt);
   });
 }
 
-/** Recalcul de tous les projets connus, sans filtre. */
+/** Tous les projets connus : un message de file chacun, le consommateur suit (C34). */
 export async function opsRecalcAll(): Promise<OpsReport<NightlyResult>> {
   return runOps('recalc-all', nightlyRecalc);
+}
+
+/** Bilan de recalculs sous la forme du bilan nocturne. */
+function toNightly(projects: ProjectRecalc[], startedAt: string): NightlyResult {
+  return {
+    ok: projects.every((item) => !item.error),
+    projects,
+    startedAt,
+    finishedAt: nowIso(),
+    queued: projects.filter((item) => item.queued).length,
+  };
 }
 
 /** Bulletins de remboursement des dettes closes (§11). */

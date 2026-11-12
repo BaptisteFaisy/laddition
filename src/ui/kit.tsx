@@ -4,8 +4,13 @@ import {
   Box,
   Button as ForgeButton,
   DynamicTable,
+  Form as ForgeForm,
+  FormFooter,
+  FormSection,
   Heading,
   Label,
+  Link as ForgeLink,
+  ProgressBar as ForgeProgressBar,
   RadioGroup as ForgeRadioGroup,
   SectionMessage,
   Select as ForgeSelect,
@@ -30,6 +35,41 @@ import {
 export { Box, Heading, Spinner, Stack, Text };
 
 export const Fragment = React.Fragment;
+
+/**
+ * Lien cliquable vers un ticket ou un projet (item D50).
+ *
+ * Toute clé de ticket affichée passe par là : une adresse Jira n'est jamais
+ * composée dans un écran. En UI Kit 2, le libellé d'un `Link` est du texte.
+ */
+export function Link({
+  href,
+  children,
+  openNewTab,
+}: {
+  href: string;
+  children: string;
+  openNewTab?: boolean;
+}): JSX.Element {
+  return (
+    <ForgeLink href={href} openNewTab={openNewTab}>
+      {children}
+    </ForgeLink>
+  );
+}
+
+/** Barre de progression : l'initialisation se lit d'un coup d'œil (item D46). */
+export function ProgressBar({
+  value,
+  ariaLabel,
+  isIndeterminate,
+}: {
+  value?: number;
+  ariaLabel?: string;
+  isIndeterminate?: boolean;
+}): JSX.Element {
+  return <ForgeProgressBar value={value} ariaLabel={ariaLabel} isIndeterminate={isIndeterminate} />;
+}
 
 /** En UI Kit 2, `Badge` porte un nombre ; pour un texte, `Lozenge` est natif. */
 export function Badge({
@@ -125,31 +165,51 @@ function cellsOf(node: React.ReactNode): Array<{ content: React.ReactNode; key: 
 /**
  * Tableau UI Kit 2 à partir des balises déclaratives `<Head>` / `<Row>` / `<Cell>`.
  * Convertit l'arbre JSX en `{ head, rows }` attendus par `DynamicTable`.
+ *
+ * `caption`, `label` et `empty` donnent au tableau sa sémantique accessible et
+ * son état vide (item D61) : un chiffre doit dire ce qu'il liste.
  */
-export function Table({ children }: { children: React.ReactNode }): JSX.Element {
-  let head: { cells: Array<{ content: React.ReactNode; key: string }> } | undefined;
-  const rows: Array<{ key: string; cells: Array<{ content: React.ReactNode; key: string }> }> = [];
-  let rowIndex = 0;
+export function Table({
+  children,
+  caption,
+  label,
+  empty,
+}: {
+  children: React.ReactNode;
+  caption?: string;
+  label?: string;
+  empty?: string;
+}): JSX.Element {
+  const parsed = parseTable(children);
+  return (
+    <DynamicTable
+      head={parsed.head}
+      rows={parsed.rows}
+      caption={caption}
+      label={label ?? caption}
+      emptyView={empty ? <Text>{empty}</Text> : undefined}
+    />
+  );
+}
 
-  Children.forEach(children, (child) => {
-    if (!isValidElement(child)) return;
-    const props = child.props as { children?: React.ReactNode };
-    if (child.type === Head) {
-      head = { cells: cellsOf(props.children) };
-    } else if (child.type === Row) {
-      rows.push({ key: `r-${rowIndex}`, cells: cellsOf(props.children) });
-      rowIndex += 1;
-    } else if (child.type === Fragment) {
-      Children.forEach(props.children, (nested) => {
-        if (!isValidElement(nested) || nested.type !== Row) return;
-        const nProps = nested.props as { children?: React.ReactNode };
-        rows.push({ key: `r-${rowIndex}`, cells: cellsOf(nProps.children) });
-        rowIndex += 1;
-      });
-    }
-  });
+type ParsedTable = {
+  head: { cells: Array<{ content: React.ReactNode; key: string }> } | undefined;
+  rows: Array<{ key: string; cells: Array<{ content: React.ReactNode; key: string }> }>;
+};
 
-  return <DynamicTable head={head} rows={rows} />;
+/** Lit l'arbre JSX du tableau : un `Head`, puis autant de `Row` que déclarés. */
+function parseTable(children: React.ReactNode): ParsedTable {
+  let head: ParsedTable['head'];
+  const rows: ParsedTable['rows'] = [];
+  const push = (node: React.ReactNode) => {
+    if (!isValidElement(node)) return;
+    const props = node.props as { children?: React.ReactNode };
+    if (node.type === Head) head = { cells: cellsOf(props.children) };
+    else if (node.type === Row) rows.push({ key: `r-${rows.length}`, cells: cellsOf(props.children) });
+    else if (node.type === Fragment) Children.forEach(props.children, push);
+  };
+  Children.forEach(children, push);
+  return { head, rows };
 }
 
 /* ------------------------------------------------------------------- Tabs */
@@ -265,23 +325,36 @@ export function RadioField({
   );
 }
 
+/**
+ * Formulaire UI Kit 2 (`Form` + `FormSection` + `FormFooter`) : la sémantique
+ * de formulaire vient du composant natif, pas d'un bouton posé à côté (item D60).
+ * `isDisabled` verrouille l'envoi pendant l'appel réseau (item D59).
+ */
 export function Form({
   submitButtonText,
   onSubmit,
   children,
+  isDisabled,
 }: {
   submitButtonText: string;
   onSubmit: () => void | Promise<void>;
   children: React.ReactNode;
+  isDisabled?: boolean;
 }): JSX.Element {
   return (
-    <Stack space="space.150">
-      {children}
-      <Box>
-        <ForgeButton appearance="primary" onClick={() => void onSubmit()}>
+    <ForgeForm
+      onSubmit={async () => {
+        await onSubmit();
+      }}
+    >
+      <FormSection>
+        <Stack space="space.150">{children}</Stack>
+      </FormSection>
+      <FormFooter>
+        <ForgeButton type="submit" appearance="primary" isDisabled={isDisabled}>
           {submitButtonText}
         </ForgeButton>
-      </Box>
-    </Stack>
+      </FormFooter>
+    </ForgeForm>
   );
 }

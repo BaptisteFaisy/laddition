@@ -5,18 +5,30 @@
  * l'écran :
  * 1. `maskHidden` sépare ce que ce lecteur a le droit de voir du reste, et
  *    compte le reste — un total ne doit jamais trahir un ticket fermé à lui.
+ *    Appliqué par `buildBill` (`hiddenCount`).
  * 2. `assertNoPersonRanking` refuse tout classement dont la clé est une
- *    personne : on classe des zones et des tickets, jamais des gens.
+ *    personne : on classe des zones et des tickets, jamais des gens. Appliqué
+ *    par `rankDebts` avant de rendre les lignes.
  * 3. `redactName` réduit un nom à son initiale quand il faut malgré tout
- *    désigner quelqu'un.
+ *    désigner quelqu'un. Appliqué à la justification d'une confirmation
+ *    humaine (`attribution.ts`).
  */
 
-/** Mots d'une clé qui désignent une personne, et donc un classement interdit. */
+/**
+ * Mots d'une clé qui désignent une personne, et donc un classement interdit.
+ *
+ * La liste couvre les mots que Jira et le graphe-teamwork utilisent vraiment :
+ * `assignee`, `assigned`, `reporter`, `creator`, `owner`, `author`, `user`.
+ */
 const PERSON_TOKENS: readonly string[] = [
   'assignee',
   'assignees',
+  'assigned',
   'author',
   'authors',
+  'creator',
+  'owner',
+  'reporter',
   'user',
   'users',
 ];
@@ -74,11 +86,12 @@ export function maskHidden<T extends { visible: boolean }>(
  * Jette si une ligne de classement est indexée par une personne.
  *
  * Une clé de la liste blanche passe toujours ; hors liste blanche, toute clé
- * dont un mot est `assignee`, `author` ou `user` est refusée — y compris
- * `assigneeCount` ou `user_name`, qui classent malgré tout par personne.
- * C'est un défaut de programmation, pas une donnée douteuse : on jette.
+ * dont un mot est `assignee`, `assigned`, `author`, `creator`, `owner`,
+ * `reporter` ou `user` est refusée — y compris `assigneeCount`, `user_name` ou
+ * `reporterName`, qui classent malgré tout par personne. C'est un défaut de
+ * programmation, pas une donnée douteuse : on jette.
  */
-export function assertNoPersonRanking(rows: Array<Record<string, unknown>>): void {
+export function assertNoPersonRanking(rows: ReadonlyArray<object>): void {
   for (const row of rows) {
     for (const key of Object.keys(row)) {
       if (ALLOWED_RANKING_KEYS.includes(key)) continue;

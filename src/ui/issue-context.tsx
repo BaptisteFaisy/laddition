@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { Button, Fragment, IssueContext, Text } from './kit';
+import { Banner, Button, Fragment, IssueContext, Text } from './kit';
 import { mountScreen } from './mount';
 import type { DebtBillView, IssueAttribution } from './api';
 import { confirmEvidence, getDebtBill, rejectEvidence } from './api';
 import { errorMessage, useResolver } from './async';
 import type { ScreenContext } from './context';
-import { formatPercent, formatRange } from './format';
-import type { Locale, MessageKey } from './i18n/index';
+import type { Locale, MessageKey, MessageVars } from './i18n/index';
 import { t } from './i18n/index';
+import { formatJp, formatPercent, formatRange } from './format';
 import { AsyncView } from './components/AsyncView';
-import { DemoBanner } from './components/DemoBanner';
 import { ErrorState } from './components/ErrorState';
 import { ScreenShell } from './components/ScreenShell';
+import { TicketLink } from './components/TicketLink';
 
 /** Écran 3 (§14) : « alimente la dette X » ou « ressemble à X, confirmer ? ». */
 export default function IssueContextScreen(): JSX.Element {
@@ -23,35 +23,88 @@ export default function IssueContextScreen(): JSX.Element {
 }
 
 function IssueContextContent({ context }: { context: ScreenContext }): JSX.Element {
-  const issueId = context.issueId ?? '';
-  const resolver = useResolver(issueId, issueId === '' ? null : () => getDebtBill(issueId));
+  const locale = context.locale;
+  const issueId = context.issueId;
+  if (issueId === null) return <Text>{t(locale, 'ctx.noIssue')}</Text>;
+  return <IssueContextData locale={locale} issueId={issueId} />;
+}
+
+function IssueContextData({ locale, issueId }: { locale: Locale; issueId: string }): JSX.Element {
+  const resolver = useResolver(issueId, () => getDebtBill(issueId));
+  const [outcome, setOutcome] = useState<{ key: MessageKey; vars: MessageVars } | null>(null);
+  const decided = (key: MessageKey, vars: MessageVars) => {
+    setOutcome({ key, vars });
+    resolver.reload();
+  };
   return (
     <AsyncView
       state={resolver.state}
-      locale={context.locale}
+      locale={locale}
       retry={resolver.reload}
-      render={(view) => <IssueContextBody locale={context.locale} view={view} />}
+      render={(view) => (
+        <IssueContextBody locale={locale} issueId={issueId} view={view} outcome={outcome} onDecided={decided} />
+      )}
     />
   );
 }
 
-function IssueContextBody({ locale, view }: { locale: Locale; view: DebtBillView }): JSX.Element {
+/**
+ * Corps de l'encart. Après une confirmation ou un rejet, l'encart **se
+ * recharge** (item D52) : la proposition et ses boutons disparaissent, et le
+ * message de résultat porte ses variables de traduction (plus de `{key}` nu).
+ * Le message vit au-dessus du rechargement, sinon il disparaissait avec lui.
+ */
+function IssueContextBody({
+  locale,
+  issueId,
+  view,
+  outcome,
+  onDecided,
+}: {
+  locale: Locale;
+  issueId: string;
+  view: DebtBillView;
+  outcome: { key: MessageKey; vars: MessageVars } | null;
+  onDecided: (key: MessageKey, vars: MessageVars) => void;
+}): JSX.Element {
   const attribution = view.attribution;
   return (
     <Fragment>
-      <DemoBanner locale={locale} demoData={view.settings.demoData} />
-      <Text>{t(locale, 'ctx.cost', { range: formatRange(locale, view.bill.lowJp, view.bill.highJp) })}</Text>
-      {attribution === null ? <Text>{t(locale, 'ctx.none')}</Text> : <AttributionBody locale={locale} attribution={attribution} />}
+      <CostLine locale={locale} issueId={issueId} view={view} />
+      {outcome ? (
+        <Banner appearance="success">
+          <Text>{t(locale, outcome.key, outcome.vars)}</Text>
+        </Banner>
+      ) : null}
+      {attribution === null ? null : (
+        <AttributionBody locale={locale} attribution={attribution} onDecided={onDecided} />
+      )}
     </Fragment>
   );
+}
+
+/**
+ * Ligne de coût (item D53) : une dette montre sa fourchette ; un ticket qui
+ * n'est pas une dette montre le coût de sa propre preuve, et rien du tout quand
+ * il n'en a pas — jamais un « 0 – 0 » sans sens.
+ */
+function CostLine({ locale, issueId, view }: { locale: Locale; issueId: string; view: DebtBillView }): JSX.Element | null {
+  if (view.attribution === null) {
+    return <Text>{t(locale, 'ctx.cost', { range: formatRange(locale, view.bill.lowJp, view.bill.highJp) })}</Text>;
+  }
+  const proof = view.evidence.find((item) => item.sourceIssueId === issueId);
+  if (!proof) return null;
+  return <Text>{t(locale, 'ctx.issueCost', { value: formatJp(locale, proof.costJp) })}</Text>;
 }
 
 function AttributionBody({
   locale,
   attribution,
+  onDecided,
 }: {
   locale: Locale;
   attribution: IssueAttribution;
+  onDecided: (key: MessageKey, vars: MessageVars) => void;
 }): JSX.Element {
   const empty = attribution.feeds === null && attribution.proposal === null;
   return (
@@ -60,9 +113,12 @@ function AttributionBody({
         <Fragment>
           <Text>{t(locale, 'ctx.feeds', { key: attribution.feeds.key })}</Text>
           <Text>{t(locale, 'ctx.feedsBody')}</Text>
+          <TicketLink issueKey={attribution.feeds.key} label={t(locale, 'ctx.openDebt')} />
         </Fragment>
       ) : null}
-      {attribution.proposal ? <ProposalBlock locale={locale} proposal={attribution.proposal} /> : null}
+      {attribution.proposal ? (
+        <ProposalBlock locale={locale} proposal={attribution.proposal} onDecided={onDecided} />
+      ) : null}
       {empty ? <Text>{t(locale, 'ctx.none')}</Text> : null}
     </Fragment>
   );
@@ -71,12 +127,13 @@ function AttributionBody({
 function ProposalBlock({
   locale,
   proposal,
+  onDecided,
 }: {
   locale: Locale;
   proposal: NonNullable<IssueAttribution['proposal']>;
+  onDecided: (key: MessageKey, vars: MessageVars) => void;
 }): JSX.Element {
   const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<MessageKey | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const act = async (confirm: boolean) => {
@@ -85,7 +142,7 @@ function ProposalBlock({
     try {
       if (confirm) await confirmEvidence(proposal.evidenceId, proposal.debtIssueId);
       else await rejectEvidence(proposal.evidenceId, proposal.debtIssueId);
-      setOutcome(confirm ? 'ctx.confirmed' : 'ctx.rejected');
+      onDecided(confirm ? 'ctx.confirmed' : 'ctx.rejected', { key: proposal.key });
     } catch (error) {
       setFailure(errorMessage(error));
     }
@@ -96,9 +153,9 @@ function ProposalBlock({
     <Fragment>
       <Text>{t(locale, 'ctx.similar', { key: proposal.key, zone: proposal.zone })}</Text>
       <Text>{t(locale, 'ctx.similarBody', { score: formatPercent(locale, proposal.relevance) })}</Text>
+      <TicketLink issueKey={proposal.key} />
       <Button text={t(locale, 'common.confirm')} disabled={busy} onClick={() => act(true)} />
       <Button text={t(locale, 'common.reject')} disabled={busy} onClick={() => act(false)} />
-      {outcome ? <Text>{t(locale, outcome)}</Text> : null}
       {failure ? <ErrorState locale={locale} message={failure} /> : null}
     </Fragment>
   );

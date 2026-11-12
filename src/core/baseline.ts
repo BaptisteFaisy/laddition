@@ -1,5 +1,6 @@
 import type { Baseline, IssueFact, ProjectSettings, SizeClass, StatusSpan } from './types';
-import { approximateDays, inProgressDays } from './duration';
+import { approximateDays, durationBasis, inProgressDays } from './duration';
+import type { DurationBasis } from './duration';
 import { round2, secondsToJp } from './time';
 import { zonesForIssue } from './zones';
 
@@ -24,8 +25,13 @@ const DEFAULT_CLIP_PERCENTILE = 95;
 export interface TicketDuration {
   /** Jours ouvrés passés en statuts actifs. */
   days: number;
-  /** Vrai quand l'historique manque et que la durée est approchée (§19). */
+  /** Vrai quand la durée n'est pas mesurée dans les statuts actifs (§19). */
   approximated: boolean;
+  /**
+   * Pourquoi la durée est approchée : historique absent, ou workflow sans
+   * statut actif. Les deux se lisent différemment à l'écran (§19 cas 6).
+   */
+  basis: DurationBasis;
 }
 
 /**
@@ -50,16 +56,22 @@ export function baselineKey(issueType: string, size: SizeClass): string {
 /**
  * Durée d'un ticket en jours ouvrés passés en statuts actifs.
  *
- * Sans séjour « en cours » (historique absent ou vide, §19), on retombe sur la
- * durée création → résolution, marquée comme approximée pour l'affichage.
+ * Deux replis sur la durée création → résolution, marqués différemment (§19
+ * cas 6) : `missing-history` quand l'historique manque, `no-active-status`
+ * quand le workflow n'a aucun statut « en cours ». Dans les deux cas la durée
+ * est approchée, mais le lecteur ne doit pas confondre un trou dans les
+ * données avec un projet qui ne suit pas ses statuts.
  */
 export function ticketDurationDays(fact: IssueFact, spans: StatusSpan[] | undefined): TicketDuration {
-  const list = spans ?? [];
-  const hasActiveSpan = list.some((span) => span.category === 'inprogress');
-  if (!hasActiveSpan) {
-    return { days: approximateDays(fact), approximated: true };
+  const basis = durationBasis(spans);
+  if (basis === 'active-status') {
+    return {
+      days: inProgressDays(spans ?? [], fact.resolvedAt ?? undefined),
+      approximated: false,
+      basis,
+    };
   }
-  return { days: inProgressDays(list, fact.resolvedAt ?? undefined), approximated: false };
+  return { days: approximateDays(fact), approximated: true, basis };
 }
 
 /**

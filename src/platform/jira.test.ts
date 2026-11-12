@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { historyItemsOf } from './jira';
+import { backoffMs, historyItemsOf, retryDelayMs } from './jira';
 import type { ChangelogPage } from './jira-types';
 
 /**
@@ -36,4 +36,27 @@ test('page vide ou illisible : liste vide, jamais d exception', () => {
   assert.deepEqual(historyItemsOf({}), []);
   assert.deepEqual(historyItemsOf({ total: 11, isLast: true }), []);
   assert.deepEqual(historyItemsOf({ values: [] }), []);
+});
+
+/**
+ * Reprises bornées sur 429/503 (C32) : `Retry-After` prime, sinon repli
+ * exponentiel plafonné. Trois tentatives au plus, jamais de boucle infinie.
+ */
+
+test('429 avec Retry-After : on attend ce que Jira demande', () => {
+  assert.equal(retryDelayMs('2', 1), 2000);
+  assert.equal(retryDelayMs('0', 1), 0);
+  assert.equal(retryDelayMs('1.5', 2), 1500);
+});
+
+test('Retry-After démesuré ou illisible : repli exponentiel, plafonné à 8 s', () => {
+  assert.equal(retryDelayMs('999', 1), 8000);
+  assert.equal(retryDelayMs('bientôt', 1), 500);
+  assert.equal(retryDelayMs(null, 1), 500);
+  assert.equal(retryDelayMs(null, 2), 1000);
+});
+
+test('repli exponentiel borné : 500 ms, 1 s, 2 s, puis plafond', () => {
+  assert.deepEqual([1, 2, 3, 4, 9].map(backoffMs), [500, 1000, 2000, 4000, 8000]);
+  assert.equal(backoffMs(0), 500);
 });

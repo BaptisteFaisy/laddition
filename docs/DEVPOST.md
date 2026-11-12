@@ -10,6 +10,10 @@
 **Bonus tracks:** Teamwork Graph · Rovo Agents · MCP · Marketplace
 **Repository:** <https://github.com/BaptisteFaisy/laddition>
 
+> **Not a backlog-prioritization tool.** L'addition measures a cost that has
+> already been incurred and checks whether repaying it paid off — it never
+> scores or ranks your backlog (spec §24).
+
 ---
 
 ## Inspiration
@@ -42,7 +46,7 @@ The scenario from the spec, reproduced by the running app on the Forge runtime:
 |---|---|
 | **19 – 34 person-days** | PAY-77, *remove the duplicate tax calculation* — a debt ticket nobody had opened in a year: 4 incidents (11 p-d), 9 bugs (8 p-d), 6 tickets twice as slow as the reference (15 p-d) |
 | **1 – 2 person-days** | the refactor the team asks for every sprint. The debt that wins the argument is not the one that costs |
-| **3.3 – 6.0×** | return over two quarters, on an 8-day repayment |
+| **3.33 – 5.95×** | return over two quarters, on an 8-day repayment (measured on the runtime; the spec rounds it to "3 – 6×") |
 | **22 person-days** | the `notifications` zone, which has **no debt ticket at all** — phantom debt, with a ticket drafted from its proofs |
 | **7** | debt tickets with no proof for 180 days — dead debt, ready to close |
 | **3.4 → 0.6 p-d/week** | repayment bulletin for PAY-41, published with its limits |

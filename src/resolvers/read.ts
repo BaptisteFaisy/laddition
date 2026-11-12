@@ -3,6 +3,7 @@ import type {
   BootstrapProgress,
   DataQuality,
   DeadDebt,
+  DebtBill,
   Evidence,
   PhantomDebt,
   ProjectSettings,
@@ -16,12 +17,14 @@ import { computeQuality } from '../core/quality';
 import { makeSettings } from '../core/settings';
 import {
   bootstrapProgress as readProgress,
+  getBill,
+  getIssueFact,
   getSettings as readSettings,
   listEvidence,
   listRepayments,
 } from '../platform/db/index';
 import type { Failure } from '../jobs/support';
-import { guard, nowIso, optionalString, payloadOf } from '../jobs/support';
+import { guard, nowIso, optionalString, payloadOf, requireString } from '../jobs/support';
 import type { QuarterCost, TeamCost } from './aggregate';
 import { costByQuarter, costByTeam } from './aggregate';
 import { projectIdOf } from '../jobs/projects';
@@ -130,4 +133,62 @@ export async function getDataQuality(request: Request<unknown>): Promise<DataQua
 export async function evidenceOfBill(projectId: string, evidenceIds: string[]): Promise<Evidence[]> {
   const byId = new Map((await listEvidence(projectId)).map((item) => [item.id, item]));
   return evidenceIds.map((id) => byId.get(id)).filter((item): item is Evidence => item !== undefined);
+}
+
+/** Ce que le champ « Coût de la dette » affiche : trois lignes (item D39). */
+export interface IssueCost {
+  lowJp: number;
+  highJp: number;
+  /** Fenêtre d'analyse du projet, en jours : c'est elle qui borne le coût. */
+  days: number;
+  /** Vrai quand une famille de l'addition manque de références (§9, C3). */
+  insufficient: boolean;
+  demoData: boolean;
+}
+
+/** Ce que le gadget affiche : le haut du classement et les deux replis (D40). */
+export interface GadgetData {
+  debts: RankedDebt[];
+  costByTeam: TeamCost[];
+  costByQuarter: QuarterCost[];
+  demoData: boolean;
+}
+
+/** Nombre de dettes affichées par le gadget (miroir de `ui/gadget-data.ts`). */
+export const GADGET_TOP_DEBTS = 5;
+
+/** Écran 4 (DT-11) : le coût d'un ticket, sans charger l'état du projet. */
+export async function getIssueCost(request: Request<unknown>): Promise<IssueCost | Failure> {
+  return guard(async () => {
+    const issueId = requireString(payloadOf(request), 'issueId');
+    const fact = await getIssueFact(issueId);
+    if (!fact) throw new Error(`ticket ${issueId} inconnu : lancer l'initialisation`);
+    const settings = (await readSettings(fact.projectId)) ?? makeSettings(fact.projectId, fact.projectKey);
+    const bill = await getBill(issueId);
+    return {
+      lowJp: bill?.lowJp ?? 0,
+      highJp: bill?.highJp ?? 0,
+      days: settings.windowDays,
+      insufficient: bill ? isInsufficient(bill) : false,
+      demoData: settings.demoData,
+    };
+  });
+}
+
+/** Écran 5 : les trois lignes du gadget, sans le classement complet du projet. */
+export async function getGadgetData(request: Request<unknown>): Promise<GadgetData | Failure> {
+  return guard(async () => {
+    const state = await loadState(await projectIdOf(payloadOf(request)), nowIso());
+    return {
+      debts: state.ranking.slice(0, GADGET_TOP_DEBTS),
+      costByTeam: costByTeam(state.zoneCosts),
+      costByQuarter: costByQuarter(state.zoneCosts, state.weeks),
+      demoData: state.settings.demoData,
+    };
+  });
+}
+
+/** Une famille de l'addition est-elle déclarée « données insuffisantes » ? */
+function isInsufficient(bill: DebtBill): boolean {
+  return Object.values(bill.byFamily).some((family) => family.insufficient);
 }

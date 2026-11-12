@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { CostContext, Evidence, IssueFact, StatusCategory, StatusSpan } from '../types';
 import { makeSettings } from '../settings';
 import { c4Rework } from './c4';
+import type { RejectedPullRequest } from './c4';
 
 /** Instant de référence des tests (mercredi). */
 const NOW = '2026-11-11T00:00:00.000Z';
@@ -88,14 +89,14 @@ test('une réouverture produit une preuve de reprise', () => {
   assert.equal(evidence.costJp, 9);
   assert.equal(evidence.detail.durationDays, 9);
   assert.equal(evidence.detail.familyLabel, 'Retouches');
-  assert.deepEqual(evidence.detail.inputs, { reouvertures: 1, joursReprise: 9 });
+  assert.deepEqual(evidence.detail.inputs, { reouvertures: 1, joursReprise: 9, prRefusees: 0, revueJp: 0 });
 });
 
 test('deux réouvertures cumulent les temps de reprise', () => {
   const ctx = makeCtx(new Map([['I-1', twoReworkSpans()]]));
   const evidence = only(c4Rework([makeFact()], ctx));
 
-  assert.deepEqual(evidence.detail.inputs, { reouvertures: 2, joursReprise: 6 });
+  assert.deepEqual(evidence.detail.inputs, { reouvertures: 2, joursReprise: 6, prRefusees: 0, revueJp: 0 });
   assert.equal(evidence.costJp, 6);
 });
 
@@ -168,4 +169,77 @@ test('le calcul est déterministe', () => {
     first.map((item) => item.id).sort(),
     ['C4:I-1:api', 'C4:I-2:web'],
   );
+});
+
+/** PR refusée rattachée au ticket de test. */
+function pr(overrides: Partial<RejectedPullRequest> = {}): RejectedPullRequest {
+  return { issueId: 'I-1', prKey: 'repo#42', reviewDays: 2, ...overrides };
+}
+
+test('A14 — les PR refusées s’ajoutent au temps de reprise', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = only(c4Rework([makeFact()], ctx, [pr()]));
+
+  // 9 j de reprise + 2 j de revue refusée.
+  assert.equal(evidence.costJp, 11);
+  assert.equal(evidence.detail.durationDays, 11);
+  assert.deepEqual(evidence.detail.inputs, {
+    reouvertures: 1,
+    joursReprise: 9,
+    prRefusees: 1,
+    revueJp: 2,
+  });
+  assert.match(evidence.detail.formula, /PR refusée\(s\) repo#42 : 2 j de revue/);
+});
+
+test('A14 — le nombre de relecteurs pondère le temps de revue', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = only(c4Rework([makeFact()], ctx, [pr({ reviewers: 3 })]));
+
+  // 9 j de reprise + 2 j × 3 relecteurs.
+  assert.equal(evidence.costJp, 15);
+  assert.equal(evidence.detail.inputs.revueJp, 6);
+  assert.match(evidence.detail.formula, /repo#42 : 2 j de revue × 3 relecteur\(s\)/);
+});
+
+test('A14 — une PR refusée seule, sans réouverture, produit une preuve', () => {
+  const ctx = makeCtx(new Map());
+  const evidence = only(c4Rework([makeFact()], ctx, [pr({ reviewDays: 1.5 })]));
+
+  assert.equal(evidence.costJp, 1.5);
+  assert.equal(evidence.detail.inputs.reouvertures, 0);
+  assert.equal(evidence.detail.inputs.joursReprise, 0);
+});
+
+test('A14 — une PR d’un autre ticket est ignorée', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = only(c4Rework([makeFact()], ctx, [pr({ issueId: 'I-9' })]));
+
+  assert.equal(evidence.costJp, 9);
+  assert.equal(evidence.detail.inputs.prRefusees, 0);
+});
+
+test('A14 — une PR illisible ne produit ni NaN ni coût négatif', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = only(c4Rework([makeFact()], ctx, [pr({ reviewDays: Number.NaN, reviewers: -2 })]));
+
+  assert.equal(evidence.costJp, 9);
+  assert.equal(Number.isNaN(evidence.costJp), false);
+});
+
+test('A14 — sans PR fournie, la formule dit le repli « temps en statut de revue »', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = only(c4Rework([makeFact()], ctx));
+
+  assert.match(evidence.detail.formula, /temps en statut de revue compris/);
+  assert.equal(evidence.costJp, 9);
+});
+
+test('A14 — le coût des PR refusées se partage entre les zones', () => {
+  const ctx = makeCtx(new Map([['I-1', oneReworkSpans()]]));
+  const evidence = c4Rework([makeFact({ components: ['api', 'web'] })], ctx, [pr({ reviewDays: 1 })]);
+
+  assert.equal(evidence.length, 2);
+  const total = evidence.reduce((sum, item) => sum + item.costJp, 0);
+  assert.equal(Math.round(total * 100) / 100, 10);
 });

@@ -1,18 +1,25 @@
 /**
  * Dépôts des références C3, des bulletins, des réglages et de l'initialisation.
  *
- * Une fonction par besoin, un aller-retour SQL par fonction, paramètres liés.
+ * Une fonction par besoin, paramètres liés, colonnes explicites.
  * Aucune fonction ne jette pour une donnée absente : elle rend `null` ou `[]`.
  */
 
 import type { Baseline, BootstrapProgress, ProjectSettings, Repayment } from '../../../core/types';
 import type { SqlValue } from '../query';
-import { insertRows, onDuplicateUpdate, projectOfIssue, replaceRows, selectRows } from '../query';
+import {
+  insertRows,
+  onDuplicateUpdate,
+  projectIdsOfIssues,
+  replaceRows,
+  selectAllBatched,
+  selectRows,
+} from '../query';
 import type { BaselineRow, BootstrapProgressRow, RepaymentRow, SettingsRow } from '../mappers';
 import { toBaseline, toBootstrapProgress, toProjectSettings, toRepayment } from '../mappers';
-import { toDbBool, toDbDate, toDbDateRequired, toJson } from '../rows';
-/* ------------------------------------------------------------- baseline */
+import { toDbBool, toDbDate, toDbDateRequired, toJson, toTextOrNull } from '../rows';
 
+/* ------------------------------------------------------------- baseline */
 
 const BASELINE_COLUMNS = [
   'project_id',
@@ -22,6 +29,9 @@ const BASELINE_COLUMNS = [
   'sample_size',
   'computed_at',
 ] as const;
+
+/** Lecture : `project_id` sert de filtre, pas de projection. */
+const BASELINE_SELECT = BASELINE_COLUMNS.filter((column) => column !== 'project_id').join(', ');
 
 function baselineValues(baseline: Baseline, projectId: string): SqlValue[] {
   return [
@@ -49,15 +59,16 @@ export async function replaceBaselines(projectId: string, baselines: Baseline[])
 
 /** Références C3 enregistrées d'un projet. */
 export async function listBaselines(projectId: string): Promise<Baseline[]> {
-  const rows = await selectRows<BaselineRow>(
-    'SELECT * FROM baseline WHERE project_id = ? ORDER BY issue_type, size_class',
+  const rows = await selectAllBatched<BaselineRow>(
+    `SELECT ${BASELINE_SELECT} FROM baseline
+      WHERE project_id = ?
+      ORDER BY issue_type, size_class`,
     [projectId],
   );
   return rows.map(toBaseline);
 }
 
 /* ------------------------------------------------------------- repayment */
-
 
 const REPAYMENT_COLUMNS = [
   'debt_issue_id',
@@ -73,40 +84,64 @@ const REPAYMENT_COLUMNS = [
   'published_at',
 ] as const;
 
-/** Enregistre le bulletin de remboursement d'un ticket de dette (§11). */
-export async function upsertRepayment(repayment: Repayment): Promise<void> {
+const REPAYMENT_SELECT = REPAYMENT_COLUMNS.filter((column) => column !== 'project_id').join(', ');
+
+function repaymentValues(repayment: Repayment, projectId: string): SqlValue[] {
+  return [
+    repayment.debtIssueId,
+    projectId,
+    repayment.key,
+    repayment.zone,
+    toDbDateRequired(repayment.closedAt),
+    repayment.beforeRate,
+    repayment.afterRate,
+    repayment.weeksBefore,
+    repayment.weeksAfter,
+    toJson(repayment.caveats),
+    toDbDate(repayment.publishedAt),
+  ];
+}
+
+/**
+ * Enregistre les bulletins d'un projet, en écriture groupée (C36 : le projet
+ * est connu, aucune sous-requête par ligne).
+ */
+export async function upsertRepayments(projectId: string, repayments: readonly Repayment[]): Promise<void> {
+  if (repayments.length === 0) return;
   await insertRows({
     table: 'repayment',
     columns: REPAYMENT_COLUMNS,
-    rows: [repayment],
-    toValues: (item) => [
-      item.debtIssueId,
-      projectOfIssue(item.debtIssueId),
-      item.key,
-      item.zone,
-      toDbDateRequired(item.closedAt),
-      item.beforeRate,
-      item.afterRate,
-      item.weeksBefore,
-      item.weeksAfter,
-      toJson(item.caveats),
-      toDbDate(item.publishedAt),
-    ],
+    rows: repayments,
+    toValues: (item) => repaymentValues(item, projectId),
     onDuplicate: onDuplicateUpdate(REPAYMENT_COLUMNS, ['debt_issue_id']),
   });
 }
 
+/**
+ * Enregistre le bulletin de remboursement d'un ticket de dette (§11).
+ *
+ * `projectId` évite une lecture ; absent, il est retrouvé en une requête sur
+ * `issue_fact`. Un bulletin dont le ticket n'est pas synchronisé est une
+ * anomalie d'appelant : elle est signalée.
+ */
+export async function upsertRepayment(repayment: Repayment, projectId?: string): Promise<void> {
+  const resolved = projectId ?? (await projectIdsOfIssues([repayment.debtIssueId])).get(repayment.debtIssueId);
+  if (resolved === undefined) throw new Error(`bulletin sans projet connu : ${repayment.debtIssueId}`);
+  await upsertRepayments(resolved, [repayment]);
+}
+
 /** Bulletins publiés ou en préparation d'un projet. */
 export async function listRepayments(projectId: string): Promise<Repayment[]> {
-  const rows = await selectRows<RepaymentRow>(
-    'SELECT * FROM repayment WHERE project_id = ? ORDER BY closed_at DESC',
+  const rows = await selectAllBatched<RepaymentRow>(
+    `SELECT ${REPAYMENT_SELECT} FROM repayment
+      WHERE project_id = ?
+      ORDER BY closed_at DESC, debt_issue_id`,
     [projectId],
   );
   return rows.map(toRepayment);
 }
 
 /* ------------------------------------------------------------- settings */
-
 
 const SETTINGS_COLUMNS = [
   'project_id',
@@ -129,8 +164,11 @@ const SETTINGS_COLUMNS = [
   'jsm_project_keys',
   'team_by_zone',
   'day_rate_eur',
+  'story_point_field',
   'demo_data',
 ] as const;
+
+const SETTINGS_SELECT = SETTINGS_COLUMNS.join(', ');
 
 function settingsValues(settings: ProjectSettings): SqlValue[] {
   return [
@@ -154,13 +192,17 @@ function settingsValues(settings: ProjectSettings): SqlValue[] {
     toJson(settings.jsmProjectKeys),
     toJson(settings.teamByZone),
     settings.dayRateEur ?? null,
+    settings.storyPointField ?? null,
     toDbBool(settings.demoData),
   ];
 }
 
 /** Réglages d'un projet, ou `null` avant la première visite de l'écran 6. */
 export async function getSettings(projectId: string): Promise<ProjectSettings | null> {
-  const rows = await selectRows<SettingsRow>('SELECT * FROM settings WHERE project_id = ? LIMIT 1', [projectId]);
+  const rows = await selectRows<SettingsRow>(
+    `SELECT ${SETTINGS_SELECT} FROM settings WHERE project_id = ? LIMIT 1`,
+    [projectId],
+  );
   const row = rows[0];
   return row ? toProjectSettings(row) : null;
 }
@@ -176,8 +218,13 @@ export async function saveSettings(settings: ProjectSettings): Promise<void> {
   });
 }
 
-/* ------------------------------------------------------------- bootstrap_progress */
+/** Le champ Jira des story points, s'il est réglé (vide = pas de points). */
+export async function storyPointFieldOf(projectId: string): Promise<string | null> {
+  const settings = await getSettings(projectId);
+  return toTextOrNull(settings?.storyPointField) ?? null;
+}
 
+/* ------------------------------------------------------------- bootstrap_progress */
 
 const BOOTSTRAP_COLUMNS = [
   'project_id',
@@ -187,7 +234,11 @@ const BOOTSTRAP_COLUMNS = [
   'started_at',
   'updated_at',
   'finished',
+  'error',
+  'attempts',
 ] as const;
+
+const BOOTSTRAP_SELECT = BOOTSTRAP_COLUMNS.join(', ');
 
 function bootstrapValues(progress: BootstrapProgress): SqlValue[] {
   return [
@@ -198,13 +249,15 @@ function bootstrapValues(progress: BootstrapProgress): SqlValue[] {
     toDbDateRequired(progress.startedAt),
     toDbDateRequired(progress.updatedAt),
     toDbBool(progress.finished),
+    progress.error ?? null,
+    progress.attempts ?? 0,
   ];
 }
 
 /** État de l'initialisation d'un projet, ou `null` si elle n'a pas commencé. */
 export async function bootstrapProgress(projectId: string): Promise<BootstrapProgress | null> {
   const rows = await selectRows<BootstrapProgressRow>(
-    'SELECT * FROM bootstrap_progress WHERE project_id = ? LIMIT 1',
+    `SELECT ${BOOTSTRAP_SELECT} FROM bootstrap_progress WHERE project_id = ? LIMIT 1`,
     [projectId],
   );
   const row = rows[0];

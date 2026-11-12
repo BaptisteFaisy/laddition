@@ -20,9 +20,10 @@ export function FamilyTable({
   byFamily: Record<Family, FamilyTotal>;
   onSelect: (family: Family) => void;
 }): JSX.Element {
+  const caption = t(locale, 'panel.families');
   return (
     <Fragment>
-      <Table>
+      <Table caption={caption} label={caption}>
         <Head>
           <Cell><Text>{t(locale, 'common.family')}</Text></Cell>
           <Cell><Text>{t(locale, 'common.cost')}</Text></Cell>

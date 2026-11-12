@@ -1,4 +1,28 @@
 import { fetchChangelog, fetchIssue, searchIssues } from '../platform/jira';
+import type { Attribution, Baseline, DebtBill, Evidence } from '../core/types';
+import {
+  getSettings,
+  listAttributions,
+  replaceAttributions,
+  replaceBaselines,
+  replaceEvidence,
+  upsertBill,
+  upsertZoneWeek,
+  listBaselines,
+  listBills,
+  listDebtIssues,
+  listEvidence,
+  listIssuesInWindow,
+  listStatusSpans,
+  listZoneWeeks,
+} from '../platform/db/index';
+import { projectIdByKey } from './projects';
+import { clearInvalidBefore } from './invalidation';
+import { runSchemaMigrations } from '../platform/db/index';
+import { listScores, saveScores } from '../platform/db/repos/scores';
+import { purgeProject } from '../platform/db/repos/purge';
+import { runStatement } from '../platform/db/query';
+import { purgeDisappearedZones } from './zoneLifecycle';
 import { ensureDebtCostField, writeDebtCost } from '../platform/field';
 import { fetchIncidentServices, fetchTeamByComponent, fetchZoneLinks } from '../platform/graph';
 import { BOOTSTRAP_FIELDS } from './consumer';
@@ -37,6 +61,14 @@ export async function runProbe(probe: string, projectKey: string, sample: number
       return probeFieldWrite(projectKey, sample);
     case 'graph':
       return probeTeamworkGraph(projectKey);
+    case 'migrations':
+      return probeMigrations();
+    case 'recalc-path':
+      return probeRecalcPath(projectKey);
+    case 'write-path':
+      return probeWritePath(projectKey);
+    case 'sql-forms':
+      return probeSqlForms(projectKey);
     default:
       return {
         name: probe,
@@ -58,7 +90,7 @@ export async function probeThroughput(projectKey: string, sample: number): Promi
   // Sondage hors fenêtre de 180 jours : le site de démo a un historique ancien,
   // et ce qu'on mesure ici est le débit de lecture, pas la fraîcheur.
   const page = await searchIssues(
-    `project = ${settings.projectKey} ORDER BY updated DESC`,
+    `project = ${quoteProjectKey(settings.projectKey)} ORDER BY updated DESC`,
     BOOTSTRAP_FIELDS,
     size,
   );
@@ -124,7 +156,11 @@ export async function probeFieldWrite(projectKey: string, sample: number): Promi
       verdict: 'repli à appliquer : propriété de ticket indexée pour JQL (§17)',
     };
   }
-  const page = await searchIssues(`project = ${settings.projectKey} ORDER BY created DESC`, ['summary'], Math.min(sample || DEFAULT_SAMPLE, 50));
+  const page = await searchIssues(
+    `project = ${quoteProjectKey(settings.projectKey)} ORDER BY created DESC`,
+    ['summary'],
+    Math.min(sample || DEFAULT_SAMPLE, 50),
+  );
   const keys = (page?.issues ?? []).map((issue) => issue.key);
   const values = new Map(keys.map((key, index) => [key, index % 5]));
   const outcome = keys.length > 0 ? await writeDebtCost(keys, values, setup.fieldId) : null;
@@ -157,7 +193,11 @@ function fieldVerdict(
  */
 export async function probeTeamworkGraph(projectKey: string): Promise<Probe> {
   const settings = await projectSettingsOf(projectKey);
-  const page = await searchIssues(`project = ${settings.projectKey} ORDER BY created DESC`, ['summary', 'components'], 5);
+  const page = await searchIssues(
+    `project = ${quoteProjectKey(settings.projectKey)} ORDER BY created DESC`,
+    ['summary', 'components'],
+    5,
+  );
   const keys = (page?.issues ?? []).map((issue) => issue.key);
   const zones = await fetchZoneLinks(keys);
   const services = await fetchIncidentServices(keys);
@@ -176,6 +216,178 @@ function graphVerdict(keys: number, withZone: number, withServices: number, team
     verdict: reached
       ? 'le graphe répond : zones Compass et services exploitables, à lire au nom de l\'utilisateur et à mettre en cache (§15)'
       : 'le graphe ne rend rien (scope manquant ou appel hors contexte utilisateur) : le repli du §17 s\'applique — composants Jira pour les zones, temps en statut de revue pour les PR',
+  };
+}
+
+/** Clé de projet citée pour un JQL : guillemets échappés, jamais interpolés nus. */
+function quoteProjectKey(projectKey: string): string {
+  return `"${projectKey.replace(/"/g, '')}"`;
+}
+
+/**
+ * Rapport des migrations de schéma : Forge SQL ne dit pas pourquoi un `ALTER`
+ * échoue, et un échec silencieux se paie plus tard en « Unknown SQL execution
+ * error » sur la première requête qui lit la colonne manquante.
+ */
+export async function probeMigrations(): Promise<Probe> {
+  const reports = await runSchemaMigrations();
+  const failed = reports.filter((report) => !report.ok);
+  return {
+    name: 'migrations',
+    ok: failed.length === 0,
+    measures: {
+      appliquees: reports.length - failed.length,
+      echouees: failed.length,
+      detail: failed.map((f) => `${f.statement.slice(0, 70)} → ${f.error}`).join(' | ') || 'aucune',
+    },
+    verdict: failed.length === 0
+      ? 'toutes les colonnes et index attendus sont en place'
+      : `${failed.length} ALTER refusé(s) : les requêtes qui lisent ces colonnes échoueront`,
+  };
+}
+
+/** Sonde du chemin de recalcul, étape par étape : localise le SQL fautif. */
+export async function probeRecalcPath(projectKey: string): Promise<Probe> {
+  const projectId = await projectIdByKey(projectKey);
+  if (!projectId) throw new Error(`projet « ${projectKey} » non initialisé`);
+  const steps: Array<{ step: string; ok: boolean; detail: string }> = [];
+  const run = async (step: string, body: () => Promise<number>): Promise<void> => {
+    try {
+      steps.push({ step, ok: true, detail: `ok (${await body()})` });
+    } catch (error) {
+      steps.push({ step, ok: false, detail: error instanceof Error ? error.message : String(error) });
+    }
+  };
+  await run('settings', async () => ((await getSettings(projectId)) ? 1 : 0));
+  await run('listIssuesInWindow', async () => (await listIssuesInWindow(projectId, '2026-01-01T00:00:00.000Z')).length);
+  await run('listDebtIssues', async () => (await listDebtIssues(projectId)).length);
+  await run('listStatusSpans', async () => (await listStatusSpans(projectId)).length);
+  await run('listEvidence', async () => (await listEvidence(projectId)).length);
+  await run('listAttributions', async () => (await listAttributions(projectId)).length);
+  await run('listBills', async () => (await listBills(projectId)).length);
+  await run('listBaselines', async () => (await listBaselines(projectId)).length);
+  await run('listZoneWeeks', async () => (await listZoneWeeks(projectId, [])).length);
+  const failed = steps.filter((item) => !item.ok);
+  return {
+    name: 'recalc-path',
+    ok: failed.length === 0,
+    measures: Object.fromEntries(steps.map((item) => [item.step, item.detail])),
+    verdict: failed.length === 0 ? 'toutes les lectures du chemin passent' : `${failed.map((f) => f.step).join(', ')} échoue`,
+  };
+}
+
+/** Sonde du chemin d'écriture : localise le SQL fautif côté persistance. */
+export async function probeWritePath(projectKey: string): Promise<Probe> {
+  const projectId = await projectIdByKey(projectKey);
+  if (!projectId) throw new Error(`projet « ${projectKey} » non initialisé`);
+  const steps: Array<{ step: string; ok: boolean; detail: string }> = [];
+  const run = async (step: string, body: () => Promise<void>): Promise<void> => {
+    try {
+      await body();
+      steps.push({ step, ok: true, detail: 'ok' });
+    } catch (error) {
+      steps.push({ step, ok: false, detail: error instanceof Error ? error.message : String(error) });
+    }
+  };
+  await run('replaceEvidence(vide)', () => replaceEvidence(projectId, []));
+  await run('replaceAttributions(vide)', () => replaceAttributions(projectId, []));
+  await run('replaceBaselines(vide)', () => replaceBaselines(projectId, []));
+  await run('upsertZoneWeek(vide)', () => upsertZoneWeek([]));
+  await run('clearInvalidBefore', () => clearInvalidBefore(projectId, new Date().toISOString()));
+  // Écritures avec de VRAIES lignes : c'est là que le SQL se révèle.
+  await run('replaceEvidence(1 ligne)', () => replaceEvidence(projectId, [probeEvidence()]));
+  await run('replaceAttributions(1 ligne)', () => replaceAttributions(projectId, [probeAttribution()]));
+  await run('replaceBaselines(1 ligne)', () => replaceBaselines(projectId, [probeBaseline()]));
+  await run('upsertZoneWeek(1 ligne)', () => upsertZoneWeek([{ projectId, zone: 'sonde', week: '2026-11-09', costJp: 1, byFamily: { C1: 1, C2: 0, C3: 0, C4: 0, C5: 0 } }]));
+  // `upsertBill` exige un projet connu : la sonde passe l'identifiant réel.
+  await run('upsertBill(1 ligne)', () => upsertBill(probeBill(), projectId));
+  await run('saveScores(1 ligne)', () => saveScores(projectId, [{ fingerprint: 'sonde', relevance: 0.5, rationale: 'sonde' }]));
+  await run('listScores', async () => { await listScores(projectId); });
+  const settings = await getSettings(projectId);
+  await run('purgeDisappearedZones', async () => {
+    if (settings) await purgeDisappearedZones(projectId, settings, new Date().toISOString());
+  });
+  await run('purgeProject', async () => {
+    await purgeProject(projectId, { now: new Date().toISOString(), deadDays: 180 });
+  });
+  await run('nettoyage sonde', () => replaceEvidence(projectId, []));
+  const failed = steps.filter((item) => !item.ok);
+  return {
+    name: 'write-path',
+    ok: failed.length === 0,
+    measures: Object.fromEntries(steps.map((item) => [item.step, item.detail])),
+    verdict: failed.length === 0 ? 'écritures du chemin OK' : `échec : ${failed.map((f) => f.step).join(', ')}`,
+  };
+}
+
+/**
+ * Matrice de capacités SQL de Forge : quelles formes d'écriture passent.
+ *
+ * Mesuré le 11/11 : `ALTER TABLE` est refusé, et `DELETE ... LIMIT` avec une
+ * sous-requête aussi. Cette sonde existe pour ne plus deviner : chaque forme
+ * est essayée sur des lignes de sonde, et le verdict est binaire.
+ */
+export async function probeSqlForms(projectKey: string): Promise<Probe> {
+  const projectId = await projectIdByKey(projectKey);
+  if (!projectId) throw new Error(`projet « ${projectKey} » non initialisé`);
+  const forms: Array<[string, string, unknown[]]> = [
+    ['DELETE simple', 'DELETE FROM score_cache WHERE project_id = ?', [projectId]],
+    ['DELETE + LIMIT', 'DELETE FROM score_cache WHERE project_id = ? LIMIT 5', [projectId]],
+    [
+      'DELETE + sous-requête',
+      'DELETE FROM attribution WHERE project_id = ? AND evidence_id IN (SELECT evidence_id FROM evidence WHERE project_id = ?)',
+      [projectId, projectId],
+    ],
+    ['UPDATE + LIMIT', 'UPDATE issue_fact SET description = description WHERE project_id = ? LIMIT 5', [projectId]],
+    ['UPDATE simple', 'UPDATE issue_fact SET description = description WHERE project_id = ?', [projectId]],
+    ['SELECT + sous-requête', 'SELECT evidence_id FROM attribution WHERE evidence_id IN (SELECT evidence_id FROM evidence WHERE project_id = ?)', [projectId]],
+  ];
+  const measures: Record<string, string | number | boolean> = {};
+  let failed = 0;
+  for (const [name, statement, params] of forms) {
+    try {
+      await runStatement(statement, params);
+      measures[name] = 'accepté';
+    } catch (error) {
+      failed += 1;
+      measures[name] = `refusé : ${(error instanceof Error ? error.message : String(error)).slice(0, 60)}`;
+    }
+  }
+  return {
+    name: 'sql-forms',
+    ok: failed === 0,
+    measures,
+    verdict: failed === 0 ? 'toutes les formes testées passent' : `${failed} forme(s) refusée(s) par Forge SQL`,
+  };
+}
+
+/* ------------------------------------------- jeux minimaux pour la sonde */
+
+const PROBE_AT = '2026-11-09T12:00:00.000Z';
+
+function probeEvidence(): Evidence {
+  return {
+    id: 'sonde-e1', zone: 'sonde', family: 'C1', sourceIssueId: 'sonde-1', sourceKey: 'SONDE-1',
+    occurredAt: PROBE_AT, costJp: 1, method: 'computed', visible: true,
+    detail: { durationDays: 1, method: 'computed', formula: 'sonde', inputs: {}, familyLabel: 'Incidents' },
+  };
+}
+
+function probeAttribution(): Attribution {
+  return { evidenceId: 'sonde-e1', debtIssueId: 'sonde-d1', share: 1, basis: 'link', relevance: 1, rationale: 'sonde' };
+}
+
+function probeBaseline(): Baseline {
+  return { issueType: 'Sonde', sizeClass: 'm', medianDays: 1, sampleSize: 5, computedAt: PROBE_AT };
+}
+
+function probeBill(): DebtBill {
+  const zero = { lowJp: 0, highJp: 0, evidenceCount: 0, insufficient: false };
+  return {
+    debtIssueId: 'sonde-d1', key: 'SONDE-1', computedAt: PROBE_AT, lowJp: 1, highJp: 1,
+    byFamily: { C1: zero, C2: zero, C3: zero, C4: zero, C5: zero },
+    evidenceIds: ['sonde-e1'], hiddenCount: 0, repaymentJp: null, avoidableJp: null,
+    roiLow: null, roiHigh: null, paybackDays: null,
   };
 }
 

@@ -4,9 +4,15 @@
  *
  * Toutes les conversions sont pures et ne jettent jamais : une entrée
  * inutilisable rend `null` (valeur non chiffrable) ou `0`, jamais `NaN`.
+ *
+ * Chaîne DT-15 : `contextVelocity` mesure le rythme de l'équipe, l'app
+ * l'injecte dans `CostContext.velocityPointsPerWeek`, et `buildBill` s'en sert
+ * pour convertir les points d'une dette en jours quand l'estimation en
+ * jours-personne manque (§11). Sans vélocité, le remboursement reste « non
+ * chiffré ».
  */
 
-import type { IssueFact } from './types';
+import type { IssueFact, ProjectSettings } from './types';
 import { round2 } from './time';
 
 /**
@@ -79,4 +85,16 @@ export function velocityFromClosedIssues(
   const points = closed.size * POINTS_PER_CLOSED_ISSUE;
   const weeks = windowDays / DAYS_PER_CALENDAR_WEEK;
   return round2(points / weeks);
+}
+
+/**
+ * Vélocité à injecter dans `CostContext.velocityPointsPerWeek` (§11).
+ *
+ * C'est la seule source du rythme utilisé pour convertir les points d'une dette
+ * en jours. `null` quand rien n'est mesurable : le remboursement des dettes
+ * estimées en points reste alors « non chiffré », il ne vaut jamais 0.
+ */
+export function contextVelocity(facts: IssueFact[], settings: ProjectSettings): number | null {
+  const velocity = velocityFromClosedIssues(facts, settings.windowDays, settings.daysPerWeek);
+  return velocity > 0 ? velocity : null;
 }

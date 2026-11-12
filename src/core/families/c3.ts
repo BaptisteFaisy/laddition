@@ -124,6 +124,7 @@ function evidenceForTicket(item: Measured, overrun: number, lotSize: number, ctx
         echantillon: item.baseline ? item.baseline.sampleSize : 0,
         coefficient: ctx.settings.occupationCoefficient,
         centile: ctx.settings.clipPercentile,
+        durationBasis: item.duration.basis,
       },
       familyLabel: FAMILY_LABEL,
       ...(item.fact.visible ? { sourceSummary: item.fact.summary } : {}),
@@ -146,8 +147,22 @@ function buildFormula(item: Measured, overrun: number, lotSize: number, ctx: Cos
   return (
     `max(0, ${formatNumber(item.duration.days)} − ${formatNumber(reference)}) × ` +
     `${formatNumber(ctx.settings.occupationCoefficient)} = ${formatNumber(cost)} j-p ; ` +
-    `surcoût raboté au ${formatNumber(ctx.settings.clipPercentile)}e centile sur ${lotSize} surcoûts du lot`
+    `surcoût raboté au ${formatNumber(ctx.settings.clipPercentile)}e centile sur ${lotSize} surcoûts du lot` +
+    durationNote(item.duration)
   );
+}
+
+/**
+ * Origine de la durée, rappelée quand elle n'est pas mesurée dans les statuts
+ * actifs (§19 cas 6) : un historique absent n'est pas un workflow sans statut
+ * actif, et le lecteur doit savoir lequel des deux il regarde.
+ */
+function durationNote(duration: TicketDuration): string {
+  if (!duration.approximated) return '';
+  const origin = duration.basis === 'missing-history'
+    ? 'historique de statuts absent'
+    : 'workflow sans statut actif';
+  return ` ; durée approchée (création → résolution) : ${origin}`;
 }
 
 /** Nombre lisible : arrondi au centième, sans bruit de virgule flottante. */

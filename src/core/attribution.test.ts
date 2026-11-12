@@ -226,7 +226,7 @@ test('§20 — déterminisme : l\'ordre de sortie est stable par preuve puis det
   );
 });
 
-test('§10 — confirmation humaine : 100 % avec l\'auteur dans la justification', () => {
+test('§10 — confirmation humaine : 100 %, auteur réduit à son initiale (§18)', () => {
   const item = evidence('ev-conf', 'Auth', 'issue-conf');
   const debts = [debt('debt-a', ['Auth']), debt('debt-b', ['Auth'])];
   const scores = [score('ev-conf', 'debt-a', 0.4), score('ev-conf', 'debt-b', 0.4)];
@@ -239,8 +239,20 @@ test('§10 — confirmation humaine : 100 % avec l\'auteur dans la justification
   assert.equal(result[0]?.share, 1);
   assert.equal(result[0]?.basis, 'confirmed');
   assert.equal(result[0]?.relevance, 1);
-  assert.equal(result[0]?.rationale, 'Rapprochement confirmé par Camille');
+  // Principe 4 : la justification ne porte jamais un nom en clair.
+  assert.equal(result[0]?.rationale, 'Rapprochement confirmé par C.');
   assert.equal(isHighBandOnly(result[0] as NonNullable<(typeof result)[0]>), false);
+});
+
+test('§10 — confirmation sans auteur nommé : justification neutre', () => {
+  const item = evidence('ev-conf2', 'Auth', 'issue-conf2');
+  const debts = [debt('debt-a', ['Auth']), debt('debt-b', ['Auth'])];
+  const confirmations = [{ evidenceId: 'ev-conf2', debtIssueId: 'debt-a', by: '   ' }];
+
+  const result = attributeEvidence([item], debts, [], [], settings(), undefined, confirmations);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0]?.rationale, 'Rapprochement confirmé par un humain');
 });
 
 test('§10 — un lien explicite prime sur le partage déduit', () => {
@@ -271,18 +283,101 @@ test('§10 — un lien non explicite ne vaut pas rapprochement', () => {
   assert.deepEqual(result, []);
 });
 
-test('§10 — sans paramètre links, les liens implicites portés par les scores servent', () => {
+test('A10 — une note du modèle à 1 ne vaut jamais un lien : fourchette haute seulement', () => {
   const item = evidence('ev-implicit', 'Auth', 'issue-implicit');
   const debts = [debt('debt-a', ['Auth']), debt('debt-b', ['Auth'])];
   const scores = [score('ev-implicit', 'debt-a', 1, 'Rapprochement évident'), score('ev-implicit', 'debt-b', 0.4)];
 
   const result = attributeEvidence([item], debts, scores, [], settings());
 
+  assert.equal(result.length, 2);
+  assert.ok(result.every((attribution) => attribution.basis === 'inferred'));
+  assert.ok(result.every((attribution) => isHighBandOnly(attribution)));
+  const first = result.find((attribution) => attribution.debtIssueId === 'debt-a');
+  assert.equal(first?.rationale, 'Rapprochement évident');
+  assert.equal(shareSum(result, 'ev-implicit'), 1);
+});
+
+test('A10 — un score arrondi à 1 (0,995) reste une hypothèse, jamais un fait', () => {
+  const item = evidence('ev-round', 'Auth', 'issue-round');
+  const debts = [debt('debt-a', ['Auth']), debt('debt-b', ['Auth'])];
+  const scores = [score('ev-round', 'debt-a', 0.995), score('ev-round', 'debt-b', 0.995)];
+
+  const result = attributeEvidence([item], debts, scores, [], settings(), []);
+
+  assert.equal(result.length, 2);
+  assert.ok(result.every((attribution) => attribution.basis === 'inferred'));
+  assert.equal(shareSum(result, 'ev-round'), 1);
+});
+
+test('A11 — sans lien Jira, aucune justification ne prétend à un lien', () => {
+  const item = evidence('ev-nolink', 'Auth', 'issue-nolink');
+  const debts = [debt('debt-a', ['Auth']), debt('debt-b', ['Auth'])];
+  const scores = [score('ev-nolink', 'debt-a', 1, '   '), score('ev-nolink', 'debt-b', 0.9, '')];
+
+  const result = attributeEvidence([item], debts, scores, [], settings());
+
+  assert.equal(result.length, 2);
+  for (const attribution of result) {
+    assert.equal(/lien jira/i.test(attribution.rationale), false, `justification inventée : ${attribution.rationale}`);
+  }
+});
+
+test('§19 cas 3 — zone à une seule dette : preuve sous le seuil proposée, fourchette haute', () => {
+  const item = evidence('ev-seule', 'Auth', 'issue-seule');
+  const debts = [debt('debt-a', ['Auth'])];
+  const scores = [score('ev-seule', 'debt-a', 0.1, 'Ressemblance faible, mais seule dette de la zone')];
+
+  const result = attributeEvidence([item], debts, scores, [], settings());
+
   assert.equal(result.length, 1);
   assert.equal(result[0]?.debtIssueId, 'debt-a');
-  assert.equal(result[0]?.basis, 'link');
+  assert.equal(result[0]?.basis, 'inferred');
   assert.equal(result[0]?.share, 1);
-  assert.equal(result[0]?.rationale, 'Rapprochement évident');
+  assert.equal(result[0]?.relevance, 0.1);
+  assert.equal(result[0]?.rationale, 'Ressemblance faible, mais seule dette de la zone');
+  assert.equal(isHighBandOnly(result[0] as NonNullable<(typeof result)[0]>), true);
+});
+
+test('§19 cas 3 — justification du modèle absente : on n’invente pas de lien', () => {
+  const item = evidence('ev-vide', 'Auth', 'issue-vide');
+  const debts = [debt('debt-a', ['Auth'])];
+  const scores = [score('ev-vide', 'debt-a', 0.05, '   ')];
+
+  const result = attributeEvidence([item], debts, scores, [], settings());
+
+  assert.equal(result.length, 1);
+  assert.equal(
+    result[0]?.rationale,
+    'Seule dette de la zone : rapprochement proposé, justification du modèle absente',
+  );
+  assert.equal(result[0]?.basis, 'inferred');
+});
+
+test('§19 cas 3 — preuve jamais scorée : rien n’est proposé, même sur une zone à une dette', () => {
+  const item = evidence('ev-sanscore', 'Auth', 'issue-sanscore');
+  const debts = [debt('debt-a', ['Auth'])];
+
+  assert.deepEqual(attributeEvidence([item], debts, [], [], settings()), []);
+});
+
+test('§19 cas 3 — un rejet l’emporte sur la zone à une seule dette', () => {
+  const item = evidence('ev-rejetee', 'Auth', 'issue-rejetee');
+  const debts = [debt('debt-a', ['Auth'])];
+  const scores = [score('ev-rejetee', 'debt-a', 0.1)];
+  const rejections: Rejection[] = [
+    { evidenceId: 'ev-rejetee', debtIssueId: 'debt-a', rejectedBy: 'alice', at: '2026-10-02T00:00:00.000Z' },
+  ];
+
+  assert.deepEqual(attributeEvidence([item], debts, scores, rejections, settings()), []);
+});
+
+test('§19 cas 3 — deux dettes dans la zone : le seuil de pertinence s’applique', () => {
+  const item = evidence('ev-deux', 'Auth', 'issue-deux');
+  const debts = [debt('debt-a', ['Auth']), debt('debt-b', ['Auth'])];
+  const scores = [score('ev-deux', 'debt-a', 0.1), score('ev-deux', 'debt-b', 0.2)];
+
+  assert.deepEqual(attributeEvidence([item], debts, scores, [], settings()), []);
 });
 
 test('§10 — une dette d\'une autre zone n\'est jamais proposée', () => {

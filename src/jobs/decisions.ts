@@ -1,4 +1,5 @@
-import type { Attribution, CostContext, RelevanceScore } from '../core/types';
+import type { Attribution, CostContext, Evidence, IssueFact, IssueLink, RelevanceScore } from '../core/types';
+import { EXPLICIT_LINK_TYPES } from '../core/attribution';
 import {
   insertRejection,
   listAttributions,
@@ -8,7 +9,7 @@ import {
   listRejections,
   listStatusSpans,
   replaceAttributions,
-  upsertBill,
+  upsertBills,
 } from '../platform/db/index';
 import { addConfirmation, listConfirmations, removeConfirmation } from './confirmations';
 import { removeRejection } from './rejections';
@@ -65,6 +66,12 @@ export async function rejectMatch(
  * famille n'est recalculée, seul l'appariement change. Les scores du modèle ne
  * sont pas redemandés non plus — ceux déjà obtenus sont relus des attributions
  * enregistrées, ce qui laisse les autres rapprochements stables.
+ *
+ * Les liens Jira ne se relisent pas non plus (des centaines d'appels REST pour
+ * une décision) : ils sont **reconstruits** depuis les attributions `link`
+ * enregistrées (`preserveLinks`). Sans cela, confirmer ou rejeter un
+ * rapprochement effaçait toutes les attributions par lien et la fourchette
+ * basse s'effondrait — la recette §20 n°1 cassée par la n°3 (B15).
  */
 export async function rebuild(projectId: string, now: string): Promise<number> {
   const settings = await requireSettings(projectId);
@@ -81,7 +88,7 @@ export async function rebuild(projectId: string, now: string): Promise<number> {
     projectId,
     settings,
     facts: debts,
-    links: [],
+    links: preserveLinks(attributions, evidence, debts),
     spansByIssue: groupSpans(spans),
     scores: scoresOf(attributions),
     rejections,
@@ -96,8 +103,49 @@ export async function rebuild(projectId: string, now: string): Promise<number> {
   };
   const result = finish(input, { ctx, evidence, debts });
   await replaceAttributions(projectId, result.attributions);
-  for (const bill of result.bills) await upsertBill(bill);
+  await upsertBills(projectId, result.bills);
   return result.bills.length;
+}
+
+/** Forme de la justification écrite par le calcul pour un lien explicite. */
+const LINK_RATIONALE = /^Lien Jira explicite \((.+)\)$/;
+
+/**
+ * Liens Jira reconstruits depuis les attributions `link` enregistrées.
+ *
+ * Une attribution `link` dit exactement ce que le lien disait : la preuve
+ * (son ticket source) est reliée à la dette. Le type de lien est relu de la
+ * justification ; illisible, on retombe sur `relates to`, qui appartient aux
+ * types explicites du §10 — la part reste à 100 % dans la fourchette basse.
+ */
+export function preserveLinks(
+  attributions: readonly Attribution[],
+  evidence: readonly Evidence[],
+  debts: readonly IssueFact[],
+): IssueLink[] {
+  const sourceByEvidence = new Map(evidence.map((item) => [item.id, item.sourceIssueId]));
+  const keyByDebt = new Map(debts.map((debt) => [debt.issueId, debt.key]));
+  const links: IssueLink[] = [];
+  for (const attribution of attributions) {
+    if (attribution.basis !== 'link') continue;
+    const fromIssueId = sourceByEvidence.get(attribution.evidenceId);
+    const toKey = keyByDebt.get(attribution.debtIssueId);
+    if (!fromIssueId || !toKey) continue;
+    links.push({
+      fromIssueId,
+      toIssueId: attribution.debtIssueId,
+      toKey,
+      type: linkTypeOf(attribution.rationale),
+    });
+  }
+  return links;
+}
+
+/** Type de lien relu de la justification ; `relates to` par défaut. */
+function linkTypeOf(rationale: string): string {
+  const found = LINK_RATIONALE.exec(rationale.trim());
+  const type = (found?.[1] ?? '').trim().toLowerCase();
+  return EXPLICIT_LINK_TYPES.includes(type) ? type : 'relates to';
 }
 
 /** Scores déjà obtenus, réutilisés tels quels : aucune empreinte n'est inventée. */
