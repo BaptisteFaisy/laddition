@@ -123,6 +123,48 @@ test('preuves approximées comptées, parts à deux décimales', () => {
   assert.equal(quality.loggedShare, 33.33);
 });
 
+test('§19 cas 5 — approximatedIssues compte des tickets, pas des preuves', () => {
+  // Un même ticket produit une preuve par zone : il ne compte qu'une fois.
+  const evidenceList = [
+    evidence('e1', 'api', 'C2', 2, 'approximated'),
+    evidence('e2', 'web', 'C2', 2, 'approximated'),
+    evidence('e3', 'api', 'C2', 2, 'approximated'),
+  ];
+  const multiZone = evidenceList.map((item, index) =>
+    index === 2 ? item : { ...item, sourceIssueId: 'src-partage' },
+  );
+
+  const quality = computeQuality([], multiZone, SETTINGS);
+
+  assert.equal(quality.approximatedIssues, 2);
+});
+
+test('§19 cas 7 — la part de chaque méthode est affichée', () => {
+  const evidenceList = [
+    evidence('e1', 'api', 'C2', 5, 'logged'),
+    evidence('e2', 'api', 'C2', 3, 'computed'),
+    evidence('e3', 'api', 'C3', 2, 'approximated'),
+    evidence('e4', 'api', 'C5', 100, 'computed'), // un délai n'est pas un coût
+  ];
+
+  const quality = computeQuality([], evidenceList, SETTINGS);
+
+  assert.deepEqual(quality.methodShares, { logged: 50, computed: 30, approximated: 20 });
+  assert.equal(quality.loggedShare, 50);
+});
+
+test('§19 cas 7 — parts à deux décimales, jamais NaN', () => {
+  const evidenceList = [
+    evidence('e1', 'api', 'C2', 1, 'logged'),
+    evidence('e2', 'api', 'C2', 1, 'computed'),
+    evidence('e3', 'api', 'C2', 1, 'approximated'),
+  ];
+
+  const quality = computeQuality([], evidenceList, SETTINGS);
+
+  assert.deepEqual(quality.methodShares, { logged: 33.33, computed: 33.33, approximated: 33.33 });
+});
+
 test('jeu vide : tout à zéro, jamais NaN', () => {
   const quality = computeQuality([], [], SETTINGS);
 
@@ -133,5 +175,6 @@ test('jeu vide : tout à zéro, jamais NaN', () => {
     insufficientFamilies: [],
     loggedShare: 0,
     approximatedIssues: 0,
+    methodShares: { logged: 0, computed: 0, approximated: 0 },
   });
 });

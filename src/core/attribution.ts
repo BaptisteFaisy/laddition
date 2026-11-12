@@ -9,6 +9,7 @@ import type {
   Rejection,
 } from './types';
 import { clamp, round2 } from './time';
+import { redactName } from './privacy';
 
 /**
  * §10 « Attribution » : à quel ticket de dette chaque preuve est imputée.
@@ -20,15 +21,17 @@ import { clamp, round2 } from './time';
  * - `inferred` : même zone, aucun lien → partage au prorata de la pertinence,
  *   fourchette HAUTE seulement (voir `isHighBandOnly`).
  *
- * Aucune preuve n'est comptée deux fois : la somme des parts d'une preuve vaut
- * exactement 1,00 quand elle est attribuée, et 0 quand elle ne l'est pas.
+ * **Le modèle ne décide jamais d'un fait** (principe 2 du §5) : sa note de
+ * pertinence ne produit jamais une base `link`. Seuls un lien Jira réel ou une
+ * confirmation humaine font entrer une preuve dans la fourchette basse ; tout
+ * ce que le modèle propose reste dans la fourchette haute.
  */
 
 /** Confirmation humaine d'un rapprochement (§10, règle 2). */
 export interface Confirmation {
   evidenceId: string;
   debtIssueId: string;
-  /** Auteur de la confirmation, repris tel quel dans la justification. */
+  /** Auteur de la confirmation ; réduit à son initiale dans la justification (§18). */
   by?: string;
 }
 
@@ -37,6 +40,13 @@ export const EXPLICIT_LINK_TYPES: readonly string[] = ['relates to', 'caused by'
 
 /** Seuil de pertinence utilisé si le projet n'en fournit pas. */
 const DEFAULT_RELEVANCE_FLOOR = 0.3;
+
+/**
+ * Justification de repli d'une proposition faite à l'unique dette d'une zone
+ * quand le modèle n'a pas rédigé la sienne : on ne prétend pas à un lien qui
+ * n'existe pas (principe 1 du §5).
+ */
+const SINGLE_DEBT_RATIONALE = 'Seule dette de la zone : rapprochement proposé, justification du modèle absente';
 
 /**
  * Vrai quand l'attribution n'alimente que la fourchette haute.
@@ -50,8 +60,8 @@ export function isHighBandOnly(attribution: Attribution): boolean {
 /**
  * Impute les preuves aux tickets de dette.
  *
- * @param links Liens Jira connus. Omis (`undefined`), la fonction retombe sur
- *   les liens implicites portés par les scores (pertinence de 1).
+ * @param links Liens Jira connus. Sans lien, aucune preuve n'entre dans la
+ *   fourchette basse : le modèle ne fabrique pas de fait.
  * @param confirmations Rapprochements confirmés par un humain (7e position).
  */
 export function attributeEvidence(
@@ -79,8 +89,14 @@ interface AttributionContext {
   confirmations: Map<string, Confirmation>;
   /** `source → dette` vers type de lien normalisé. */
   links: Map<string, string>;
-  useImplicitLinks: boolean;
   floor: number;
+}
+
+/** Une dette candidate au partage, avec sa pertinence et sa justification. */
+interface Candidate {
+  debtIssueId: string;
+  relevance: number;
+  rationale: string;
 }
 
 function buildContext(
@@ -110,7 +126,6 @@ function buildContext(
     scores: scoreIndex,
     confirmations: confirmationIndex,
     links: linkIndex(links ?? []),
-    useImplicitLinks: links === undefined,
     floor,
   };
 }
@@ -136,12 +151,6 @@ function strongAttributions(item: Evidence, context: AttributionContext): Attrib
     const linkType = context.links.get(pairKey(item.sourceIssueId, debt.issueId));
     if (linkType) {
       found.push(makeAttribution(item.id, debt.issueId, 'link', linkRationale(linkType)));
-      continue;
-    }
-    if (!context.useImplicitLinks) continue;
-    const score = context.scores.get(key);
-    if (score && normalizedRelevance(score) >= 1) {
-      found.push(makeAttribution(item.id, debt.issueId, 'link', implicitLinkRationale(score)));
     }
   }
   return found;
@@ -149,9 +158,9 @@ function strongAttributions(item: Evidence, context: AttributionContext): Attrib
 
 /** Partage entre les dettes de la zone, au prorata de la pertinence (§10 règle 3). */
 function inferredAttributions(item: Evidence, context: AttributionContext): Attribution[] {
-  const candidates = scoredZoneDebts(item, context);
+  const candidates = zoneCandidates(item, context);
   if (candidates.length === 0) return [];
-  const shares = normalizeShares(candidates.map((candidate) => candidate.relevance));
+  const shares = candidates.length === 1 ? [1] : normalizeShares(candidates.map((c) => c.relevance));
   return candidates.map((candidate, index) => ({
     evidenceId: item.id,
     debtIssueId: candidate.debtIssueId,
@@ -162,17 +171,53 @@ function inferredAttributions(item: Evidence, context: AttributionContext): Attr
   }));
 }
 
+/**
+ * Dettes candidates d'une preuve : celles de sa zone.
+ *
+ * Cas particulier du §19 : une zone qui ne porte qu'**une seule dette** voit
+ * toutes ses preuves **scorées** lui être proposées, même sous le seuil de
+ * pertinence — il n'y a pas d'autre dossier où les ranger. La proposition reste
+ * dans la fourchette haute : c'est une hypothèse, pas un fait. Une preuve que
+ * le modèle n'a pas regardée ne reste pas non plus proposée : le seuil est
+ * abaissé, la place n'est pas inventée.
+ */
+function zoneCandidates(item: Evidence, context: AttributionContext): Candidate[] {
+  const zoneDebts = context.debts.filter(
+    (debt) => debt.zones.includes(item.zone) && !context.rejected.has(pairKey(item.id, debt.issueId)),
+  );
+  if (zoneDebts.length === 0) return [];
+  if (zoneDebts.length === 1) {
+    const candidate = singleDebtCandidate(item, zoneDebts[0] as IssueFact, context);
+    return candidate === null ? [] : [candidate];
+  }
+  return scoredZoneDebts(item, zoneDebts, context);
+}
+
+/** Proposition faite à l'unique dette d'une zone, seuil de pertinence écarté. */
+function singleDebtCandidate(
+  item: Evidence,
+  debt: IssueFact,
+  context: AttributionContext,
+): Candidate | null {
+  const score = context.scores.get(pairKey(item.id, debt.issueId));
+  if (!score) return null;
+  const rationale = score.rationale.trim();
+  return {
+    debtIssueId: debt.issueId,
+    relevance: normalizedRelevance(score),
+    rationale: rationale.length > 0 ? rationale : SINGLE_DEBT_RATIONALE,
+  };
+}
+
 /** Dettes de la même zone dont la pertinence atteint le seuil du projet. */
 function scoredZoneDebts(
   item: Evidence,
+  zoneDebts: IssueFact[],
   context: AttributionContext,
-): Array<{ debtIssueId: string; relevance: number; rationale: string }> {
-  const picked: Array<{ debtIssueId: string; relevance: number; rationale: string }> = [];
-  for (const debt of context.debts) {
-    if (!debt.zones.includes(item.zone)) continue;
-    const key = pairKey(item.id, debt.issueId);
-    if (context.rejected.has(key)) continue;
-    const score = context.scores.get(key);
+): Candidate[] {
+  const picked: Candidate[] = [];
+  for (const debt of zoneDebts) {
+    const score = context.scores.get(pairKey(item.id, debt.issueId));
     if (!score) continue;
     const relevance = normalizedRelevance(score);
     if (!(relevance >= context.floor)) continue;
@@ -276,14 +321,13 @@ function linkRationale(type: string): string {
   return `Lien Jira explicite (${type})`;
 }
 
-/** Justification d'une confirmation humaine (§10, règle 9). */
+/**
+ * Justification d'une confirmation humaine (§10, règle 9).
+ *
+ * Le nom de l'auteur est réduit à son initiale (principe 4 du §5, §18) : une
+ * justification affichée ne devient jamais un indicateur par personne.
+ */
 function confirmationRationale(confirmation: Confirmation): string {
-  const author = confirmation.by?.trim();
-  return `Rapprochement confirmé par ${author && author.length > 0 ? author : 'un humain'}`;
-}
-
-/** Justification d'un lien implicite : celle du score, à défaut un libellé sûr. */
-function implicitLinkRationale(score: RelevanceScore): string {
-  const text = score.rationale.trim();
-  return text.length > 0 ? text : 'Lien Jira explicite (relates to)';
+  const author = redactName(confirmation.by ?? null);
+  return `Rapprochement confirmé par ${author ?? 'un humain'}`;
 }

@@ -75,6 +75,8 @@ export interface ProjectSettings {
   teamByZone: Record<string, string>;
   /** Taux journalier en euros (DT-20, lot C). */
   dayRateEur?: number;
+  /** Champ Jira portant les story points, vide si le projet n'estime pas en points. */
+  storyPointField?: string;
   /** Vrai quand le jeu d'exemple est injecté (bandeau permanent). */
   demoData: boolean;
 }
@@ -110,6 +112,10 @@ export interface IssueFact {
   hasPostMortem: boolean;
   /** Nombre d'intervenants distincts (assignés + commentateurs). */
   participants: number;
+  /** Story points, si le projet estime en points (§11 : conversion par vélocité). */
+  storyPoints?: number | null;
+  /** Vrai quand l'historique a été tronqué par la pagination bornée (C41). */
+  historyTruncated?: boolean;
   /** Le lecteur a le droit d'ouvrir ce ticket (vie privée §18). */
   visible: boolean;
   summary: string;
@@ -225,6 +231,11 @@ export interface DebtBill {
   roiLow: number | null;
   roiHigh: number | null;
   paybackDays: number | null;
+  /**
+   * Motif d'absence d'addition, quand il y en a un (§19 cas 2 : une dette sans
+   * zone n'a pas d'addition, elle demande un rattachement).
+   */
+  blockedReason?: 'no-zone' | null;
 }
 
 /** Ligne de classement (DT-07). */
@@ -252,6 +263,8 @@ export interface ZoneCost {
   /** Part du coût portée par des tickets sans zone. */
   unclassifiedShare: number;
   team?: string;
+  /** Familles non chiffrables pour cette zone (§9 C3 : moins de 5 références). */
+  insufficientByFamily?: Partial<Record<Family, boolean>>;
 }
 
 /** Zone coûteuse sans aucun ticket de dette (DT-08). */
@@ -311,6 +324,8 @@ export interface DataQuality {
   loggedShare: number;
   /** Tickets dont l'historique de statuts manque. */
   approximatedIssues: number;
+  /** Part de chaque méthode de calcul, en pourcentage (§19 cas 7). */
+  methodShares?: { logged: number; computed: number; approximated: number };
 }
 
 /** État de l'initialisation (DT-12), pour la barre de progression. */
@@ -322,6 +337,10 @@ export interface BootstrapProgress {
   startedAt: string;
   updatedAt: string;
   finished: boolean;
+  /** Motif du dernier échec, null tant que tout va (item B26 : pas de rejeu muet). */
+  error?: string | null;
+  /** Nombre de rejeux du lot courant, pour borner la file (item B26). */
+  attempts?: number;
 }
 
 /** Contexte de calcul : tout ce qu'une famille reçoit, jamais d'I/O. */
@@ -333,4 +352,6 @@ export interface CostContext {
   baselines: Map<string, Baseline>;
   /** Durées par statut, indexées par identifiant de ticket. */
   spansByIssue: Map<string, StatusSpan[]>;
+  /** Vélocité de l'équipe en points/semaine ; null si non mesurable (§11). */
+  velocityPointsPerWeek?: number | null;
 }

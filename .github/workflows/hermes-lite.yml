@@ -79,7 +79,7 @@ jobs:
           && github.event.check_run.name != 'Verdict'
           && github.event.check_run.name != 'hermes-lite/verdict')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (actions/checkout@v4, épinglé par SHA — item F84)
         with:
           fetch-depth: 1
           persist-credentials: false

@@ -37,7 +37,7 @@ direction, not spoken.
 | 1:30 – 1:40 | Expand **Incidents** → 4 incidents, 11 p-d → the 4 source tickets | Four incidents: eleven person-days. Each line opens the tickets behind it. |
 | 1:40 – 1:50 | Expand **Bugs** → 9 bugs, 8 p-d | Nine bugs: eight person-days. |
 | 1:50 – 2:00 | Expand **Slowness** → 6 tickets, 5 – 15 p-d | Six tickets took twice as long as the reference: five to fifteen person-days, depending on how much we can attribute to this debt. |
-| 2:00 – 2:10 | Click a figure → formula with real inputs; then repayment **8 p-d**, return **3 – 6×** | Every figure opens its formula. Low bound nineteen, high bound thirty-four. Repaying it is estimated at eight days — three to six times the investment over two quarters. |
+| 2:00 – 2:10 | Click a figure → formula with real inputs; then repayment **8 p-d**, return **3.33 – 5.95×** | Every figure opens its formula. Low bound nineteen, high bound thirty-four. Repaying it is estimated at eight days — more than three times, up to nearly six times the investment over two quarters. |
 
 ## 2:10 – 2:40 · One click attaches a bug: the range narrows
 
@@ -60,7 +60,7 @@ direction, not spoken.
 | In – out | On screen | Voiceover |
 |---|---|---|
 | 3:10 – 3:18 | **Repayments** tab | And when a debt is repaid, the app checks whether it worked. |
-| 3:18 – 3:30 | Bulletin **PAY-41**: weekly cost before 2.6 → after 0.7 p-d | Before: two point six person-days per week on the zone. After: zero point seven. No incident since closure. |
+| 3:18 – 3:30 | Bulletin **PAY-41**: weekly cost before 3.4 → after 0.6 p-d | Before: three point four person-days per week on the zone. After: zero point six. No incident since closure. |
 | 3:30 – 3:40 | Zoom on the caveats list | The report states its own limits: other changes happened, the sample is small. This is a before-and-after, not a proof of causality. |
 
 ## 3:40 – 4:20 · Rovo for the argument, MCP for the coding agent
@@ -84,17 +84,21 @@ direction, not spoken.
 
 ## Figures used in the script
 
-These four are fixed by the specification and must appear as written:
+Every figure below was **measured on the Forge runtime, 11 November 2026**, on
+the injected sample dataset (68 facts, 65 proofs, 5 zones, 10 debts — 3 main,
+7 dead — 1 repayment; `docs/VALIDATIONS.md`, V3). The specification column
+shows where each one is specified; where the runtime and the spec's rounding
+differ, **the measured value is what appears on screen**.
 
 | Figure | Source |
 |---|---|
-| 19 – 34 p-d for PAY-77, low/high | §7.1 |
-| 1 – 2 p-d for the team's favourite refactor | §7.1 |
-| 22 p-d for the `notifications` zone, no debt ticket | §7.2 |
-| Repayment 8 p-d, return 3 – 6× over two quarters | §7.1 |
-| Breakdown 4 incidents / 11 p-d, 9 bugs / 8 p-d, 6 tickets / 5 – 15 p-d | §7.1 |
-| Before 2.6 → after 0.7 p-d per week | §7.5 |
-| 180 days without evidence for dead debt | §7.3 |
+| 19 – 34 p-d for PAY-77, low/high | measured = §7.1 |
+| 1 – 2 p-d for the team's favourite refactor | measured = §7.1 |
+| 22 p-d for the `notifications` zone, no debt ticket | measured = §7.2 |
+| Repayment 8 p-d, return **3.33 – 5.95×** over two quarters | measured; §7.1 rounds to "3 – 6×" |
+| Breakdown 4 incidents / 11 p-d, 9 bugs / 8 p-d, 6 tickets / 5 – 15 p-d | measured = §7.1 |
+| PAY-41 bulletin: before **3.4** → after **0.6** p-d per week | measured; §7.5 example reads 2.6 → 0.7 |
+| 180 days without evidence for dead debt | §7.3 (rule, not a measurement) |
 
 The delta on screen at 2:30 (how far the low bound moves after the
 confirmation) comes from the injected sample. Read it from the UI before

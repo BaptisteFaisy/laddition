@@ -3,6 +3,10 @@ name: couche0
 # Couche 0 : les règles dures du dépôt, vérifiées avant toute revue.
 #   - moins de 500 lignes par fichier de code, moins de 50 lignes par fonction
 #   - manifest.yml valide contre le schéma Forge officiel
+#   - manifest ↔ code cohérent : handlers exportés, ressources présentes,
+#     écrans UI Kit 2 en render: native, actions exposées dans rovo:mcp (F81/F82)
+#   - chaque dossier de src/ porte des tests (exceptions motivées) et src/core
+#     n'importe aucun @forge/* (F83)
 #   - aucune duplication de fichier de test (deux fois le même contenu)
 # Budget CI 5 min (règle user 2026-10-24).
 
@@ -30,7 +34,7 @@ jobs:
     runs-on: [self-hosted, laddition-worker]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (actions/checkout@v4, épinglé par SHA — item F84)
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -42,7 +46,7 @@ jobs:
             echo "$HOME/node-current/bin" >> "$GITHUB_PATH"
             echo "found=1" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 (actions/setup-node@v4, épinglé par SHA — item F84)
         if: steps.localnode.outputs.found != '1'
         with:
           node-version: 22
@@ -72,3 +76,12 @@ jobs:
           fi
       - name: manifest.yml contre le schéma Forge
         run: node tools/validate_manifest.mjs manifest.yml
+      # Items F81/F82 : forge lint/build exigent un login Atlassian ; ces deux
+      # gardes tournent hors ligne et font rougir la CI dès qu'une régression
+      # casse le déploiement (handler sans export, ressource absente, écran
+      # sans render: native, action hors rovo:mcp, dossier de src/ sans test,
+      # import @forge/* dans le domaine pur).
+      - name: "Cohérence manifest ↔ exports/ressources/render native/MCP (F81, F82)"
+        run: node tools/check_manifest_exports.mjs manifest.yml src/index.tsx
+      - name: Structure — tests par dossier et pureté de src/core (F83)
+        run: python3 tools/check_structure.py

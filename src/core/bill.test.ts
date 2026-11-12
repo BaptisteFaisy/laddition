@@ -272,3 +272,131 @@ test('un ticket de dette sans preuve rend une addition vide et sans retour', () 
   assert.equal(bill.hiddenCount, 0);
   assert.deepEqual(bill.byFamily.C1, { lowJp: 0, highJp: 0, evidenceCount: 0, insufficient: false });
 });
+
+test('A7 — estimation en points convertie par la vélocité quand estimateJp manque', () => {
+  const ctx: CostContext = { ...CTX, velocityPointsPerWeek: 10 };
+  const bill = buildBill(debtFact({ estimateJp: null, storyPoints: 20 }), [], [], ctx);
+
+  // 20 points ÷ 10 points par semaine × 5 jours par semaine = 10 jours.
+  assert.equal(bill.repaymentJp, 10);
+});
+
+test('A7 — l’estimation en jours-personne prime sur les points', () => {
+  const ctx: CostContext = { ...CTX, velocityPointsPerWeek: 10 };
+  const bill = buildBill(debtFact({ estimateJp: 3, storyPoints: 20 }), [], [], ctx);
+
+  assert.equal(bill.repaymentJp, 3);
+});
+
+test('A7 — sans vélocité mesurable, le remboursement reste non chiffré, jamais 0', () => {
+  const bill = buildBill(debtFact({ estimateJp: null, storyPoints: 20 }), [], [], CTX);
+
+  assert.equal(bill.repaymentJp, null);
+  assert.equal(bill.roiLow, null);
+  assert.equal(bill.roiHigh, null);
+  assert.equal(bill.paybackDays, null);
+});
+
+test('A7 — points absents, nuls ou illisibles : non chiffré', () => {
+  const ctx: CostContext = { ...CTX, velocityPointsPerWeek: 10 };
+
+  assert.equal(buildBill(debtFact({ estimateJp: null }), [], [], ctx).repaymentJp, null);
+  assert.equal(buildBill(debtFact({ estimateJp: null, storyPoints: 0 }), [], [], ctx).repaymentJp, null);
+  assert.equal(buildBill(debtFact({ estimateJp: null, storyPoints: null }), [], [], ctx).repaymentJp, null);
+  assert.equal(buildBill(debtFact({ estimateJp: null, storyPoints: Number.NaN }), [], [], ctx).repaymentJp, null);
+});
+
+test('A7 — le retour découle des points convertis', () => {
+  const ctx: CostContext = { ...CTX, velocityPointsPerWeek: 10 };
+  const bill = buildBill(
+    debtFact({ estimateJp: null, storyPoints: 20 }),
+    [evidence({ id: 'E1', costJp: 10 })],
+    [attribution('E1', 1, 'link')],
+    ctx,
+  );
+
+  assert.equal(bill.repaymentJp, 10);
+  assert.equal(bill.avoidableJp, 14);
+  assert.equal(bill.roiLow, 1.4);
+});
+
+test('A12 — la somme des parts d’une preuve est plafonnée à 100 %', () => {
+  const bill = buildBill(
+    debtFact(),
+    [evidence({ id: 'E1', costJp: 10 })],
+    [attribution('E1', 0.6, 'confirmed'), attribution('E1', 0.6, 'inferred')],
+    CTX,
+  );
+
+  assert.equal(bill.highJp, 10); // jamais 12 : une preuve est répartie à 100 % au plus
+  assert.equal(bill.lowJp, 5); // 0,6 / 1,2 × 10, les proportions sont conservées
+  assert.equal(bill.byFamily.C1.highJp, 10);
+});
+
+test('A12 — le plafond tient compte des parts données aux autres dettes', () => {
+  const bill = buildBill(
+    debtFact(),
+    [evidence({ id: 'E1', costJp: 10 })],
+    [
+      attribution('E1', 0.5, 'link'),
+      attribution('E1', 0.5, 'link', 'AUTRE'),
+      attribution('E1', 0.5, 'link', 'ENCORE'),
+    ],
+    CTX,
+  );
+
+  assert.equal(bill.lowJp, 3.33); // 0,5 / 1,5 × 10
+  assert.ok(bill.lowJp <= 10);
+});
+
+test('A12 — des parts sous 100 % ne sont pas gonflées', () => {
+  const bill = buildBill(
+    debtFact(),
+    [evidence({ id: 'E1', costJp: 10 })],
+    [attribution('E1', 0.4, 'link')],
+    CTX,
+  );
+
+  assert.equal(bill.lowJp, 4);
+  assert.equal(bill.highJp, 4);
+});
+
+test('§19 cas 2 — dette sans zone : addition vide et motif « no-zone »', () => {
+  const bill = buildBill(
+    debtFact({ zones: [], components: [], affectedServices: [], labels: [] }),
+    [evidence({ id: 'E1', costJp: 10 })],
+    [attribution('E1', 1, 'link')],
+    CTX,
+  );
+
+  assert.equal(bill.blockedReason, 'no-zone');
+  assert.equal(bill.lowJp, 0);
+  assert.equal(bill.highJp, 0);
+  assert.deepEqual(bill.evidenceIds, []);
+  assert.equal(bill.hiddenCount, 0);
+  assert.equal(bill.avoidableJp, null);
+  assert.equal(bill.roiLow, null);
+  assert.equal(bill.paybackDays, null);
+  assert.deepEqual(bill.byFamily.C1, { lowJp: 0, highJp: 0, evidenceCount: 0, insufficient: false });
+  // L'estimation du ticket reste lisible : c'est l'addition qui manque, pas la dette.
+  assert.equal(bill.repaymentJp, 20);
+});
+
+test('§19 cas 2 — une dette rattachée à une zone n’est pas bloquée', () => {
+  const bill = buildBill(debtFact(), [evidence({ id: 'E1', costJp: 10 })], [attribution('E1', 1, 'link')], CTX);
+
+  assert.equal(bill.blockedReason, null);
+  assert.equal(bill.lowJp, 10);
+});
+
+test('§19 cas 2 — une dette « non classé » est traitée comme sans zone', () => {
+  const bill = buildBill(
+    debtFact({ zones: ['non classé'], components: [], affectedServices: [], labels: [] }),
+    [evidence({ id: 'E1', costJp: 10 })],
+    [attribution('E1', 1, 'link')],
+    CTX,
+  );
+
+  assert.equal(bill.blockedReason, 'no-zone');
+  assert.equal(bill.highJp, 0);
+});

@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { IssueFact } from './types';
+import { makeSettings } from './settings';
 import {
   POINTS_PER_CLOSED_ISSUE,
+  contextVelocity,
   hoursToJp,
   jpToEuros,
   pointsToDays,
@@ -110,4 +112,30 @@ test('vélocité : fenêtre ou calendrier invalide rend 0', () => {
   assert.equal(velocityFromClosedIssues(closedFacts(5), -30, 5), 0);
   assert.equal(velocityFromClosedIssues(closedFacts(5), 30, 0), 0);
   assert.equal(velocityFromClosedIssues([], 90, 5), 0);
+});
+
+test('DT-15 — la vélocité du contexte est null quand rien n’est mesurable', () => {
+  assert.equal(contextVelocity([], makeSettings('p-1', 'ABC')), null);
+  assert.equal(
+    contextVelocity([makeFact({ resolvedAt: null, closedAt: null })], makeSettings('p-1', 'ABC')),
+    null,
+  );
+});
+
+test('DT-15 — la vélocité du contexte se mesure sur la fenêtre du projet', () => {
+  // 70 tickets fermés sur 90 jours ≈ 5,44 points par semaine.
+  const settings = makeSettings('p-1', 'ABC');
+  assert.equal(contextVelocity(closedFacts(70), settings), 5.44);
+  assert.equal(
+    contextVelocity(closedFacts(70), settings),
+    velocityFromClosedIssues(closedFacts(70), settings.windowDays, settings.daysPerWeek),
+  );
+});
+
+test('A7 — les points convertis au rythme du contexte donnent des jours', () => {
+  const settings = makeSettings('p-1', 'ABC');
+  const velocity = contextVelocity(closedFacts(70), settings) as number;
+
+  // 20 points ÷ 5,44 points/semaine × 5 jours = 18,38 jours.
+  assert.equal(pointsToDays(20, velocity, settings.daysPerWeek), 18.38);
 });

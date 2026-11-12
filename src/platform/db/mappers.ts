@@ -72,6 +72,8 @@ export interface IssueFactRow {
   affected_services: unknown;
   has_post_mortem: unknown;
   participants: unknown;
+  story_points: unknown;
+  history_truncated: unknown;
   visible: unknown;
   summary: unknown;
   description: unknown;
@@ -129,6 +131,7 @@ export interface DebtBillRow {
   roi_low: unknown;
   roi_high: unknown;
   payback_days: unknown;
+  blocked_reason: unknown;
 }
 
 export interface ZoneWeekRow {
@@ -182,6 +185,7 @@ export interface SettingsRow {
   jsm_project_keys: unknown;
   team_by_zone: unknown;
   day_rate_eur: unknown;
+  story_point_field: unknown;
   demo_data: unknown;
 }
 
@@ -193,6 +197,8 @@ export interface BootstrapProgressRow {
   started_at: unknown;
   updated_at: unknown;
   finished: unknown;
+  error: unknown;
+  attempts: unknown;
 }
 
 /* --------------------------------------------------------------- projection */
@@ -220,6 +226,8 @@ export function toIssueFact(row: IssueFactRow): IssueFact {
     affectedServices: toStringArray(row.affected_services),
     hasPostMortem: toBool(row.has_post_mortem),
     participants: toNumber(row.participants),
+    storyPoints: toNumberOrNull(row.story_points),
+    historyTruncated: toBool(row.history_truncated),
     visible: toBool(row.visible, true),
     summary: toText(row.summary),
   };
@@ -294,7 +302,13 @@ export function toDebtBill(row: DebtBillRow): DebtBill {
     roiLow: toNumberOrNull(row.roi_low),
     roiHigh: toNumberOrNull(row.roi_high),
     paybackDays: toNumberOrNull(row.payback_days),
+    blockedReason: toBlockedReason(row.blocked_reason),
   };
+}
+
+/** Motif d'absence d'addition : seul « no-zone » est connu (§19 cas 2). */
+function toBlockedReason(value: unknown): 'no-zone' | null {
+  return toTextOrNull(value) === 'no-zone' ? 'no-zone' : null;
 }
 
 /** Ligne `baseline` → référence de la famille C3. */
@@ -334,6 +348,8 @@ export function toBootstrapProgress(row: BootstrapProgressRow): BootstrapProgres
     startedAt: toIso(row.started_at) ?? '',
     updatedAt: toIso(row.updated_at) ?? '',
     finished: toBool(row.finished),
+    error: toTextOrNull(row.error),
+    attempts: toNumber(row.attempts),
   };
 }
 
@@ -363,6 +379,7 @@ export function toProjectSettings(row: SettingsRow): ProjectSettings {
     jsmProjectKeys: toStringArray(row.jsm_project_keys),
     teamByZone: toStringRecord(row.team_by_zone),
     dayRateEur: toNumberOrNull(row.day_rate_eur) ?? undefined,
+    storyPointField: toTextOrNull(row.story_point_field) ?? undefined,
     demoData: toBool(row.demo_data),
   });
 }

@@ -3,11 +3,28 @@
 > Échéance : **mardi 22 décembre 2026, 21 h (Paris)**. Catégorie : Apps for Software Teams.
 > Bonus visés : Teamwork Graph, Agents Rovo, MCP, Marketplace.
 
+> **Dépôt public — aucune valeur sensible ici (item G96).** L'identifiant d'app,
+> le site de démonstration, les identifiants d'installation et l'id du champ
+> personnalisé sont remplacés par des placeholders : `<APP_ID>`, `<DEMO_SITE>`,
+> `<INSTALLATION_ID_DEV>`, `<INSTALLATION_ID_PROD>`, `<CUSTOM_FIELD_ID>`,
+> `<OPS_WEBTRIGGER_URL>`. Où les retrouver :
+> - `<APP_ID>` et la console : <https://developer.atlassian.com/console/myapps>
+>   (l'app « L'addition » ; l'id figure aussi en tête de `manifest.yml`, qui
+>   n'est pas publié dans ce dépôt avec sa valeur réelle — le vérifier avant
+>   chaque export) ;
+> - `<DEMO_SITE>` : `forge site list` sur le compte développeur ;
+> - `<INSTALLATION_ID_DEV>` / `<INSTALLATION_ID_PROD>` :
+>   `forge install --site <DEMO_SITE> --product jira -e development|production`
+>   puis console de l'app, onglet *Installations* ;
+> - `<CUSTOM_FIELD_ID>` : n'importe quel ticket du site → champ
+>   « Coût de la dette (j-p / 90 j) » → *Where is my field?* / API REST ;
+> - `<OPS_WEBTRIGGER_URL>` : `forge webtrigger create <DEMO_SITE> laddition-ops`.
+
 ## Ce qui est prêt
 
 - [x] Arbre complet de l'app Forge (domaine pur, adaptateurs, jobs, écrans, agent Rovo, outils MCP).
 - [x] `manifest.yml` valide contre le schéma Forge officiel (`node tools/validate_manifest.mjs`).
-- [x] Typage strict sans erreur (`npx tsc --noEmit`), 202 assertions au vert (`npm test`).
+- [x] Typage strict sans erreur (`npx tsc --noEmit`), **206 tests** au vert (`npm test`).
 - [x] Jeu d'exemple cohérent avec le §7.1 du cahier des charges (bouton « Load sample data »).
 - [x] Documentation : `README.md`, `docs/JUGES.md` (parcours de test en 5 min),
       `docs/METHODE.md` (formules), `docs/VIDEO.md` (script de la vidéo),
@@ -15,26 +32,30 @@
 - [x] SOCLE CI : workers self-hosted, file Mergify, budget CI 5 min, couche 0,
       agent hermes de résolution de conflits.
 
-## Ce qui reste à faire avant le 22 décembre
+## Enregistrement et déploiement — fait
 
-- [x] `forge register` sur le compte Atlassian : app id `15da522f-986f-4b46-8844-d4b8c2bcaf8e` posé dans `manifest.yml`.
+- [x] `forge register` sur le compte Atlassian : app id `<APP_ID>` posé dans `manifest.yml`.
 - [x] `forge lint` propre (No issues found) et `forge build` OK (tag `b88e1c7b`).
 - [x] `forge deploy -e development` : déployé.
-- [x] `forge site provision` : site de démo `https://one-atlas-cndz.atlassian.net` (actif jusqu'au 09/02/2027).
+- [x] `forge site provision` : site de démo `https://<DEMO_SITE>` (actif jusqu'au 09/02/2027).
 - [x] `forge install --demo-site --product jira -e development` : installé et à jour sur Jira.
 - [x] `forge eligibility` : confirmé éligible au programme **Runs on Atlassian**.
 - [x] Tickets de test réels créés dans le projet PAY du site : `PAY-17` (dette « Supprimer le double système de calcul des taxes ») et `PAY-18` (bug « Montant de TVA incohérent »).
+- [x] **Déployé et installé en `production`** sur `<DEMO_SITE>`
+      (installation `<INSTALLATION_ID_PROD>`, à jour), en plus de l'environnement
+      `development` (`<INSTALLATION_ID_DEV>`). Console :
+      `https://developer.atlassian.com/console/myapps/<APP_ID>`.
 
-## Ce qui reste à faire avant le 22 décembre
+## Les six validations du §17 — mesurées le 11/11 sur le runtime
 
-- [x] **Les six validations du §17 mesurées sur le site réel** (sondes exécutables
+- [x] **Les six validations mesurées sur le site réel** (sondes exécutables
       `?action=probe`, code dans `src/jobs/opsValidate.ts`, détail dans
       `docs/VALIDATIONS.md`) :
 
       | # | Point | Verdict mesuré le 11/11 |
       |---|---|---|
       | V1 | Débit de lecture des historiques | 200-250 ms/ticket, 0 échec → 17-21 min projetées pour 5 000 tickets : **au-dessus du budget de 15 min**, repli appliqué (fenêtre 90 j, lots de 50 dans la file) |
-      | V2 | Écriture en masse du champ d'app | **validé** : `customfield_10867`, 10 écritures sur 10, triable et filtrable en JQL — aucun repli |
+      | V2 | Écriture en masse du champ d'app | **validé** : `<CUSTOM_FIELD_ID>`, 10 écritures sur 10, triable et filtrable en JQL — aucun repli |
       | V3 | Données du site de démo | **confirmé pauvre** : 26 projets, PLAT 31 161 tickets dont 0 sur 180 jours, ITO 9 640 dont 7 498 incidents et 0 sur 180 jours → le jeu d'exemple est le chemin de démonstration |
       | V4 | Services affectés des incidents | graphe muet (0 sur 5) → **repli** : composant Jira de l'incident |
       | V5 | Dates des PR dans le graphe | graphe muet → **repli** : temps passé en statut de revue |
@@ -54,11 +75,6 @@
       n° 9 (`get-debt-bill` et le panneau rendent les mêmes chiffres,
       `identical: true`).
 - [x] Les huit outils MCP du §13 exercés un par un sur le runtime, tous verts.
-
-- [x] **Déployé et installé en `production`** sur `one-atlas-cndz.atlassian.net`
-      (installation `a27c13d4`, à jour), en plus de l'environnement `development`
-      (`f03fa159`). Console :
-      <https://developer.atlassian.com/console/myapps/15da522f-986f-4b46-8844-d4b8c2bcaf8e>
 - [x] **Recette §20 n° 1 vérifiée sur de vraies données Jira** (pas le jeu
       d'exemple) : projet ENGS, dette `ENGS-31` (étiquette `tech-debt`, composant
       *Billing Services*), bug `ENGS-32` sur le même composant avec **14 h de
@@ -69,8 +85,8 @@
 - [x] Textes de soumission écrits : `docs/MARKETPLACE.md` (formulaire Marketplace,
       scopes justifiés un par un, 12 captures à produire) et `docs/DEVPOST.md`
       (champs du formulaire Devpost).
-- [x] **Environnement `production` vérifié de bout en bout** ( smoke test sur
-      `one-atlas-cndz.atlassian.net`, projet ENGS) :
+- [x] **Environnement `production` vérifié de bout en bout** (smoke test sur
+      `<DEMO_SITE>`, projet ENGS) :
 
       | Étape | Résultat | Durée |
       |---|---|---|
@@ -98,6 +114,9 @@
 - [ ] Déposer sur Devpost (texte prêt dans `docs/DEVPOST.md`) et sur le
       Marketplace (texte prêt dans `docs/MARKETPLACE.md`) — les deux dépôts se
       font depuis un navigateur, avec ton compte.
+- [ ] Avant le dépôt Marketplace : retirer les deux modules `webtrigger` du
+      manifeste (ou laisser le jeton `LADDITION_OPS_TOKEN` obligatoire —
+      `src/jobs/opsAuth.ts`, échec fermé) ; voir `docs/JUGES.md`.
 
 ## Les trois chiffres à dire à l'oral
 

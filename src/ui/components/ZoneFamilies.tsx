@@ -1,13 +1,15 @@
 import { Fragment, Text } from '../kit';
-import type { Family, ProjectSettings, ZoneCost } from '../../core/types';
-import { BILLED_FAMILIES } from '../../core/types';
+import type { ProjectSettings, ZoneCost } from '../../core/types';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
-import { familyLabel, formatJp, pair } from '../format';
+import { FamilyCostLines } from './FamilyCostLines';
+import { FormulaList } from './FormulaList';
 
 /**
- * La ventilation d'une zone, telle qu'elle sort du calcul : une ligne par
- * famille, chacune avec sa formule. C'est la « méthode » d'un chiffre de zone.
+ * La ventilation d'une zone : une ligne par famille, puis les formules.
+ *
+ * Une famille non chiffrable affiche « données insuffisantes » au lieu d'un
+ * zéro (item D56), et chaque famille donne sa formule (item D55).
  */
 export function ZoneFamilies({
   locale,
@@ -20,16 +22,10 @@ export function ZoneFamilies({
 }): JSX.Element {
   return (
     <Fragment>
-      {BILLED_FAMILIES.map((family) => (
-        <Text key={family}>{pair(locale, familyLabel(locale, family), formatJp(locale, familyOf(zone, family)))}</Text>
-      ))}
-      <Text>{pair(locale, familyLabel(locale, 'C5'), formatJp(locale, zone.byFamily.C5))}</Text>
+      <FamilyCostLines locale={locale} byFamily={zone.byFamily} insufficientByFamily={zone.insufficientByFamily} />
       <Text>{t(locale, 'family.note.C5')}</Text>
       <Text>{t(locale, 'family.note.C3', { count: settings.minBaselineSample })}</Text>
+      <FormulaList locale={locale} />
     </Fragment>
   );
-}
-
-function familyOf(zone: ZoneCost, family: Family): number {
-  return zone.byFamily[family];
 }

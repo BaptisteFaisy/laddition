@@ -1,35 +1,43 @@
-import { Queue, QueueResponse } from '@forge/events';
+import { QueueResponse } from '@forge/events';
 import { route } from '@forge/api';
 import type { BootstrapProgress, ProjectSettings } from '../core/types';
-import {
-  bootstrapProgress as readProgress,
-  updateBootstrapProgress,
-} from '../platform/db/index';
+import { bootstrapProgress as readProgress, updateBootstrapProgress } from '../platform/db/index';
 import type { JiraIssueJson } from '../platform/jira';
 import { jiraSendJson, searchIssues } from '../platform/jira';
-import { storeIssue } from './issueSync';
+import type { BatchState, BatchTotals } from './bootstrapState';
+import { readBatch, resetBatches, sumBatches, writeBatch } from './bootstrapState';
+import { storeIssue, storeIssues } from './issueSync';
 import { requireSettings } from './projects';
+import type { ProjectRecalc } from './recalc';
+import { isRecalcPayload, pushQueueMessage, runRecalcMessage } from './recalcQueue';
 import { ensureReady } from './schema';
 import { eventBody, messageOf, nowIso, requireString } from './support';
 
 /**
- * `consumer` (§15) : l'initialisation de l'historique, par lots de 50.
+ * `consumer` (§15) : les travaux lourds, un message à la fois.
  *
- * Chaque lot est un message de file : il traite une page Jira, enregistre les
- * faits et les durées, met à jour la barre de progression, puis repousse le lot
- * suivant. Rejouer un lot ne duplique rien (`upsert` sur `issue_fact`,
- * remplacement des séjours), et une erreur rejoue le lot au lieu de le perdre
- * (§24 « reprise sur erreur »).
+ * Deux sortes de messages, aiguillées sur le champ `kind` :
+ * - `recalc` : le recalcul d'**un** projet (C34), sous garde de durée ;
+ * - le reste : un lot d'initialisation de 50 tickets (DT-12).
+ *
+ * Un lot est **rejiable sans double compte** (B25) : son état vit dans
+ * `bootstrap_batch`, et la progression du projet est la somme de ses lots, pas
+ * une accumulation. Les échecs par ticket sont comptés et leur motif remonte
+ * dans `BootstrapProgress.error` (B26), et les rejeux sont bornés : ni boucle
+ * infinie, ni chaîne de messages qui se démultiplie.
  */
-
-/** Nom de la file du module `consumer` (doit correspondre au manifeste). */
-export const BOOTSTRAP_QUEUE = 'laddition-bootstrap';
 
 /** Taille d'un lot : 50 tickets, historique compris. */
 export const BATCH_SIZE = 50;
 
 /** Profondeur d'historique initialisée à l'installation (DT-12). */
 export const BOOTSTRAP_DAYS = 180;
+
+/** Rejeux d'un même lot avant abandon (§24 : reprise sur erreur, pas acharnement). */
+export const MAX_BATCH_ATTEMPTS = 3;
+
+/** Lots maximum par initialisation : borne la chaîne de messages (B26). */
+export const MAX_BOOTSTRAP_BATCHES = 400;
 
 /** Corps d'un message de file d'initialisation. */
 export interface BootstrapPayload {
@@ -46,6 +54,51 @@ export interface BatchResult {
   failed: number;
   finished: boolean;
   error?: string;
+}
+
+/** Ce que le consommateur rend au runtime Forge. */
+export type QueueMessageResult = BatchResult | ProjectRecalc | QueueResponse;
+
+/** Décision prise pour un lot, d'après son état et la page lue. */
+export interface BatchPlan {
+  /** Le lot doit être relu et enregistré (faux s'il l'a déjà été). */
+  ingest: boolean;
+  /** Le lot suivant doit être mis en file (faux s'il l'a déjà été). */
+  push: boolean;
+  /** Nombre de tentatives de ce lot, rejeu compris. */
+  attempts: number;
+  /** Motif d'un abandon ; absent si le lot continue. */
+  stop?: string;
+}
+
+/** Ce qu'il faut savoir de la page pour décider. */
+export interface BatchPlanOptions {
+  finished: boolean;
+  hasNext: boolean;
+  maxAttempts: number;
+  /** Lots déjà enregistrés pour ce projet, celui-ci compris. */
+  batches: number;
+  maxBatches: number;
+}
+
+/**
+ * Décide ce qu'un lot doit faire. Fonction pure : c'est elle qui garantit
+ * l'idempotence (un lot déjà joué n'est ni ré-enregistré ni re-poussé) et la
+ * borne des rejeux.
+ */
+export function planBatch(state: BatchState | null, options: BatchPlanOptions): BatchPlan {
+  const attempts = (state?.attempts ?? 0) + 1;
+  if (attempts > options.maxAttempts) {
+    return {
+      ingest: false,
+      push: false,
+      attempts,
+      stop: `lot abandonné après ${options.maxAttempts} tentatives`,
+    };
+  }
+  const chainHasRoom = options.batches < options.maxBatches;
+  const push = !options.finished && options.hasNext && !(state?.pushed ?? false) && chainHasRoom;
+  return { ingest: !(state?.ingested ?? false), push, attempts };
 }
 
 /** JQL de l'initialisation : le projet, sur la fenêtre d'historique, du plus ancien au plus récent. */
@@ -70,13 +123,15 @@ export const BOOTSTRAP_FIELDS: readonly string[] = [
 ];
 
 /**
- * Traite un lot : une page de 50 tickets, puis le lot suivant.
- * Rend un bilan ; en cas d'erreur passagère, demande le rejeu du message.
+ * Traite un message de la file : un recalcul de projet, ou un lot
+ * d'initialisation. En cas d'erreur passagère, demande le rejeu du message.
  */
-export async function bootstrapBatch(event: unknown): Promise<BatchResult | QueueResponse> {
+export async function bootstrapBatch(event: unknown): Promise<QueueMessageResult> {
+  const body = eventBody(event);
+  if (isRecalcPayload(body)) return recalcMessage(body);
   let payload: BootstrapPayload;
   try {
-    payload = payloadOfEvent(event);
+    payload = bootstrapPayloadOf(body);
   } catch (error) {
     return { ok: false, projectId: '', done: 0, failed: 0, finished: false, error: messageOf(error) };
   }
@@ -85,6 +140,16 @@ export async function bootstrapBatch(event: unknown): Promise<BatchResult | Queu
     return await runBatch(payload);
   } catch {
     // Jira ou SQL indisponible : Forge rejoue ce lot, rien n'est perdu.
+    return retryLater();
+  }
+}
+
+/** Un message de recalcul : un projet, sous garde de durée (C34). */
+async function recalcMessage(body: Record<string, unknown>): Promise<ProjectRecalc | QueueResponse> {
+  try {
+    await ensureReady();
+    return await runRecalcMessage(requireString(body, 'projectId'), nowIso());
+  } catch {
     return retryLater();
   }
 }
@@ -99,57 +164,164 @@ function retryLater(): QueueResponse {
 /** Une page : lecture, enregistrement, progression, lot suivant. */
 async function runBatch(payload: BootstrapPayload): Promise<BatchResult> {
   const settings = await requireSettings(payload.projectId);
+  const token = payload.nextPageToken ?? '';
+  const state = await readBatch(payload.projectId, token);
+  if (state?.ingested && (state.pushed || state.finished)) return replayOf(payload.projectId, state);
   const page = await searchIssues(bootstrapJql(settings), BOOTSTRAP_FIELDS, BATCH_SIZE, payload.nextPageToken);
   if (!page) throw new Error('page Jira illisible');
-  const counts = await ingest(page.issues, settings);
   const finished = page.nextPageToken === null;
-  await advance(payload.projectId, counts, finished);
-  if (!finished && page.nextPageToken) await enqueueNext(payload.projectId, page.nextPageToken);
-  return { ok: true, projectId: payload.projectId, ...counts, finished };
+  const totals = await sumBatches(payload.projectId);
+  const plan = planBatch(state, {
+    finished,
+    hasNext: !finished,
+    maxAttempts: MAX_BATCH_ATTEMPTS,
+    batches: totals.batches + (state ? 0 : 1),
+    maxBatches: MAX_BOOTSTRAP_BATCHES,
+  });
+  const counts = plan.ingest ? await ingest(page.issues, settings) : countsOf(state);
+  const error = plan.stop ?? counts.error;
+  const next = stateOf(payload, token, state, plan, counts, error, finished);
+  await writeBatch(next);
+  await advance(payload.projectId, await sumBatches(payload.projectId), finished && !plan.stop, next);
+  if (plan.push && page.nextPageToken) await enqueueNext(payload.projectId, page.nextPageToken);
+  return {
+    ok: !error,
+    projectId: payload.projectId,
+    done: counts.done,
+    failed: counts.failed,
+    finished,
+    ...(error ? { error } : {}),
+  };
 }
 
-/** Enregistre chaque ticket du lot ; un ticket en échec n'arrête pas le lot. */
-async function ingest(
-  issues: JiraIssueJson[],
+/** Un message déjà joué : rien à relire chez Jira, la progression est resservie. */
+async function replayOf(projectId: string, state: BatchState): Promise<BatchResult> {
+  await advance(projectId, await sumBatches(projectId), state.finished, state);
+  return {
+    ok: state.error === null,
+    projectId,
+    done: state.done,
+    failed: state.failed,
+    finished: state.finished,
+    ...(state.error ? { error: state.error } : {}),
+  };
+}
+
+/** Compte rendu d'un lot déjà enregistré, relu tel quel. */
+function countsOf(state: BatchState | null): IngestCounts {
+  return { done: state?.done ?? 0, failed: state?.failed ?? 0, error: state?.error ?? null };
+}
+
+/** État du lot après ce passage : les marques acquises ne redescendent jamais. */
+function stateOf(
+  payload: BootstrapPayload,
+  token: string,
+  previous: BatchState | null,
+  plan: BatchPlan,
+  counts: IngestCounts,
+  error: string | null | undefined,
+  finished: boolean,
+): BatchState {
+  return {
+    projectId: payload.projectId,
+    pageToken: token,
+    done: counts.done,
+    failed: counts.failed,
+    attempts: plan.attempts,
+    ingested: plan.ingest || (previous?.ingested ?? false),
+    pushed: plan.push || (previous?.pushed ?? false),
+    finished,
+    error: error ?? null,
+    updatedAt: nowIso(),
+  };
+}
+
+/** Bilan de l'enregistrement d'un lot : les échecs portent leur motif (B26). */
+export interface IngestCounts {
+  done: number;
+  failed: number;
+  error: string | null;
+}
+
+/**
+ * Enregistre chaque ticket du lot.
+ *
+ * Le lot est d'abord enregistré d'un coup (liens et règle JQL lus une seule
+ * fois, C28) ; si l'ensemble échoue, on retombe sur un enregistrement ticket
+ * par ticket pour isoler le fautif : un ticket illisible n'arrête pas le lot,
+ * et son motif est retenu — plus de rejeu muet (B26).
+ */
+export async function ingest(
+  issues: readonly JiraIssueJson[],
   settings: ProjectSettings,
-): Promise<{ done: number; failed: number }> {
+): Promise<IngestCounts> {
+  try {
+    const result = await storeIssues([...issues], settings);
+    return { done: result.facts.length, failed: issues.length - result.facts.length, error: null };
+  } catch {
+    return ingestOneByOne(issues, settings);
+  }
+}
+
+/** Repli : un ticket à la fois, pour compter et nommer les échecs. */
+async function ingestOneByOne(
+  issues: readonly JiraIssueJson[],
+  settings: ProjectSettings,
+): Promise<IngestCounts> {
   let done = 0;
   let failed = 0;
+  let error: string | null = null;
   for (const issue of issues) {
     try {
       await storeIssue(issue, settings);
       done += 1;
-    } catch {
+    } catch (issueError) {
       failed += 1;
+      error ??= messageOf(issueError);
     }
   }
-  return { done, failed };
+  return { done, failed, error };
 }
 
-/** Met à jour la barre de progression (DT-12) ; le total se fige au dernier lot. */
-async function advance(
+/**
+ * Barre de progression (DT-12) : les totaux viennent de la **somme des lots**,
+ * jamais d'une accumulation — rejouer un lot ne change pas le total (B25).
+ */
+export function progressFrom(
   projectId: string,
-  counts: { done: number; failed: number },
+  totals: BatchTotals,
+  previous: BootstrapProgress | null,
   finished: boolean,
-): Promise<void> {
-  const previous = await readProgress(projectId);
-  const at = nowIso();
-  const progress: BootstrapProgress = {
+  at: string,
+): BootstrapProgress {
+  return {
     projectId,
-    total: finished ? previous?.total ?? counts.done : Math.max(previous?.total ?? 0, counts.done),
-    done: (previous?.done ?? 0) + counts.done,
-    failed: (previous?.failed ?? 0) + counts.failed,
+    total: finished ? previous?.total ?? totals.done : Math.max(previous?.total ?? 0, totals.done),
+    done: totals.done,
+    failed: totals.failed,
     startedAt: previous?.startedAt ?? at,
     updatedAt: at,
     finished,
+    error: totals.error,
+    attempts: totals.attempts,
   };
+}
+
+/** Écrit la barre de progression du projet. */
+async function advance(
+  projectId: string,
+  totals: BatchTotals,
+  finished: boolean,
+  batch: BatchState,
+): Promise<void> {
+  const previous = await readProgress(projectId);
+  const progress = progressFrom(projectId, totals, previous, finished, batch.updatedAt || nowIso());
   await updateBootstrapProgress(progress);
 }
 
 /** Repousse le lot suivant : l'initialisation avance d'elle-même. */
 async function enqueueNext(projectId: string, nextPageToken: string): Promise<void> {
-  const queue = new Queue<Record<string, unknown>>({ key: BOOTSTRAP_QUEUE });
-  await queue.push({ body: { projectId, nextPageToken } });
+  await pushQueueMessage({ projectId, nextPageToken });
 }
 
 /** Démarre l'initialisation d'un projet (bouton « Initialiser », DT-12). */
@@ -158,18 +330,11 @@ export async function startBootstrap(projectId: string): Promise<BootstrapProgre
   const settings = await requireSettings(projectId);
   const at = nowIso();
   const total = await countIssues(settings);
-  const progress: BootstrapProgress = {
-    projectId,
-    total,
-    done: 0,
-    failed: 0,
-    startedAt: at,
-    updatedAt: at,
-    finished: false,
-  };
-  await updateBootstrapProgress(progress);
+  await resetBatches(projectId);
+  const progress = progressFrom(projectId, { done: 0, failed: 0, batches: 0, error: null, attempts: 0 }, null, false, at);
+  await updateBootstrapProgress({ ...progress, total });
   await enqueueNext(projectId, '');
-  return progress;
+  return { ...progress, total };
 }
 
 /** Nombre de tickets à initialiser, pour le dénominateur de la barre. */
@@ -185,8 +350,7 @@ async function countIssues(settings: ProjectSettings): Promise<number> {
 }
 
 /** Payload du message ; un message sans projet est une erreur de configuration. */
-function payloadOfEvent(event: unknown): BootstrapPayload {
-  const body = eventBody(event);
+function bootstrapPayloadOf(body: Record<string, unknown>): BootstrapPayload {
   const nextPageToken = body['nextPageToken'];
   const payload: BootstrapPayload = { projectId: requireString(body, 'projectId') };
   if (typeof nextPageToken === 'string' && nextPageToken.length > 0) payload.nextPageToken = nextPageToken;

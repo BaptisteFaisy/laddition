@@ -76,9 +76,11 @@ standing warning that a before/after comparison is not proof of causality.
 ### Try it in five minutes
 
 Project → **L'addition** → **Load sample data**. It injects a fictitious 6-month
-project (3 debt tickets, 65 proofs, 1 repayment) into the app's own tables and
-keeps a "sample data" banner on screen. Every screen, the agent and the MCP tools
-work on it. See `docs/JUGES.md` for the full walkthrough.
+project into the app's own tables and keeps a "sample data" banner on screen.
+Measured composition of the injected dataset: **68 issue facts, 65 proofs,
+5 zones, 10 debt tickets (3 main debts and 7 dead debts), 1 repayment**. Every
+screen, the agent and the MCP tools work on it. See `docs/JUGES.md` for the full
+walkthrough.
 
 ## 3. How it works (one line per cost family)
 
@@ -94,37 +96,92 @@ Return: avoidable cost over two quarters = lower band × 2 × persistence factor
 (0.7); return = avoidable cost ÷ repayment; payback delay = repayment ÷ average
 weekly cost.
 
-## 4. Privacy and trust
+## 4. Privacy policy
 
-- **No per-person metric, anywhere.** The unit is the zone or the team. The code
-  path is guarded, and the acceptance test #10 of the spec checks it.
-- **No outbound network call.** Only Atlassian APIs are called.
-- **Storage**: Forge SQL, in the installation's own partition.
-- **Model**: Atlassian-hosted (Forge LLMs, Claude family). The model only scores
-  relevance between a proof and a debt ticket and drafts text; it never produces
-  a figure. Relevance scores are cached by text fingerprint and only recomputed
-  when a text changes.
-- **Rights**: proofs from projects the reader cannot open are counted, but shown
-  as "hidden items" — never displayed.
-- **Read-only field**: the app writes its custom field; nobody edits it by hand.
+*(Complete and self-contained — this is the text to paste into the Marketplace
+privacy-policy field.)*
+
+**What the app reads.** L'addition reads, through Atlassian APIs only and only
+on the site where it is installed: issues and their status history (changelogs),
+issue links, components, labels, issue types, logged time, and, on incidents,
+the "affected services" field. It reads user display names solely to count the
+distinct participants of an incident (cost family C1). When a screen opens, it
+may read Teamwork Graph relationships (Compass components, owning teams) on
+behalf of the viewing user.
+
+**What the app stores.** Everything is stored in Forge SQL, inside the
+installation's own storage partition on the Atlassian platform: computed costs
+and bills per debt ticket, evidence items and attribution shares, human
+decisions (confirmations and rejections of matches), cached relevance scores
+(keyed by a fingerprint of the two texts), project settings, and repayment
+bulletins. Nothing is stored outside the Atlassian platform.
+
+**Retention.** Data is kept for as long as the app remains installed on the
+site; uninstalling the app removes its storage, and deletion is then handled by
+the Forge platform under Atlassian's data-retention policy. The injected sample
+dataset can be removed at any time from the project settings ("Remove sample
+data"), which deletes those rows from the app's tables.
+
+**No outbound network call.** The app calls only Atlassian APIs (Jira REST,
+Teamwork Graph, Forge SQL, Forge LLMs). It never contacts a third-party server.
+
+**Language model.** Text is processed only by Atlassian-hosted models (Forge
+LLMs, Claude family), under Atlassian's own data policies. The model only scores
+the relevance between a proof and a debt ticket and drafts text; it never
+produces a figure. Scores are cached by text fingerprint and recomputed only
+when a text changes.
+
+**No per-person metric, anywhere.** The unit of every report is the zone or the
+team. The code path is guarded, and acceptance test #10 of the specification
+checks it. Names appear only on tickets the reader can already open.
+
+**Access rights.** Proofs coming from projects the reader cannot open are
+counted in the totals but shown as "hidden items" — never displayed.
+
+**Contact.** Questions about privacy, or a data-deletion request: open an issue
+on the public repository `github.com/BaptisteFaisy/laddition`, or contact the
+publisher through the Marketplace listing. Uninstalling the app deletes its
+storage as described above.
 
 ## 5. Permissions, justified
 
 | Scope | Why |
 |---|---|
 | `read:jira-work` | Read issues, changelogs, links, comments and components to reconstruct durations and proofs |
-| `write:jira-work` | Write the read-only "Debt cost" field on debt tickets (DT-11) and post the repayment bulletin as a comment |
+| `write:jira-work` | Write the read-only computed field "Debt cost (p-d / 90 d)" on debt tickets after each recalculation (DT-11) — this is what the shipped code does today. Posting the repayment bulletin as a comment on the closed debt ticket is **still being implemented**; if it has not shipped by submission, the scope remains justified by the field write alone, and nothing else uses it |
 | `read:jira-user` | Count distinct participants on an incident (C1). Never used to rank or display a person |
 | `storage:app` | Reserved; the app stores in Forge SQL |
 | `read:graph:component:compass` | Zone mode "Compass component" (§8, priority 2) |
 | `read:graph:team:atlassian` | Team that owns a component, for cost per team (§8) |
 | `read:graph:issue:jira` | Incidents and affected services, PRs seen in the graph (§8, §15) |
 
-All graph reads happen **on behalf of the user**, when a screen opens, and are
-cached. The nightly computation does without them and uses the Jira REST API.
+**Rule (G92): a scope that the shipped code does not use is removed before
+submission.** The table above is re-checked against the code at freeze time
+(15 December, spec §23), and any scope left unused is dropped from
+`manifest.yml` rather than justified after the fact.
+
+**Actual state of the Teamwork Graph scopes (G93).** The three `read:graph:*`
+scopes are consumed today **only by the diagnostic probe** (`?action=probe`,
+`src/platform/graph.ts`, exercised on 11 November and recorded in
+`docs/VALIDATIONS.md`): on the demo site the graph returned nothing for
+affected services, pull requests and Compass components, because the
+organisation-level scopes are not granted there. By design, graph reads happen
+**on behalf of the user**, when a screen opens, and are cached; the nightly
+computation does without them and uses the Jira REST API. The documented
+fallbacks are what actually ships today: Jira components for zones, review-status
+time for PR slowness, no Compass dependency. Before submission, either these
+scopes are demonstrated from a real screen on a site whose organisation admin
+granted them, or they are removed per the rule above.
 
 ## 6. Versioning and support
 
+- **Version to declare at submission time: 1.0.0** (G97). The repository
+  currently carries `0.1.0` in `package.json` — that is the development
+  version, not the released one. Procedure at freeze time: set
+  `"version": "1.0.0"` in `package.json`, run `forge deploy -e production`,
+  then tag the exact commit (`git tag -a v1.0.0 -m "Codegeist 2026 entry"` and
+  push the tag), and enter **1.0.0** in the Marketplace form. The tag is the
+  reference: whatever is re-deployed afterwards is a later version.
 - **1.0.0** — Codegeist 2026 entry: MVP (M) plus the V1 lot (rework, induced
   delay, return and payback delay, repayment bulletin, gadget, JQL function,
   one-page argument).
@@ -139,8 +196,10 @@ cached. The nightly computation does without them and uses the Jira REST API.
 
 - Primary category: **Project management**
 - Secondary: **Reporting & analytics**
-- Labels: `technical debt`, `engineering effectiveness`, `cost`, `prioritization`,
-  `Jira`, `Rovo`, `MCP`, `Teamwork Graph`, `Forge`, `Runs on Atlassian`
+- Labels: `technical debt`, `engineering effectiveness`, `cost`, `Jira`, `Rovo`,
+  `MCP`, `Teamwork Graph`, `Forge`, `Runs on Atlassian`. (`prioritization` was
+  removed on purpose — spec §24: the product measures a past cost and checks a
+  repayment, it does not score or rank the backlog.)
 
 ## 8. Screenshots to produce (with their caption)
 

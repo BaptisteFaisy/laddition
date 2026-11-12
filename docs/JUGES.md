@@ -10,10 +10,33 @@ real-data path at the end of this page.
 
 ---
 
-## Step 0 — Open the app (30 s)
+## Step 0 — Open the app (1 min)
 
-Install the app on a Jira site, open any project, and choose **L'addition** in
-the project navigation (`jira:projectPage`). Nothing else to configure.
+**Fastest path — the hosted demo site.** The app is deployed and installed, in
+both `development` and `production`, on the demo site `<DEMO_SITE>` (the URL and
+the credentials are handed to the judges privately — this repository is public,
+see the note below). Open the **PAY** project, choose **L'addition** in the
+project navigation (`jira:projectPage`). Nothing else to configure.
+
+**Install it on your own site, from source:**
+
+```bash
+git clone https://github.com/BaptisteFaisy/laddition && cd laddition
+npm install
+forge deploy -e production
+forge install --site <YOUR_SITE>.atlassian.net --product jira -e production
+```
+
+`forge deploy` needs the Forge CLI, an Atlassian developer account, and
+collaborator access to the registered app (`<APP_ID>` in `manifest.yml` —
+find it in the [developer console](https://developer.atlassian.com/console/myapps)).
+Without collaborator access, register your own copy with `forge create` and
+paste the new app id into `manifest.yml` before deploying.
+
+> **Public repository — placeholders.** `<DEMO_SITE>`, `<APP_ID>` and the
+> installation ids never appear in this repository. They live in the Atlassian
+> developer console (app "L'addition" → *Deployment* and *Installations* tabs)
+> and are communicated to the judges through the submission form.
 
 > Why sample data exists: the cost is read from the status history of issues,
 > and history cannot be backdated through the Jira API. A brand-new site would
@@ -25,9 +48,12 @@ the project navigation (`jira:projectPage`). Nothing else to configure.
 In the project page, open **Settings → Load sample data**, or use the button on
 the empty state of the **Ranking** tab.
 
-It injects a fictitious six-month project: **3 debt tickets, 60 evidence items,
-1 repayment** (§22). A **"Sample data"** banner stays visible on every screen
-until the sample is removed. Your Jira issues are not touched.
+It injects a fictitious six-month project. Measured composition of the dataset
+(`src/sample/dataset.ts`, injected and verified on the runtime): **68 issue
+facts, 65 evidence items, 5 zones, 10 debt tickets — 3 main debts (§7.1) and
+7 dead debts (§7.3) — and 1 repayment**. A **"Sample data"** banner stays
+visible on every screen until the sample is removed. Your Jira issues are not
+touched.
 
 ## Step 2 — What you should see (2 min)
 
@@ -50,7 +76,8 @@ Click PAY-77, then the **L'addition** panel on the issue. It shows:
 - **6 tickets twice as long as the reference → 5 – 15 p-d**, depending on how
   much is attributed to this debt
 - **Low bound 19 / high bound 34 p-d**, and the repayment estimate: **8 p-d**
-- **Return: 3 – 6× over two quarters**
+- **Return: 3.33 – 5.95× over two quarters** on the 8 p-d repayment (measured
+  on the runtime; the specification rounds it to "3 – 6×", §7.1)
 
 Every row expands to the source tickets, and each figure opens the formula that
 produced it, with the actual input values.
@@ -63,11 +90,10 @@ evidence — nothing is created in Jira until a human reviews and confirms it.
 
 ### d. Dead debt — tickets that no longer cost anything
 
-Tab **Dead debt**: debt tickets with **no evidence for 180 days**. In the
-reference scenario of §7.3 that is **7 tickets**. The count always follows the
-injected data — the screen shows what the data implies, never a hard-coded
-number. The sample project of §22 injects 3 debt tickets, so expect the list to
-be short; the same tab fills up as soon as a site has a real backlog.
+Tab **Dead debt**: debt tickets with **no evidence for 180 days**. The sample
+dataset injects 10 debt tickets — 3 main debts and **7 dead debts** (§7.3) — so
+the tab lists exactly those 7. The count always follows the injected data: the
+screen shows what the data implies, never a hard-coded number.
 
 ### e. A repayment report — did it work?
 
@@ -75,8 +101,10 @@ Tab **Repayments**: the report for a debt that was already closed, **PAY-41**.
 It compares the weekly cost of the zone over the 8 weeks before the work and the
 8 weeks after closure, and states its own limits: other changes happened in the
 zone, the sample is small, and this is a before-and-after comparison, **not a
-proof of causality**. The §7.5 reference figures are 2.6 → 0.7 p-d per week on
-the zone, with no incident since closure.
+proof of causality**. Measured on the runtime (11 November): the bulletin reads
+**3.4 → 0.6 p-d per week** on the zone. (The §7.5 example of the specification
+— 2.6 → 0.7 on a PAY-77 story — illustrates the same mechanics with different
+numbers; the app shows what the data implies, never the spec's example.)
 
 ### f. The Method tab
 
@@ -129,6 +157,42 @@ Point 9 in practice: the eight actions of §13 (`get-debt-ranking`,
 through `rovo:mcp`. Ask the same question twice — once in the UI, once through
 the tool — and compare the numbers; they are read from the same stored results,
 so they must be identical.
+
+## How to call the MCP tools without Rovo
+
+The eight tools of §13 (`get-debt-ranking`, `get-debt-bill`, `get-zone-costs`,
+`list-phantom-debt`, `list-dead-debt`, `get-repayment-report`,
+`draft-debt-ticket`, `confirm-evidence`) are exposed through `rovo:mcp`. You can
+exercise the **same code path** without Rovo, through the operations webtrigger
+(`laddition-ops`, handler `src/jobs/opsTrigger.ts`):
+
+```bash
+# One-off: get the URL bound to your installation
+forge webtrigger create <DEMO_SITE> laddition-ops     # → <OPS_WEBTRIGGER_URL>
+
+# The token is an app variable; the guard fails closed when it is unset
+forge variables:set LADDITION_OPS_TOKEN <OPS_TOKEN>   # on the app, per environment
+
+# Exercise all eight MCP tools in one call (same invokeAction() as rovo:mcp)
+curl -H "x-ops-token: <OPS_TOKEN>" \
+  "<OPS_WEBTRIGGER_URL>?project=PAY&action=mcp&key=PAY-77&zone=facturation"
+
+# Compare the issue panel figures with get-debt-bill (acceptance point #9)
+curl -H "x-ops-token: <OPS_TOKEN>" "<OPS_WEBTRIGGER_URL>?action=bill&key=PAY-77"
+```
+
+Available actions: `init`, `bootstrap`, `progress`, `recalc`, `recalc-all`,
+`repayments`, `sample`, `clear-sample`, `report`, `bill`, `mcp`, `probe` (the
+`probe` action runs the six §17 validations of `docs/VALIDATIONS.md`). An
+unknown or missing action returns the list above, never a 500. The token can be
+passed as the `x-ops-token` header or a `token` query parameter; the comparison
+is constant-time and a missing/empty variable disables the webtrigger entirely
+(`src/jobs/opsAuth.ts`).
+
+> **Before the Marketplace submission, the two `webtrigger` modules are removed
+> from the manifest** — the token guard is a development safety net, not a
+> permanent public surface. A second webtrigger (`laddition-smoke`) runs the
+> end-to-end smoke test (SQL, Jira REST, domain) and is removed with it.
 
 ## If a number looks wrong
 

@@ -1,7 +1,7 @@
 import type { ProjectSettings } from '../../core/types';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
-import { Fragment, RadioField, SelectField, TextField } from '../kit';
+import { Fragment, Heading, RadioField, SelectField, TextField } from '../kit';
 import { DEBT_RULE_KINDS, KIND_LABELS, ZONE_MODES, ZONE_MODE_LABELS } from '../settings-form-values';
 
 export type FieldChange = (key: string, value: string) => void;
@@ -18,6 +18,7 @@ export function SettingsRuleFields({
 }): JSX.Element {
   return (
     <Fragment>
+      <Heading size="small">{t(locale, 'settings.debtRule')}</Heading>
       <DebtRuleFields locale={locale} values={values} onChange={onChange} />
       <ZoneModeFields locale={locale} values={values} onChange={onChange} />
     </Fragment>

@@ -10,6 +10,12 @@ export function MethodFormulas({ locale, settings }: { locale: Locale; settings:
     <Fragment>
       <Heading size="small">{t(locale, 'method.formulas')}</Heading>
       <Text>
+        {t(locale, 'method.unit', {
+          long: t(locale, 'common.unit.jpLong'),
+          short: t(locale, 'common.unit.jp'),
+        })}
+      </Text>
+      <Text>
         {pair(
           locale,
           familyLabel(locale, 'C1'),

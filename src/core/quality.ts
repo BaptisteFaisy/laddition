@@ -5,18 +5,30 @@
  * zone, quelles familles ne sont pas chiffrables, quelle part du coût vient
  * d'un temps réellement saisi plutôt que d'une formule. Ces chiffres sont
  * affichés à côté des additions, jamais en note de bas de page.
+ *
+ * Deux règles de lecture :
+ * - les **parts** sont des pourcentages du coût (0-100), arrondis au centième ;
+ * - les **comptes** portent sur des tickets, pas sur des preuves : un ticket
+ *   sans historique produit une preuve par zone, il ne compte qu'une fois.
  */
 
-import type { DataQuality, Evidence, Family, IssueFact, ProjectSettings } from './types';
+import type { CostMethod, DataQuality, Evidence, Family, IssueFact, ProjectSettings } from './types';
 import { BILLED_FAMILIES } from './types';
 import { round2 } from './time';
 import { isUnclassified, zonesForIssue } from './zones';
 
+/** Part du coût portée par chaque méthode de calcul, en pourcentage. */
+export type MethodShares = Record<CostMethod, number>;
+
+/** Les trois méthodes du contrat, dans l'ordre d'affichage. */
+const METHODS: readonly CostMethod[] = ['logged', 'computed', 'approximated'];
+
 /**
  * Photographie de la qualité des données d'un projet.
  *
- * Les parts sont des pourcentages arrondis au centième (0-100), pas des
- * fractions : ils s'affichent tels quels dans l'onglet Méthode.
+ * `methodShares` répond au §19 cas 7 : une équipe qui saisit du temps sur
+ * certains tickets seulement voit la part de chaque méthode, pas seulement la
+ * part du temps saisi.
  */
 export function computeQuality(
   facts: IssueFact[],
@@ -26,13 +38,15 @@ export function computeQuality(
   const issuesWithoutZone = facts.filter((fact) =>
     isUnclassified(zonesForIssue(fact, settings)),
   ).length;
+  const shares = methodShares(evidence);
   return {
     issuesTotal: facts.length,
     issuesWithoutZone,
     unclassifiedShare: percent(issuesWithoutZone, facts.length),
     insufficientFamilies: insufficientFamilies(evidence),
-    loggedShare: loggedShare(evidence),
-    approximatedIssues: evidence.filter((item) => item.method === 'approximated').length,
+    loggedShare: shares.logged,
+    approximatedIssues: approximatedTickets(evidence),
+    methodShares: shares,
   };
 }
 
@@ -40,6 +54,40 @@ export function computeQuality(
 function percent(part: number, whole: number): number {
   if (!Number.isFinite(part) || !Number.isFinite(whole) || whole <= 0) return 0;
   return round2((part / whole) * 100);
+}
+
+/**
+ * Tickets dont l'historique de statuts manque : les preuves `approximated`,
+ * comptées **une fois par ticket source** (le contrat parle de tickets, et un
+ * ticket multi-zones produit plusieurs preuves).
+ */
+function approximatedTickets(evidence: Evidence[]): number {
+  const tickets = new Set<string>();
+  for (const item of evidence) {
+    if (item.method !== 'approximated') continue;
+    tickets.add(item.sourceIssueId);
+  }
+  return tickets.size;
+}
+
+/**
+ * Part du coût portée par chaque méthode, en pourcentage (§19 cas 7).
+ *
+ * Seules les familles facturées comptent : C5 est un délai, pas un coût, et la
+ * faire entrer au dénominateur fausserait les trois parts.
+ */
+export function methodShares(evidence: Evidence[]): MethodShares {
+  const costs: Record<CostMethod, number> = { logged: 0, computed: 0, approximated: 0 };
+  let total = 0;
+  for (const item of evidence) {
+    if (!BILLED_FAMILIES.includes(item.family)) continue;
+    if (!Number.isFinite(item.costJp)) continue;
+    total += item.costJp;
+    costs[item.method] += item.costJp;
+  }
+  const shares = {} as MethodShares;
+  for (const method of METHODS) shares[method] = percent(costs[method], total);
+  return shares;
 }
 
 /**
@@ -58,21 +106,4 @@ function insufficientFamilies(evidence: Evidence[]): Array<{ zone: string; famil
     pairs.push({ zone: item.zone, family: item.family });
   }
   return pairs.sort((a, b) => a.zone.localeCompare(b.zone) || a.family.localeCompare(b.family));
-}
-
-/**
- * Part du coût portée par un temps saisi (`logged`), en pourcentage.
- * Seules les familles facturées comptent : C5 est un délai, pas un coût, et
- * la faire entrer au dénominateur gonflerait artificiellement la part calculée.
- */
-function loggedShare(evidence: Evidence[]): number {
-  let total = 0;
-  let logged = 0;
-  for (const item of evidence) {
-    if (!BILLED_FAMILIES.includes(item.family)) continue;
-    if (!Number.isFinite(item.costJp)) continue;
-    total += item.costJp;
-    if (item.method === 'logged') logged += item.costJp;
-  }
-  return percent(logged, total);
 }

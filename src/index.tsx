@@ -2,7 +2,15 @@ import Resolver from '@forge/resolver';
 import { RESOLVERS } from './resolvers/index';
 import { bootstrapBatch } from './jobs/consumer';
 import { nightlyRecalc, publishRepayments } from './jobs/scheduled';
-import { issueCreated, issueUpdated, linkCreated, linkDeleted } from './jobs/triggers';
+import {
+  issueCommented,
+  issueCreated,
+  issueDeleted,
+  issueUpdated,
+  linkCreated,
+  linkDeleted,
+  worklogChanged,
+} from './jobs/triggers';
 import { jqlTopDebts } from './resolvers/jql';
 import { smokeTriggerHandler } from './jobs/smokeTrigger';
 import { opsTriggerHandler } from './jobs/opsTrigger';
@@ -16,6 +24,7 @@ import {
   listDeadDebt,
   listPhantomDebt,
 } from './mcp/actions';
+import { getDebtCase, listProjects, listZoneEvidence } from './mcp/index';
 
 /**
  * Point d'entrée Forge de « L'addition ».
@@ -43,7 +52,15 @@ export default resolver;
  * `avi:jira:created:issue`, `avi:jira:updated:issue`,
  * `avi:jira:created:issuelink`, `avi:jira:deleted:issuelink`.
  */
-export { issueCreated, issueUpdated, linkCreated, linkDeleted };
+export {
+  issueCommented,
+  issueCreated,
+  issueDeleted,
+  issueUpdated,
+  linkCreated,
+  linkDeleted,
+  worklogChanged,
+};
 
 /**
  * `scheduledTrigger` (§15) : recalcul nocturne et bulletins de remboursement.
@@ -78,3 +95,6 @@ export {
   listDeadDebt,
   listPhantomDebt,
 };
+
+/** Trois actions ajoutées par l'audit : argumentaire (DT-17), preuves d'une zone, projets connus. */
+export { getDebtCase, listProjects, listZoneEvidence };

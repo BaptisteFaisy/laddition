@@ -6,6 +6,7 @@ import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
 import { formatDate, formatNumber } from '../format';
 import { AsyncView } from './AsyncView';
+import { TicketLink } from './TicketLink';
 
 /** Dette morte (DT-09) : un ticket de dette sans preuve depuis N jours. */
 export function DeadTab({
@@ -37,12 +38,11 @@ function DeadTable({
   deadDays: number;
   items: DeadDebt[];
 }): JSX.Element {
-  if (items.length === 0) return <Text>{t(locale, 'dead.empty')}</Text>;
+  const caption = t(locale, 'dead.title');
   return (
     <Fragment>
-      <Text>{t(locale, 'dead.title')}</Text>
       <Text>{t(locale, 'dead.body', { days: formatNumber(locale, deadDays) })}</Text>
-      <Table>
+      <Table caption={caption} label={caption} empty={t(locale, 'dead.empty')}>
         <Head>
           <Cell><Text>{t(locale, 'dead.col.debt')}</Text></Cell>
           <Cell><Text>{t(locale, 'dead.col.zone')}</Text></Cell>
@@ -51,7 +51,7 @@ function DeadTable({
         </Head>
         {items.map((debt) => (
           <Row key={debt.debtIssueId}>
-            <Cell><Text>{debt.key}</Text></Cell>
+            <Cell><TicketLink issueKey={debt.key} /></Cell>
             <Cell><Text>{debt.zone || t(locale, 'common.unclassified')}</Text></Cell>
             <Cell><Text>{formatNumber(locale, debt.daysWithoutEvidence)}</Text></Cell>
             <Cell><Text>{debt.lastEvidenceAt ? formatDate(locale, debt.lastEvidenceAt) : t(locale, 'dead.never')}</Text></Cell>

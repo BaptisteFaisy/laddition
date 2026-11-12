@@ -2,10 +2,12 @@ import { Cell, Fragment, Head, Row, Table, Text } from '../kit';
 import type { Repayment } from '../../core/types';
 import { getRepaymentReport } from '../api';
 import { useResolver } from '../async';
+import { caveatLabel } from '../domain-strings';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
 import { formatDate, formatJp, pair } from '../format';
 import { AsyncView } from './AsyncView';
+import { TicketLink } from './TicketLink';
 
 /** Bulletins de remboursement (§11) : une comparaison, jamais une causalité. */
 export function RepaymentTab({ locale, projectId }: { locale: Locale; projectId: string }): JSX.Element {
@@ -21,12 +23,11 @@ export function RepaymentTab({ locale, projectId }: { locale: Locale; projectId:
 }
 
 function RepaymentTable({ locale, items }: { locale: Locale; items: Repayment[] }): JSX.Element {
-  if (items.length === 0) return <Text>{t(locale, 'repay.empty')}</Text>;
+  const caption = t(locale, 'repay.title');
   return (
     <Fragment>
-      <Text>{t(locale, 'repay.title')}</Text>
       <Text>{t(locale, 'repay.body')}</Text>
-      <Table>
+      <Table caption={caption} label={caption} empty={t(locale, 'repay.empty')}>
         <Head>
           <Cell><Text>{t(locale, 'repay.col.debt')}</Text></Cell>
           <Cell><Text>{t(locale, 'repay.col.zone')}</Text></Cell>
@@ -46,7 +47,7 @@ function RepaymentRow({ locale, repayment }: { locale: Locale; repayment: Repaym
   return (
     <Row>
       <Cell>
-        <Text>{repayment.key}</Text>
+        <TicketLink issueKey={repayment.key} />
         <Text>{formatDate(locale, repayment.closedAt)}</Text>
       </Cell>
       <Cell><Text>{repayment.zone || t(locale, 'common.unclassified')}</Text></Cell>
@@ -56,9 +57,15 @@ function RepaymentRow({ locale, repayment }: { locale: Locale; repayment: Repaym
         <Text>
           {t(locale, 'repay.weeksValue', { before: repayment.weeksBefore, after: repayment.weeksAfter })}
         </Text>
-        <Text>{pair(locale, t(locale, 'repay.caveats'), repayment.caveats.join(' · '))}</Text>
+        <Caveats locale={locale} caveats={repayment.caveats} />
         <Text>{repayment.publishedAt ? formatDate(locale, repayment.publishedAt) : t(locale, 'repay.unpublished')}</Text>
       </Cell>
     </Row>
   );
+}
+
+/** Limites du bulletin, dans la langue de l'écran (item D54). */
+function Caveats({ locale, caveats }: { locale: Locale; caveats: string[] }): JSX.Element {
+  const text = caveats.map((caveat) => caveatLabel(locale, caveat)).join(' · ');
+  return <Text>{pair(locale, t(locale, 'repay.caveats'), text)}</Text>;
 }
