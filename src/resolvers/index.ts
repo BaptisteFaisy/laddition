@@ -23,10 +23,9 @@ import { startBootstrap } from './bootstrap';
 /**
  * API des écrans (§14) : une clé par fonction appelée par l'UI.
  *
- * TODO(integration) : `src/ui/api.ts` (lot UI, non modifiable ici) déclare les
- * clés attendues. `getDebtCase` (item E68) est exposée ici mais absente de son
- * union `ResolverKey` : à y ajouter pour que l'écran « argumentaire » puisse
- * l'appeler. Les cinq autres clés ajoutées (`previewDebtTicket`,
+ * `getDebtCase` (item E68) est exposée ici **et** dans l'union `ResolverKey`
+ * de `src/ui/api.ts` : l'écran « argumentaire » l'appelle et reçoit la page
+ * avec son texte rédigé. Les cinq autres clés (`previewDebtTicket`,
  * `listZoneEvidence`, `listDebtAttributions`, `getIssueCost`, `getGadgetData`)
  * répondent aux `TODO(integration)` déjà écrits dans `ui/api.ts`.
  *
