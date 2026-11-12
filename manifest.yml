@@ -85,7 +85,7 @@ modules:
 
   jira:issueContext:
     - key: laddition-evidence-context
-      title: Preuve de dette
+      title: Debt evidence
       label: L'addition
       render: native
       resource: issue-context
@@ -94,7 +94,7 @@ modules:
 
   jira:customField:
     - key: laddition-debt-cost-field
-      name: Coût de la dette (j-p / 90 j)
+      name: Debt cost (p-d / 90 d)
       description: Coût constaté de la dette sur 90 jours, en jours-personne. Écrit
         par l'app, lecture seule.
       type: number
@@ -106,7 +106,7 @@ modules:
 
   jira:dashboardGadget:
     - key: laddition-gadget
-      title: L'addition — principales dettes
+      title: L'addition — top debts
       description: Les dettes les plus coûteuses, le coût par équipe et par trimestre.
       thumbnail: https://developer.atlassian.com/platform/forge/images/icons/gadget-thumbnail.svg
       render: native
