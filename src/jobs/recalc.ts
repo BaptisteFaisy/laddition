@@ -52,6 +52,8 @@ const MAX_LINK_ISSUES = 300;
 export interface ProjectRecalc {
   /** Zones renommées détectées et migrées (B24). */
   renamedZones?: string[];
+  /** Instructions de purge en échec : le calcul aabouti, la purge non (§17). */
+  purgeErrors?: string[];
   projectId: string;
   evidence: number;
   bills: number;
@@ -129,7 +131,7 @@ export async function recalcProject(
     result.evidence,
     result.attributions,
   );
-  await persist(projectId, { ...result, attributions }, now, settings);
+  const purgeErrors = await persist(projectId, { ...result, attributions }, now, settings);
   const fieldUpdated = await writeFields(settings, result.bills);
   // Une modification survenue pendant le calcul garde sa marque : on la
   // consomme en remettant le projet en file (B20).
@@ -137,6 +139,7 @@ export async function recalcProject(
   return {
     projectId,
     renamedZones: renames.map((rename) => `${rename.from} → ${rename.to}`),
+    purgeErrors,
     evidence: result.evidence.length,
     bills: result.bills.length,
     fieldUpdated,
@@ -328,7 +331,7 @@ async function persist(
   result: RecomputeResult,
   now: string,
   settings: ProjectSettings,
-): Promise<void> {
+): Promise<string[]> {
   await replaceEvidence(projectId, result.evidence);
   await replaceAttributions(projectId, result.attributions);
   await upsertBills(projectId, result.bills);
@@ -336,7 +339,9 @@ async function persist(
   await upsertZoneWeek(result.zoneWeeks);
   await purgeDisappearedZones(projectId, settings, now);
   await clearInvalidBefore(projectId, now);
-  await purgeProject(projectId, { now, deadDays: settings.deadDays });
+  const purge = await purgeProject(projectId, { now, deadDays: settings.deadDays });
+  // Une purge qui échoue n'interrompt plus le calcul : l'échec est signalé.
+  return purge.errors ?? [];
 }
 
 /** Écrit la fourchette basse dans le champ « Coût de la dette » (DT-11). */

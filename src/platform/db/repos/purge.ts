@@ -65,6 +65,13 @@ export interface PurgeReport {
   deleted: Record<string, number>;
   /** Descriptions vidées (le `MEDIUMTEXT` des vieux tickets). */
   trimmedDescriptions: number;
+  /**
+   * Instructions en échec : la purge continue, l'échec est signalé (§17).
+   *
+   * Constaté le 12/11 en production : une purge qui échouait interrompait tout
+   * le calcul et le projet n'était jamais recalculé.
+   */
+  errors?: string[];
 }
 
 /**
