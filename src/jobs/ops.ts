@@ -67,9 +67,30 @@ export async function opsInit(
   });
 }
 
+/**
+ * Réglages numériques acceptés en query string, avec leurs bornes (§11).
+ *
+ * Les bornes reprises ici sont celles de `mergeSettings` ; `dayRateEur` n'y est
+ * pas borné, donc il l'est ici. Une valeur illisible est **ignorée**, jamais
+ * devinée : on ne règle pas un projet sur un malentendu.
+ */
+const NUMBER_SETTINGS = {
+  dayRateEur: { min: 0, max: 100000 },
+  hoursPerDay: { min: 1, max: 24 },
+  daysPerWeek: { min: 1, max: 7 },
+  windowDays: { min: 7, max: 365 },
+  deadDays: { min: 30, max: 730 },
+  occupationCoefficient: { min: 0, max: 1 },
+  phantomThresholdJp: { min: 0, max: 1000 },
+  minBaselineSample: { min: 1, max: 100 },
+} as const;
+
+/** Nom d'un réglage numérique réglable par l'outillage. */
+type NumberSetting = keyof typeof NUMBER_SETTINGS;
+
 /** Traduit les réglages passés en query string en correctif typé. */
-function settingsPatch(raw: Record<string, string>): Partial<ProjectSettings> {
-  const patch: Partial<ProjectSettings> = {};
+export function settingsPatch(raw: Record<string, string>): Partial<ProjectSettings> {
+  const patch: Partial<ProjectSettings> = { ...numberSettings(raw) };
   const kind = raw['debtRuleKind'];
   const value = raw['debtRuleValue'];
   if (kind && isDebtRuleKind(kind)) patch.debtRule = { kind, value: value ?? 'tech-debt' };
@@ -78,7 +99,30 @@ function settingsPatch(raw: Record<string, string>): Partial<ProjectSettings> {
   if (mode && isZoneMode(mode)) patch.zoneMode = mode;
   const label = raw['zoneLabelField'];
   if (label) patch.zoneLabelField = label;
+  const points = raw['storyPointField'];
+  if (points && points.trim().length > 0) patch.storyPointField = points.trim();
   return patch;
+}
+
+/** Réglages numériques présents et bornés ; les illisibles sont ignorés. */
+function numberSettings(raw: Record<string, string>): Partial<Record<NumberSetting, number>> {
+  const out: Partial<Record<NumberSetting, number>> = {};
+  const entries = Object.entries(NUMBER_SETTINGS) as Array<[NumberSetting, { min: number; max: number }]>;
+  for (const [name, bounds] of entries) {
+    const parsed = parseNumberParam(raw[name] ?? '');
+    if (!Number.isFinite(parsed)) continue;
+    out[name] = Math.min(bounds.max, Math.max(bounds.min, parsed));
+  }
+  return out;
+}
+
+/**
+ * Un nombre saisi, virgule décimale comprise (un réglage tapé « 650,5 » vaut
+ * 650.5). Un point l'emporte : « 1,234.5 » reste mille deux cent trente-quatre.
+ */
+function parseNumberParam(raw: string): number {
+  const text = raw.trim();
+  return Number.parseFloat(text.includes('.') ? text : text.replace(',', '.'));
 }
 
 /** Garde-fou de type : une valeur inconnue est ignorée, jamais devinée. */
