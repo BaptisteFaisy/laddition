@@ -1,6 +1,6 @@
 import type { IssueFact, ProjectSettings } from '../core/types';
 import { getSettings, saveSettings } from '../platform/db/repos/project';
-import { insertRows, runDdl, runStatement, selectRows } from '../platform/db/query';
+import { insertRows, onDuplicateUpdate, runDdl, runStatement, selectRows } from '../platform/db/query';
 
 /**
  * Un composant renommé ne doit pas scinder l'historique (item B24, §19 cas 10).
@@ -125,7 +125,7 @@ export async function rememberComponentLabels(
     columns: [...COLUMNS],
     rows: [...labels].map(([componentId, label]) => ({ projectId, componentId, label, seenAt })),
     toValues: (item) => [item.projectId, item.componentId, item.label, item.seenAt],
-    onDuplicate: 'UPDATE label = VALUES(label), seen_at = VALUES(seen_at)',
+    onDuplicate: onDuplicateUpdate(COLUMNS, ['project_id', 'component_id']),
   });
 }
 

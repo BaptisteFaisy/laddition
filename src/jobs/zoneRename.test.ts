@@ -97,7 +97,7 @@ describe('componentLabels — les composants sans identifiant sont ignorés', ()
 
 describe('syncComponentLabels — l’historique suit le renommage', () => {
   it('migre les preuves, l’instantané et la carte des équipes', async (t) => {
-    await startFakeDb(t);
+    const client = await startFakeDb(t);
     await saveSettings({ ...makeSettings('p1', 'PAY'), teamByZone: { facturation: 'Paiements' } });
     await replaceEvidence('p1', [
       { id: 'ev1', projectId: 'p1', sourceIssueId: 'i-10001', sourceKey: 'PAY-1', zone: 'facturation', family: 'C1', costJp: 4, visible: true, occurredAt: '2026-11-01T00:00:00.000Z', detail: { durationDays: 1, method: 'computed', formula: 'x', inputs: {}, familyLabel: 'Incidents' } },
@@ -116,5 +116,11 @@ describe('syncComponentLabels — l’historique suit le renommage', () => {
     const settings = await getSettings('p1');
     assert.equal(settings?.teamByZone['facturation2'], 'Paiements', 'la carte des équipes suit le renommage');
     assert.equal(settings?.teamByZone['facturation'], undefined, 'l’ancien libellé ne traîne plus');
+
+    // Régression du 12/11 : une clause `onDuplicate` qui commençait par
+    // « UPDATE … » produisait « ON DUPLICATE KEY UPDATE UPDATE … » — le SQL
+    // mal formé que la production refusait (« Unknown SQL execution error »).
+    const malforma = client.log.some((entry) => (entry.query ?? '').includes('KEY UPDATE UPDATE'));
+    assert.equal(malforma, false, 'aucun « ON DUPLICATE KEY UPDATE UPDATE » ne doit être émis');
   });
 });

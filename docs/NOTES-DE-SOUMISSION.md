@@ -190,17 +190,15 @@
       en réel le 12/11 : 403 sans jeton, 200 avec.
 - [ ] Exécuter la procédure de gel (version 1.0.0 + tag) au gel du 15/12 —
       procédure ci-dessous.
-- [ ] **Rejouer le recalcul d'un projet réel sur l'installation de production**
-      (ouvert le 12/11) : `?action=recalc&project=ENGS` échoue par
-      « Unknown SQL execution error », la sonde `?action=write-path` localisant
-      l'échec dans `purgeProject` (les lectures et les écritures unitaires
-      passent, les six formes SQL testées aussi). Le schéma a été recréé
-      (`?action=reset-schema`) et le jeu d'exemple réinjecté, sans changement :
-      c'est la purge qu'il faut instrumenter (statements par table). Tant que
-      ce point est ouvert, **le passage nocturne ne peut pas être considéré
-      comme vérifié sur l'installation de production** — le projet de démo
-      (PAY) est en `demoData` et n'est donc pas recalculé, ce qui masque le
-      défaut.
+- [x] **Recalcul d'un projet réel sur l'installation de production** — résolu
+      le 12/11 au soir. `?action=recalc&project=ENGS` aboutit (`purgeErrors` vide,
+      ENGS-31 à 2–2 j-p). Deux causes ont été trouvées et corrigées :
+      (1) une clause `ON DUPLICATE KEY UPDATE UPDATE …` mal construite dans la
+      mémoire des zones (item B24) ; (2) l'instruction de purge qui vidait les
+      descriptions (`COALESCE` + `IS NOT NULL` + `SET NULL`), refusée par Forge
+      SQL — la purge est désormais **résiliente** (une instruction en échec est
+      consignée, n'interrompt plus le calcul) et l'instruction fautive a été
+      simplifiée.
 
 ## Publication de PRIVACY.md et TERMS.md — plan (item G95)
 
