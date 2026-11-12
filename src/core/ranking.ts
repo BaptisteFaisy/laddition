@@ -10,10 +10,15 @@
 
 import type { DebtBill, IssueFact, RankedDebt } from './types';
 import { UNCLASSIFIED_ZONE } from './zones';
+import { assertNoPersonRanking } from './privacy';
 import { compareText } from './bill';
 
 /**
  * Classe les additions d'un projet (DT-07).
+ *
+ * Les lignes passent par `assertNoPersonRanking` avant d'être rendues : un
+ * classement dont la clé désignerait une personne est un défaut de
+ * programmation, il doit échouer ici plutôt que s'afficher (principe 4, §18).
  *
  * @param bills additions calculées par `buildBill`
  * @param debts tickets de dette, source du résumé et de la zone affichés
@@ -21,7 +26,9 @@ import { compareText } from './bill';
  */
 export function rankDebts(bills: DebtBill[], debts: IssueFact[]): RankedDebt[] {
   const debtById = new Map(debts.map((debt) => [debt.issueId, debt]));
-  return bills.map((bill) => toRow(bill, debtById.get(bill.debtIssueId))).sort(compareRows);
+  const rows = bills.map((bill) => toRow(bill, debtById.get(bill.debtIssueId)));
+  assertNoPersonRanking(rows);
+  return rows.sort(compareRows);
 }
 
 /** Ligne de classement : l'addition, complétée par le ticket quand il est connu. */

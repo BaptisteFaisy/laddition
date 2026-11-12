@@ -1,25 +1,24 @@
 /**
  * Forge LLM — pertinence des rapprochements (§10) et rédaction (§17).
  *
- * Aucune clé d'API ici : `@forge/llm` authentifie l'app côté plateforme. Le
- * modèle est résolu une fois par invocation via `list()` (Claude en priorité),
- * puis appelé avec `chat()`.
+ * `@forge/llm` authentifie l'app côté plateforme (Claude en priorité, résolu
+ * une fois par invocation). Le LLM est toujours facultatif : chaque fonction a
+ * un repli déterministe (gabarit), donc le produit fonctionne sans modèle ; un
+ * échec ne remonte jamais à l'écran.
  *
- * Le LLM est toujours facultatif : chaque fonction a un repli déterministe
- * (gabarit construit à partir des preuves), donc le produit fonctionne sans
- * modèle. Un échec ne remonte jamais à l'écran : il donne le repli.
- *
- * Stabilité (§18) : le score de pertinence est mis en cache par empreinte
- * SHA-256 des deux textes comparés. Deux textes identiques donnent toujours le
- * même score, et un texte inchangé n'est jamais repayé.
+ * Stabilité (§18) : le score est mis en cache par empreinte SHA-256 des deux
+ * textes comparés — un texte inchangé n'est jamais repayé. Le cache est rendu
+ * persistant par un `ScoreStore` (C30, SQL `score_cache` ; repli mémoire). Le
+ * débit est borné par `ratelimit.ts` (C31) : plafond atteint → repli, sans
+ * appeler le modèle. Transport injectable pour tester sans réseau.
  */
-import { chat, list } from '@forge/llm';
 import type { Message } from '@forge/llm';
 import { createHash } from 'node:crypto';
 import { clamp, round2 } from '../core/time';
 import { BILLED_FAMILIES } from '../core/types';
 import type { DebtBill, Evidence, Family, ProjectSettings } from '../core/types';
 import { logShort, shortError } from './log';
+import { acquireLlmBudget } from './ratelimit';
 
 /** Le modèle demandé à `chat()` : Claude, seul modèle autorisé par §17. */
 const CLAUDE_HINTS: readonly string[] = ['claude', 'anthropic'];
@@ -37,6 +36,9 @@ const TEMP_WRITING = 0.3;
 
 /** Raison rendue quand le modèle n'a rien donné d'exploitable. */
 const UNAVAILABLE = 'modèle indisponible';
+
+/** Raison rendue quand le plafond de débit a été atteint (C31). */
+export const BUDGET_UNAVAILABLE = 'plafond LLM atteint (score neutre)';
 
 /** Bornes de texte envoyées au modèle : on ne lui donne pas un roman. */
 const MAX_INPUT_CHARS = 1_500;
@@ -86,8 +88,30 @@ export interface RelevanceResult {
   fingerprint: string;
 }
 
+/** Un score mis en cache : chiffre + justification (une phrase). */
+export interface CachedScore {
+  relevance: number;
+  rationale: string;
+}
+
 /** Cache des scores : clé = empreinte, valeur = score et justification. */
-export type ScoreCache = Map<string, { relevance: number; rationale: string }>;
+export type ScoreCache = Map<string, CachedScore>;
+
+/** Enregistrement persistant d'un score (implémenté en SQL par le lot C). */
+export interface ScoreRecord {
+  fingerprint: string;
+  relevance: number;
+  rationale: string;
+}
+
+/**
+ * Store persistant des scores (C30). Le lot C l'implémente sur `score_cache` ;
+ * `setScoreStore(null)` (défaut) retombe sur la mémoire de l'invocation.
+ */
+export interface ScoreStore {
+  loadCachedScores(): Promise<ScoreRecord[]>;
+  saveCachedScores(records: ScoreRecord[]): Promise<void>;
+}
 
 /** Brouillon de ticket ; `source` dit si le modèle a servi. */
 export interface Draft {
@@ -102,9 +126,40 @@ export interface Argumentaire {
   source: 'model' | 'template';
 }
 
-// ---------------------------------------------------------------------------
-// Empreinte et score de pertinence
-// ---------------------------------------------------------------------------
+// --- Cache persistant (C30) ---
+
+let scoreStore: ScoreStore | null = null;
+const memoryScores: ScoreCache = new Map();
+
+/** Enregistre le store persistant ; `null` restaure le repli mémoire. */
+export function setScoreStore(store: ScoreStore | null): void {
+  scoreStore = store;
+}
+
+/** Ouvre le cache de l'invocation : store SQL si présent, sinon mémoire (C30). */
+export async function openScoreCache(): Promise<ScoreCache> {
+  if (!scoreStore) return memoryScores;
+  try {
+    return new Map(
+      (await scoreStore.loadCachedScores()).map((r): [string, CachedScore] => [r.fingerprint, { relevance: r.relevance, rationale: r.rationale }]),
+    );
+  } catch (error) {
+    logShort(`llm cache load: ${shortError(error)}`);
+    return memoryScores;
+  }
+}
+
+/** Enregistre un score frais ; best-effort, ne jette jamais (jamais de throw). */
+async function persistScore(fingerprint: string, score: CachedScore): Promise<void> {
+  if (!scoreStore) return;
+  try {
+    await scoreStore.saveCachedScores([{ fingerprint, ...score }]);
+  } catch (error) {
+    logShort(`llm cache save: ${shortError(error)}`);
+  }
+}
+
+// --- Empreinte et score de pertinence ---
 
 /** Empreinte stable des deux textes comparés (clé de cache, §18). */
 export function fingerprintOf(a: string, b: string): string {
@@ -115,6 +170,7 @@ export function fingerprintOf(a: string, b: string): string {
  * Score de pertinence entre une preuve et un ticket de dette (§10).
  * Le cache évite de repayer un couple déjà évalué : si aucun des deux textes
  * n'a changé, l'empreinte est identique et le score est resservi tel quel.
+ * Un échec du modèle ou un plafond de débit n'est jamais mis en cache (C43).
  */
 export async function scoreRelevance(
   evidenceText: string,
@@ -124,19 +180,25 @@ export async function scoreRelevance(
   const fingerprint = fingerprintOf(evidenceText, debtText);
   const cached = cache.get(fingerprint);
   if (cached) return { ...cached, fingerprint };
-  const raw = await askModel(
+  const outcome = await askModel(
     SCORE_SYSTEM,
     `PREUVE:\n"""\n${clipText(evidenceText)}\n"""\n\nTICKET DE DETTE:\n"""\n${clipText(debtText)}\n"""`,
     TOKENS_SCORE,
     TEMP_SCORE,
   );
-  const score = parseScore(raw);
+  if (outcome.status !== 'text') {
+    const rationale = outcome.status === 'blocked' ? BUDGET_UNAVAILABLE : UNAVAILABLE;
+    return { relevance: 0, rationale, fingerprint };
+  }
+  const score = parseScore(outcome.text);
+  if (score.rationale === UNAVAILABLE) return { ...score, fingerprint }; // échec, pas de cache
   cache.set(fingerprint, score);
+  await persistScore(fingerprint, score);
   return { ...score, fingerprint };
 }
 
 /** Lit `{relevance, rationale}` ; toute forme douteuse rend le repli. */
-function parseScore(raw: string | null): { relevance: number; rationale: string } {
+function parseScore(raw: string | null): CachedScore {
   const parsed = parseObject(raw);
   if (!parsed) return { relevance: 0, rationale: UNAVAILABLE };
   const value = parsed['relevance'];
@@ -146,9 +208,7 @@ function parseScore(raw: string | null): { relevance: number; rationale: string 
   return { relevance: round2(clamp(value, 0, 1)), rationale: clipText(rationale, 200) };
 }
 
-// ---------------------------------------------------------------------------
-// Rédaction
-// ---------------------------------------------------------------------------
+// --- Rédaction ---
 
 /** Brouillon de ticket pour une zone sans ticket de dette (DT-08). */
 export async function draftDebtTicket(
@@ -157,13 +217,8 @@ export async function draftDebtTicket(
   settings: ProjectSettings,
 ): Promise<Draft> {
   const facts = evidenceFacts(zone, evidence, settings);
-  const raw = await askModel(
-    DRAFT_SYSTEM,
-    `${facts}\n\nRédige le brouillon de ticket en JSON.`,
-    TOKENS_DRAFT,
-    TEMP_WRITING,
-  );
-  const parsed = parseObject(raw);
+  const outcome = await askModel(DRAFT_SYSTEM, `${facts}\n\nRédige le brouillon de ticket en JSON.`, TOKENS_DRAFT, TEMP_WRITING);
+  const parsed = outcome.status === 'text' ? parseObject(outcome.text) : null;
   const title = asText(parsed?.['title']);
   const description = asText(parsed?.['description']);
   if (title && description) return { title: clipText(title, 160), description, source: 'model' };
@@ -177,13 +232,13 @@ export async function writeArgumentaire(
   settings: ProjectSettings,
 ): Promise<Argumentaire> {
   const facts = [billFacts(bill), evidenceFacts(bill.key, evidence, settings)].join('\n\n');
-  const raw = await askModel(
+  const outcome = await askModel(
     ARGUMENTAIRE_SYSTEM,
     `${facts}\n\nRédige l’argumentaire en Markdown, une page maximum.`,
     TOKENS_ARGUMENTAIRE,
     TEMP_WRITING,
   );
-  const markdown = asText(raw);
+  const markdown = outcome.status === 'text' ? asText(outcome.text) : null;
   if (markdown) return { markdown, source: 'model' };
   return { markdown: templateArgumentaire(bill, evidence, settings), source: 'template' };
 }
@@ -247,11 +302,8 @@ function argumentaireFamilies(bill: DebtBill): string[] {
 /** Remboursement et retour sur investissement, en Markdown. */
 function argumentaireRepayment(bill: DebtBill, settings: ProjectSettings): string[] {
   const lines = ['## Ce que ça rapporte', ''];
-  if (bill.repaymentJp === null) {
-    lines.push('- Remboursement non chiffré : la mesure avant/après n’est pas encore disponible.');
-  } else {
-    lines.push(`- Remboursement estimé : **${num(bill.repaymentJp)} j-p**.`);
-  }
+  const repay = bill.repaymentJp;
+  lines.push(repay === null ? '- Remboursement non chiffré : la mesure avant/après n’est pas encore disponible.' : `- Remboursement estimé : **${num(repay)} j-p**.`);
   if (bill.avoidableJp !== null) lines.push(`- Coût évitable sur deux trimestres : ${num(bill.avoidableJp)} j-p.`);
   if (bill.roiLow !== null) lines.push(`- Retour sur investissement : ${num(bill.roiLow)}× à ${num(bill.roiHigh ?? bill.roiLow)}×.`);
   if (bill.paybackDays !== null) lines.push(`- Délai de retour : ${Math.round(bill.paybackDays)} jours.`);
@@ -263,9 +315,7 @@ function argumentaireRepayment(bill: DebtBill, settings: ProjectSettings): strin
   return lines;
 }
 
-// ---------------------------------------------------------------------------
-// Faits fournis au modèle (aucun chiffre inventé)
-// ---------------------------------------------------------------------------
+// --- Faits fournis au modèle (aucun chiffre inventé) ---
 
 /** Résumé factuel d'une zone et de ses preuves, en clair pour le modèle. */
 function evidenceFacts(zone: string, evidence: Evidence[], settings: ProjectSettings): string {
@@ -323,21 +373,52 @@ function familySummary(evidence: Evidence[]): string {
     .join(' · ');
 }
 
-// ---------------------------------------------------------------------------
-// Accès au modèle
-// ---------------------------------------------------------------------------
+// --- Accès au modèle (transport injectable, jamais de throw) ---
 
-/** Modèle résolu pour l'invocation : Claude si la liste le propose. */
+/** Requête minimale envoyée à `chat()`. */
+export interface LlmChatRequest {
+  model: string;
+  temperature: number;
+  max_completion_tokens: number;
+  messages: Message[];
+}
+
+/** Réponse minimale de `chat()` : ce dont ce module a besoin. */
+export interface LlmChatResponse {
+  choices: Array<{ message: { content: Message['content'] } }>;
+}
+
+/** Catalogue minimal rendu par `list()`. */
+export interface LlmModelList {
+  models: Array<{ model: string; status: string }>;
+}
+
+/** Transport LLM injectable : les tests n'appellent jamais le modèle. */
+export interface LlmTransport {
+  chat(request: LlmChatRequest): Promise<LlmChatResponse>;
+  list(): Promise<LlmModelList>;
+}
+
+/** Transport réel : `@forge/llm`, importé à la demande (le runtime Forge n'existe pas hors plateforme ; un import au niveau supérieur jetterait à l'import, même pour les appels injectés). */
+const forgeTransport: LlmTransport = {
+  chat: (request) => import('@forge/llm').then((mod) => mod.chat(request)),
+  list: () => import('@forge/llm').then((mod) => mod.list()),
+};
+let llmTransport: LlmTransport = forgeTransport;
 let resolvedModel: string | null = null;
+
+/** Remplace le transport (tests) ; `null` restaure `@forge/llm`. */
+export function setLlmTransport(transport: LlmTransport | null): void {
+  llmTransport = transport ?? forgeTransport;
+  resolvedModel = null;
+}
 
 async function resolveModel(): Promise<string> {
   if (resolvedModel) return resolvedModel;
   try {
-    const catalog = await list();
+    const catalog = await llmTransport.list();
     const active = catalog.models.filter((model) => model.status === 'active');
-    const claude = active.find((model) =>
-      CLAUDE_HINTS.some((hint) => model.model.toLowerCase().includes(hint)),
-    );
+    const claude = active.find((model) => CLAUDE_HINTS.some((hint) => model.model.toLowerCase().includes(hint)));
     resolvedModel = claude?.model ?? FALLBACK_MODEL;
   } catch (error) {
     logShort(`llm list: ${shortError(error)}`);
@@ -346,16 +427,24 @@ async function resolveModel(): Promise<string> {
   return resolvedModel;
 }
 
-/** Un appel au modèle ; rend `null` au moindre problème (jamais de throw). */
+/** Issue d'un appel : texte exploitable, plafond atteint, ou échec distinct. */
+type AskOutcome = { status: 'text'; text: string } | { status: 'blocked' } | { status: 'failed' };
+
+/** Un appel au modèle, borné par le limiteur ; ne jette jamais. */
 async function askModel(
   system: string,
   user: string,
   maxTokens: number,
   temperature: number,
-): Promise<string | null> {
+): Promise<AskOutcome> {
+  const verdict = acquireLlmBudget(maxTokens);
+  if (!verdict.allowed) {
+    logShort(`llm budget: ${verdict.reason}`);
+    return { status: 'blocked' };
+  }
   try {
     const model = await resolveModel();
-    const response = await chat({
+    const response = await llmTransport.chat({
       model,
       temperature,
       max_completion_tokens: maxTokens,
@@ -366,14 +455,14 @@ async function askModel(
     });
     const first = response.choices[0];
     const content = first ? textOf(first.message.content) : '';
-    return content.trim().length > 0 ? content.trim() : null;
+    const text = content.trim();
+    return text.length > 0 ? { status: 'text', text } : { status: 'failed' };
   } catch (error) {
     logShort(`llm chat: ${shortError(error)}`);
-    return null;
+    return { status: 'failed' };
   }
 }
 
-/** Contenu d'un message (chaîne simple ou parties texte). */
 function textOf(content: Message['content']): string {
   if (typeof content === 'string') return content;
   return content.map((part) => (part.type === 'text' ? part.text : '')).join('');
@@ -392,20 +481,17 @@ function parseObject(raw: string | null): Record<string, unknown> | null {
   }
 }
 
-/** Valeur textuelle non vide d'un champ inconnu. */
 function asText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Tronque un texte pour l'affichage ou l'envoi au modèle. */
 function clipText(text: string, max = MAX_INPUT_CHARS): string {
   const trimmed = text.trim();
   return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed;
 }
 
-/** Nombre lisible en français, deux décimales au plus, sans bruit flottant. */
 function num(value: number): string {
   return String(round2(value)).replace('.', ',');
 }

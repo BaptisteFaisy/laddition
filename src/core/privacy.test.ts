@@ -60,3 +60,41 @@ test('redaction : rien à désigner, null', () => {
   assert.equal(redactName(''), null);
   assert.equal(redactName('   '), null);
 });
+
+test('E/privacy — fuites réelles refusées : reporter, owner, assigned, creator', () => {
+  assert.throws(() => assertNoPersonRanking([{ reporter: 'a.martin' }]), /personne/);
+  assert.throws(() => assertNoPersonRanking([{ owner: 'a.martin' }]), /personne/);
+  assert.throws(() => assertNoPersonRanking([{ assigned: 'a.martin' }]), /personne/);
+  assert.throws(() => assertNoPersonRanking([{ creator: 'a.martin' }]), /personne/);
+});
+
+test('E/privacy — les mots composés sont refusés aussi', () => {
+  assert.throws(() => assertNoPersonRanking([{ reporterName: 'x' }]), /personne/);
+  assert.throws(() => assertNoPersonRanking([{ issue_owner: 'x' }]), /personne/);
+  assert.throws(() => assertNoPersonRanking([{ assignedTo: 'x' }]), /personne/);
+  assert.throws(() => assertNoPersonRanking([{ creatorCount: 2 }]), /personne/);
+});
+
+test('E/privacy — le message d’erreur nomme la clé fautive', () => {
+  assert.throws(() => assertNoPersonRanking([{ reporterName: 'x' }]), /reporterName/);
+});
+
+test('E/privacy — une clé de zone ou de coût passe toujours', () => {
+  assert.doesNotThrow(() =>
+    assertNoPersonRanking([{ zone: 'api', team: 'Paiements', totalJp: 3, unclassifiedShare: 10 }]),
+  );
+});
+
+test('E/privacy — maskHidden sépare sans jamais perdre un élément', () => {
+  const items = [
+    { id: 'a', visible: true },
+    { id: 'b', visible: false },
+    { id: 'c', visible: false },
+    { id: 'd', visible: true },
+  ];
+
+  const masked = maskHidden(items);
+
+  assert.equal(masked.visible.length + masked.hiddenCount, items.length);
+  assert.equal(masked.hiddenCount, 2);
+});

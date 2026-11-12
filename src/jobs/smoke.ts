@@ -1,6 +1,5 @@
 import { asApp, requestJira, route } from '@forge/api';
-import { Queue } from '@forge/events';
-import { BOOTSTRAP_QUEUE } from './consumer';
+import { pushQueueMessage } from './recalcQueue';
 import { ensureSchema, isSchemaReady } from '../platform/db/index';
 import { getSettings } from '../platform/db/repos/project';
 import { makeSettings } from '../core/settings';
@@ -78,10 +77,9 @@ async function ensureSchemaStep(): Promise<string> {
  * est remontée : un simple « 400 » ne dit pas laquelle des causes c'est.
  */
 async function queueStep(): Promise<string> {
-  const queue = new Queue<Record<string, unknown>>({ key: BOOTSTRAP_QUEUE });
   try {
-    const result = await queue.push({ body: { projectId: 'smoke', nextPageToken: '' } });
-    return `message poussé, jobId ${result.jobId}`;
+    await pushQueueMessage({ projectId: 'smoke', nextPageToken: '' });
+    return 'message poussé';
   } catch (error) {
     throw new Error(describeError(error));
   }

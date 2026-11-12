@@ -118,11 +118,39 @@ test('baselineKey : type et taille joints par deux-points', () => {
 test('ticketDurationDays : jours ouvrés en statuts actifs', () => {
   const fact = makeFact();
   const spans = activeSpan('i1', '2026-11-09T00:00:00.000Z', '2026-11-13T00:00:00.000Z');
-  assert.deepEqual(ticketDurationDays(fact, spans), { days: 4, approximated: false });
+  assert.deepEqual(ticketDurationDays(fact, spans), {
+    days: 4,
+    approximated: false,
+    basis: 'active-status',
+  });
 });
 
 test('ticketDurationDays : repli sur la durée création → résolution sans historique', () => {
-  assert.deepEqual(ticketDurationDays(makeFact(), undefined), { days: 4, approximated: true });
+  assert.deepEqual(ticketDurationDays(makeFact(), undefined), {
+    days: 4,
+    approximated: true,
+    basis: 'missing-history',
+  });
+  assert.deepEqual(ticketDurationDays(makeFact(), []), {
+    days: 4,
+    approximated: true,
+    basis: 'missing-history',
+  });
+});
+
+test('§19 cas 6 — workflow sans statut actif : durée totale, marqueur distinct', () => {
+  const spans: StatusSpan[] = [
+    { issueId: 'i1', category: 'todo', startedAt: '2026-11-09T00:00:00.000Z', endedAt: '2026-11-11T00:00:00.000Z' },
+    { issueId: 'i1', category: 'done', startedAt: '2026-11-11T00:00:00.000Z', endedAt: '2026-11-13T00:00:00.000Z' },
+  ];
+
+  const duration = ticketDurationDays(makeFact(), spans);
+
+  // Même repli que l'historique absent, mais le lecteur voit lequel des deux.
+  assert.equal(duration.basis, 'no-active-status');
+  assert.equal(duration.approximated, true);
+  assert.equal(duration.days, 4);
+  assert.notEqual(duration.basis, ticketDurationDays(makeFact(), undefined).basis);
 });
 
 test('computeBaselines : médiane et effectif par couple type:taille', () => {

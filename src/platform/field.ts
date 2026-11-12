@@ -1,5 +1,6 @@
 /**
- * Champ « Coût de la dette (j-p / 90 j) » — DT-11 et DT-19.
+ * Champ « Coût de la dette (j-p / 90 j) » — DT-11 et DT-19,
+ * et bulletin de remboursement publié en commentaire (G91).
  *
  * L'app tient un champ numérique par projet, écrit par le job d'initialisation
  * et par le recalcul nocturne. Le champ n'est jamais exposé dans un écran
@@ -11,8 +12,11 @@
  * refusée) rend `{ ok: false, reason }` et laisse l'app continuer.
  */
 import { route } from '@forge/api';
-import { clamp } from '../core/time';
+import type { Route } from '@forge/api';
+import { createHash } from 'node:crypto';
+import { clamp, round2 } from '../core/time';
 import { jiraGetJson, jiraSendJson, searchIssues } from './jira';
+import type { SearchPage, SendResult } from './jira';
 import { logShort } from './log';
 
 /** Nom exact du champ, tel qu'il apparaît dans Jira. */
@@ -29,6 +33,18 @@ const WRITE_BATCH = 50;
 
 /** Plafond de la requête « top dettes » (DT-19). */
 const MAX_TOP_DEBTS = 50;
+
+/** Écritures en vol (C29) : jamais plus de 5 PUT simultanés. */
+const WRITE_CONCURRENCY = 5;
+
+/** Plafond de tentatives par PUT (C29) : on ne martèle jamais un 403. */
+const PUT_ATTEMPTS = 2;
+
+/** Marqueur d'idempotence d'un bulletin (G91) : dans le corps du commentaire. */
+const COMMENT_MARKER_PREFIX = 'laddition:bulletin:';
+
+const COMMENT_PAGE_SIZE = 100;
+const COMMENT_MAX_PAGES = 10;
 
 /** Résultat de la mise en place du champ. */
 export interface FieldSetup {
@@ -52,11 +68,39 @@ export interface TopDebtsQuery {
   maxResults: number;
 }
 
+/** Bilan d'une publication de bulletin : posté, déjà là, ou refusé. */
+export interface CommentOutcome {
+  ok: boolean;
+  posted: boolean;
+  reason: string | null;
+}
+
 interface JiraField {
   id?: string;
   name?: string;
   custom?: boolean;
   schema?: { type?: string };
+}
+
+interface ReadCommentPage {
+  comments?: Array<{ body?: unknown }>;
+  total?: number;
+  startAt?: number;
+}
+
+/** Surface HTTP Jira utilisée par ce module (injectable pour les tests). */
+export interface JiraHttp {
+  getJson<T>(url: Route, what: string): Promise<T | null>;
+  sendJson<T>(method: string, url: Route, payload: unknown, what: string): Promise<SendResult<T>>;
+  search(jql: string, fields: readonly string[], maxResults: number, nextPageToken?: string): Promise<SearchPage | null>;
+}
+
+const defaultHttp: JiraHttp = { getJson: jiraGetJson, sendJson: jiraSendJson, search: searchIssues };
+let http: JiraHttp = defaultHttp;
+
+/** Remplace le transport HTTP (tests) ; `null` restaure les vrais appels. */
+export function setJiraHttp(impl: JiraHttp | null): void {
+  http = impl ?? defaultHttp;
 }
 
 /**
@@ -65,7 +109,7 @@ interface JiraField {
  * global au site, un seul suffit pour tous les projets.
  */
 export async function ensureDebtCostField(projectKey: string): Promise<FieldSetup> {
-  const fields = await jiraGetJson<JiraField[]>(route`/rest/api/3/field`, 'listFields');
+  const fields = await http.getJson<JiraField[]>(route`/rest/api/3/field`, 'listFields');
   if (!fields) return { ok: false, fieldId: null, reason: 'liste des champs illisible' };
   const existing = findField(fields, DEBT_COST_FIELD_NAME);
   if (existing?.id) return { ok: true, fieldId: existing.id, reason: null };
@@ -74,7 +118,7 @@ export async function ensureDebtCostField(projectKey: string): Promise<FieldSetu
 
 /** Crée le champ ; un 403 (app non administrateur) est un échec explicite. */
 async function createField(projectKey: string): Promise<FieldSetup> {
-  const sent = await jiraSendJson<{ id?: string }>(
+  const sent = await http.sendJson<{ id?: string }>(
     'POST',
     route`/rest/api/3/field`,
     {
@@ -112,8 +156,8 @@ function findField(fields: JiraField[], name: string): JiraField | null {
  *
  * Idempotent : la valeur courante est relue avant écriture, et un ticket dont
  * la valeur est déjà la bonne n'est ni réécrit ni notifié. Les écritures sont
- * faites par paquets de 50, avec `notifyUsers=false` (personne ne reçoit de
- * mail pour un chiffre recalculé).
+ * faites par lots de 50, avec `notifyUsers=false`, et en parallèle par petits
+ * paquets bornés (C29) : au plus 5 PUT en vol et un plafond de tentatives.
  *
  * `fieldId` vient de `ensureDebtCostField` : on ne devine jamais l'identifiant
  * d'un champ, et on n'écrit jamais dans un champ qu'on n'a pas résolu.
@@ -144,18 +188,23 @@ async function writeBatch(
     for (const key of batch) outcome.failed.push({ key, reason: 'valeurs actuelles illisibles' });
     return;
   }
+  const pending: string[] = [];
   for (const key of batch) {
     const target = values.get(key);
     if (target === undefined || !Number.isFinite(target)) {
       outcome.skipped.push(key);
       continue;
     }
-    if (current.get(key) === target) {
+    const now = current.get(key);
+    if (now !== undefined && round2(now) === round2(target)) {
       outcome.skipped.push(key);
       continue;
     }
-    const written = await putValue(key, fieldId, target);
-    if (written) outcome.updated.push(key);
+    pending.push(key);
+  }
+  const written = await writeAll(pending, values, fieldId);
+  for (const key of pending) {
+    if (written.get(key)) outcome.updated.push(key);
     else {
       outcome.ok = false;
       outcome.failed.push({ key, reason: 'écriture refusée (403 ou champ verrouillé)' });
@@ -163,22 +212,67 @@ async function writeBatch(
   }
 }
 
+/** Écrit les écarts en parallèle borné (C29), résultat indexé par clé. */
+async function writeAll(
+  pending: string[],
+  values: Map<string, number>,
+  fieldId: string,
+): Promise<Map<string, boolean>> {
+  const results = new Map<string, boolean>();
+  await runPool(pending, WRITE_CONCURRENCY, async (key) => {
+    results.set(key, await putWithRetry(key, fieldId, values.get(key) ?? 0));
+  });
+  return results;
+}
+
+/** Un PUT, réessayé au plus `PUT_ATTEMPTS` fois, sans jamais jeter. */
+async function putWithRetry(key: string, fieldId: string, value: number): Promise<boolean> {
+  for (let attempt = 1; attempt <= PUT_ATTEMPTS; attempt += 1) {
+    if (await putValue(key, fieldId, value)) return true;
+  }
+  logShort(`writeDebtCost ${key}: échec après ${PUT_ATTEMPTS} tentatives`);
+  return false;
+}
+
+/** Exécute une tâche sur une liste avec une concurrence bornée. */
+async function runPool<T>(items: readonly T[], limit: number, task: (item: T) => Promise<void>): Promise<void> {
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = items[index] as T;
+      index += 1;
+      await task(current);
+    }
+  });
+  await Promise.all(workers);
+}
+
 /** Valeurs courantes du champ pour un lot, en un seul appel de recherche. */
 async function currentValues(batch: string[], fieldId: string): Promise<Map<string, number> | null> {
   const jql = `key in (${batch.map(quoteKey).join(', ')})`;
-  const page = await searchIssues(jql, [fieldId], batch.length);
+  const page = await http.search(jql, [fieldId], batch.length);
   if (!page) return null;
   const values = new Map<string, number>();
   for (const issue of page.issues) {
-    const raw = issue.fields[fieldId];
-    if (typeof raw === 'number') values.set(issue.key, raw);
+    const value = fieldValue(issue.fields[fieldId]);
+    if (value !== null) values.set(issue.key, value);
   }
   return values;
 }
 
+/** Valeur d'un champ « nombre » : nombre, ou chaîne tolérée (C42). */
+function fieldValue(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 /** Écrit une valeur ; rend `true` quand Jira a accepté (204 compris). */
 async function putValue(key: string, fieldId: string, value: number): Promise<boolean> {
-  const sent = await jiraSendJson<unknown>(
+  const sent = await http.sendJson<unknown>(
     'PUT',
     route`/rest/api/3/issue/${key}?notifyUsers=false`,
     { fields: { [fieldId]: value } },
@@ -198,6 +292,74 @@ export function jqlForTopDebts(fieldId: string, limit: number): TopDebtsQuery {
     jql: `${ref} is not EMPTY AND ${ref} > 0 ORDER BY ${ref} DESC`,
     maxResults: clamp(Math.round(limit), 1, MAX_TOP_DEBTS),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Bulletin de remboursement (G91)
+// ---------------------------------------------------------------------------
+
+/**
+ * Publie le bulletin de remboursement d'un ticket en commentaire Jira.
+ *
+ * Au nom de l'app, au sens « un commentaire de plus, jamais une réécriture » :
+ * idempotent par marqueur dans le corps (l'empreinte du texte), donc le même
+ * bulletin n'est jamais reposté et aucun commentaire existant n'est écrasé.
+ * Le lot D appelle cette fonction pour la brancher ; elle n'est volontairement
+ * pas appelée ici.
+ */
+export async function postRepaymentComment(issueKey: string, texte: string): Promise<CommentOutcome> {
+  const key = issueKey.trim();
+  const body = texte.trim();
+  if (key.length === 0 || body.length === 0) return { ok: false, posted: false, reason: 'ticket ou bulletin vide' };
+  const marker = bulletinMarker(body);
+  const already = await commentHasMarker(key, marker);
+  if (already === null) return { ok: false, posted: false, reason: 'commentaires illisibles' };
+  if (already) return { ok: true, posted: false, reason: null };
+  const sent = await http.sendJson<{ id?: string }>(
+    'POST',
+    route`/rest/api/3/issue/${key}/comment`,
+    { body: commentAdf(marker, body) },
+    `postRepaymentComment ${key}`,
+  );
+  if (!sent.ok) return { ok: false, posted: false, reason: 'publication du bulletin refusée' };
+  return { ok: true, posted: true, reason: null };
+}
+
+/** Marqueur d'idempotence : préfixe fixe + empreinte courte du texte. */
+function bulletinMarker(body: string): string {
+  const hash = createHash('sha256').update(body).digest('hex').slice(0, 16);
+  return `<!-- ${COMMENT_MARKER_PREFIX}${hash} -->`;
+}
+
+/** Vrai si un commentaire porte déjà le marqueur ; `null` si illisible. */
+async function commentHasMarker(key: string, marker: string): Promise<boolean | null> {
+  let startAt = 0;
+  for (let page = 0; page < COMMENT_MAX_PAGES; page += 1) {
+    const data = await http.getJson<ReadCommentPage>(
+      route`/rest/api/3/issue/${key}/comment?startAt=${startAt}&maxResults=${COMMENT_PAGE_SIZE}`,
+      `readComments ${key}`,
+    );
+    if (!data) return null;
+    const comments = data.comments ?? [];
+    if (comments.some((comment) => commentBodyHas(comment, marker))) return true;
+    startAt += comments.length;
+    if (comments.length === 0) break;
+    if (data.total !== undefined && startAt >= data.total) break;
+  }
+  return false;
+}
+
+/** Le marqueur est un texte littéral dans le corps (jamais un HTML commenté). */
+function commentBodyHas(comment: { body?: unknown }, marker: string): boolean {
+  return JSON.stringify(comment.body ?? '').includes(marker);
+}
+
+/** Document ADF : le marqueur puis une ligne par paragraphe non vide. */
+function commentAdf(marker: string, body: string): Record<string, unknown> {
+  const content = [marker, ...body.split('\n')]
+    .filter((line) => line.trim().length > 0)
+    .map((text) => ({ type: 'paragraph', content: [{ type: 'text', text }] }));
+  return { type: 'doc', version: 1, content };
 }
 
 /** `customfield_10042` → `cf[10042]` ; tout autre identifiant → nom cité. */

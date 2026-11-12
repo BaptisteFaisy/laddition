@@ -1,5 +1,6 @@
 import type { SmokeReport } from './smoke';
 import { smokeTest } from './smoke';
+import { OpsAuthError, requireOpsToken, safeProjectKey } from './opsAuth';
 
 /** Requête HTTP reçue par le webtrigger Forge. */
 export type WebTriggerRequest = {
@@ -27,20 +28,35 @@ const DEFAULT_PROJECT_KEY = 'PAY';
 export async function smokeTriggerHandler(
   request: WebTriggerRequest,
 ): Promise<WebTriggerResponse> {
-  const projectKey = pickProjectKey(request);
-  const report: SmokeReport = await smokeTest(projectKey);
-  return {
-    statusCode: report.ok ? 200 : 500,
-    headers: { 'Content-Type': ['application/json; charset=utf-8'] },
-    body: JSON.stringify(report, null, 2),
-  };
+  try {
+    requireOpsToken(request);
+    const report: SmokeReport = await smokeTest(pickProjectKey(request));
+    return json(report.ok ? 200 : 500, report);
+  } catch (error) {
+    // Une garde refusée rend 403, pas 500 : ce n'est pas une panne de l'app.
+    const status = error instanceof OpsAuthError ? 403 : 500;
+    return json(status, { ok: false, error: messageOf(error) });
+  }
 }
 
-/** Première valeur du paramètre `project`, ou le défaut. */
+/** Première valeur du paramètre `project`, validée avant tout JQL. */
 function pickProjectKey(request: WebTriggerRequest): string {
   const query = request.queryParameters ?? {};
   const candidates = query['project'] ?? query['projectKey'] ?? [];
   const first = Array.isArray(candidates) ? candidates[0] : candidates;
-  if (typeof first === 'string' && first.trim().length > 0) return first.trim().toUpperCase();
-  return DEFAULT_PROJECT_KEY;
+  return safeProjectKey(typeof first === 'string' ? first : null, DEFAULT_PROJECT_KEY);
+}
+
+/** Réponse JSON, code HTTP explicite. */
+function json(statusCode: number, body: unknown): WebTriggerResponse {
+  return {
+    statusCode,
+    headers: { 'Content-Type': ['application/json; charset=utf-8'] },
+    body: JSON.stringify(body, null, 2),
+  };
+}
+
+/** Message d'une erreur, quel que soit son emballage. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

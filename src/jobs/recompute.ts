@@ -37,6 +37,13 @@ export interface RecomputeInput {
   projectId: string;
   settings: ProjectSettings;
   facts: IssueFact[];
+  /**
+   * Faits d'autres projets qui alimentent les preuves du projet calculé :
+   * les incidents JSM de `settings.jsmProjectKeys` (A9). Ils produisent des
+   * preuves (C1) mais ne servent ni de référence C3 ni de mesure de qualité :
+   * ce ne sont pas des tickets du projet.
+   */
+  extraFacts?: IssueFact[];
   links: IssueLink[];
   spansByIssue: Map<string, StatusSpan[]>;
   /** Scores du modèle ; vide si le modèle n'a pas été appelé. */
@@ -73,7 +80,21 @@ export function prepare(input: RecomputeInput): Prepared {
     baselines,
     spansByIssue: input.spansByIssue,
   };
-  return { ctx, evidence: collectEvidence(input.facts, ctx, input.links), debts: debtsOf(input.facts) };
+  return {
+    ctx,
+    evidence: collectEvidence(evidenceFacts(input), ctx, input.links),
+    debts: debtsOf(input.facts),
+  };
+}
+
+/**
+ * Faits qui produisent des preuves : ceux du projet, plus les faits d'autres
+ * projets qui l'alimentent (incidents JSM, A9). Les références C3 et la
+ * qualité des données, elles, restent mesurées sur les seuls tickets du projet.
+ */
+export function evidenceFacts(input: RecomputeInput): IssueFact[] {
+  const extra = input.extraFacts ?? [];
+  return extra.length === 0 ? input.facts : [...input.facts, ...extra];
 }
 
 /** Chaîne complète, en un appel : prépare puis termine (usage des tests). */

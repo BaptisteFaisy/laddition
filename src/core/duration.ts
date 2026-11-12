@@ -1,6 +1,16 @@
 import type { IssueFact, StatusCategory, StatusSpan } from './types';
 import { businessDaysBetween, diffDays, parseIso } from './time';
 
+/**
+ * Origine de la durée retenue d'un ticket (§19).
+ *
+ * Deux replis sur la durée totale se ressemblent mais ne se valent pas : un
+ * historique **absent** est un trou dans les données, un workflow **sans statut
+ * actif** est un projet dont les statuts ne se mappent pas sur « en cours ».
+ * L'écran doit pouvoir les distinguer (§19 cas 6).
+ */
+export type DurationBasis = 'active-status' | 'no-active-status' | 'missing-history';
+
 /** Entrée d'historique Jira, réduite à ce qui sert aux durées. */
 export interface HistoryEntry {
   created: string;
@@ -70,7 +80,21 @@ export function inProgressDays(spans: StatusSpan[], untilIso?: string): number {
 }
 
 /**
- * Durée approchée d'un ticket sans historique de statuts (§19) :
+ * Classe l'origine de la durée d'un ticket à partir de ses séjours de statut.
+ *
+ * - aucun séjour : l'historique manque, la durée sera approchée ;
+ * - des séjours, mais aucun « en cours » : le workflow n'a pas de statut actif,
+ *   la durée retombe sur la durée totale ;
+ * - au moins un séjour « en cours » : la durée est mesurée.
+ */
+export function durationBasis(spans: StatusSpan[] | undefined): DurationBasis {
+  const list = spans ?? [];
+  if (list.length === 0) return 'missing-history';
+  return list.some((span) => span.category === 'inprogress') ? 'active-status' : 'no-active-status';
+}
+
+/**
+ * Durée approchée d'un ticket dont les statuts ne donnent rien (§19) :
  * création → résolution, en jours ouvrés. Le coût qui en découle est marqué
  * « approximé » et signalé comme tel à l'écran.
  */

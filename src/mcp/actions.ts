@@ -6,6 +6,10 @@
  * méthode a déjà tourné la nuit (§15). Sept actions sont en lecture seule, une
  * (`confirm-evidence`) écrit le rapprochement confirmé ou rejeté (§7.4, §10).
  *
+ * Les trois actions ajoutées à l'audit ont leur propre fichier, pour rester sous
+ * la limite de taille : `debtCase.ts` (`get-debt-case`), `zoneEvidence.ts`
+ * (`list-zone-evidence`), `projectList.ts` (`list-projects`).
+ *
  * Aucune action ne jette : chacune rend `{ ok, data }` (voir `result.ts`).
  */
 
@@ -13,7 +17,6 @@ import type {
   DeadDebt,
   DebtBill,
   Evidence,
-  IssueFact,
   PhantomDebt,
   ProjectSettings,
   RankedDebt,
@@ -23,46 +26,35 @@ import type {
 import { findDeadDebt } from '../core/dead';
 import { findPhantomDebt } from '../core/phantom';
 import { rankDebts } from '../core/ranking';
-import { makeSettings } from '../core/settings';
-import { addDays, round2, weeksBetween } from '../core/time';
+import { round2 } from '../core/time';
 import {
   getIssueFactByKey,
-  getSettings,
   listAttributions,
   listBills,
   listDebtIssues,
   listEvidence,
   listRepayments,
-  listZoneWeeks,
 } from '../platform/db/index';
-import { projectIdByKey } from '../jobs/projects';
 import { confirmMatch as decideConfirm, rejectMatch as decideReject } from '../jobs/decisions';
-import type { ActionEnvelope, JsonPayload } from './result';
+import { projectKeyOf, resolveProject } from './project';
+import {
+  billOf,
+  evidenceFor,
+  evidenceOfBill,
+  isZoneCovered,
+  locateDebt,
+  nowIso,
+  topEvidenceOf,
+  unknownZoneError,
+  zoneCostsOf,
+} from './reads';
+import { maskEvidence } from './masking';
+import type { ActionEnvelope, AppliedNumber, JsonPayload } from './result';
 import { optionalNumber, optionalText, requireBoolean, requireText, run } from './result';
 
 /** Nombre de dettes rendues par défaut, et plafond de l'action de classement. */
 export const DEFAULT_RANKING_LIMIT = 10;
-const MAX_RANKING_LIMIT = 50;
-
-/** Instant de référence des actions : l'horloge du runtime, jamais le domaine. */
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
-/** Projet résolu depuis la clé reçue par l'agent (`PAY`). */
-interface ProjectContext {
-  projectId: string;
-  projectKey: string;
-  settings: ProjectSettings;
-}
-
-/** Résout un projet et ses réglages ; jette un motif clair s'il est inconnu. */
-async function projectOf(projectKey: string): Promise<ProjectContext> {
-  const projectId = await projectIdByKey(projectKey);
-  if (!projectId) throw new Error(`projet « ${projectKey} » inconnu : lancer l'initialisation de L'addition`);
-  const settings = (await getSettings(projectId)) ?? makeSettings(projectId, projectKey);
-  return { projectId, projectKey, settings };
-}
+export const MAX_RANKING_LIMIT = 50;
 
 /* ------------------------------------------------------ get-debt-ranking */
 
@@ -71,13 +63,17 @@ export interface DebtRankingData {
   projectKey: string;
   windowDays: number;
   total: number;
+  /** Nombre de dettes réellement rendues. */
+  limit: number;
+  /** Écho de la limite : demandée, appliquée, bornée (item E72). */
+  limitApplied: AppliedNumber;
   debts: RankedDebt[];
 }
 
 /** GET `get-debt-ranking` : les dettes les plus coûteuses, de la plus chère à la moins chère. */
 export async function getDebtRanking(payload: JsonPayload): Promise<ActionEnvelope<DebtRankingData>> {
   return run(async () => {
-    const project = await projectOf(requireText(payload, 'projectKey'));
+    const project = await resolveProject(optionalText(payload, 'projectKey'));
     const limit = optionalNumber(payload, 'limit', DEFAULT_RANKING_LIMIT, MAX_RANKING_LIMIT);
     const [bills, debts] = await Promise.all([
       listBills(project.projectId),
@@ -88,7 +84,9 @@ export async function getDebtRanking(payload: JsonPayload): Promise<ActionEnvelo
       projectKey: project.projectKey,
       windowDays: project.settings.windowDays,
       total: ranking.length,
-      debts: ranking.slice(0, limit),
+      limit: limit.applied,
+      limitApplied: limit,
+      debts: ranking.slice(0, limit.applied),
     };
   });
 }
@@ -99,8 +97,9 @@ export async function getDebtRanking(payload: JsonPayload): Promise<ActionEnvelo
 export interface DebtBillData {
   debt: { key: string; summary: string; zone: string };
   bill: DebtBill;
+  /** Preuves de l'addition ; celles hors des droits du lecteur sont masquées (§18). */
   evidence: Evidence[];
-  /** Part des preuves masquées pour ce lecteur, jamais leur contenu (§18). */
+  /** Preuves comptées mais masquées pour ce lecteur, jamais leur contenu (§18). */
   hiddenCount: number;
 }
 
@@ -110,55 +109,14 @@ export async function getDebtBill(payload: JsonPayload): Promise<ActionEnvelope<
     const issueKey = requireText(payload, 'issueKey');
     const located = await locateDebt(issueKey);
     const bill = await billOf(located.project.projectId, issueKey);
-    const evidence = await evidenceOfBill(located.project.projectId, bill);
+    const masked = maskEvidence(await evidenceOfBill(located.project.projectId, bill));
     return {
       debt: { key: bill.key, summary: located.debt.summary, zone: located.debt.zones[0] ?? 'non classé' },
       bill,
-      evidence,
-      hiddenCount: bill.hiddenCount,
+      evidence: masked.evidence,
+      hiddenCount: masked.hiddenCount,
     };
   });
-}
-
-/** Ticket de dette et son projet, retrouvés depuis sa clé. */
-interface LocatedDebt {
-  project: ProjectContext;
-  debt: IssueFact;
-}
-
-/** Retrouve la dette et son projet ; jette un motif clair si elle est absente. */
-async function locateDebt(issueKey: string): Promise<LocatedDebt> {
-  const byKey = await getIssueFactByKey(issueKey);
-  if (byKey) {
-    const settings = (await getSettings(byKey.projectId)) ?? makeSettings(byKey.projectId, byKey.projectKey);
-    if (!byKey.isDebt) throw new Error(`« ${issueKey} » n'est pas un ticket de dette`);
-    return { project: { projectId: byKey.projectId, projectKey: byKey.projectKey, settings }, debt: byKey };
-  }
-  const project = await projectOf(projectKeyOf(issueKey));
-  const debts = await listDebtIssues(project.projectId);
-  const debt = debts.find((item) => item.key === issueKey);
-  if (!debt) throw new Error(`« ${issueKey} » n'est pas un ticket de dette connu du projet ${project.projectKey}`);
-  return { project, debt };
-}
-
-/** Addition enregistrée d'un ticket, par sa clé. */
-async function billOf(projectId: string, issueKey: string): Promise<DebtBill> {
-  const bills = await listBills(projectId);
-  const bill = bills.find((item) => item.key === issueKey);
-  if (!bill) throw new Error(`aucune addition calculée pour « ${issueKey} » : relancer le calcul nocturne`);
-  return bill;
-}
-
-/** Preuves d'une addition, dans l'ordre de coût décroissant de `evidenceIds`. */
-async function evidenceOfBill(projectId: string, bill: DebtBill): Promise<Evidence[]> {
-  const all = await listEvidence(projectId);
-  const byId = new Map(all.map((item) => [item.id, item]));
-  const ordered: Evidence[] = [];
-  for (const id of bill.evidenceIds) {
-    const item = byId.get(id);
-    if (item) ordered.push(item);
-  }
-  return ordered;
 }
 
 /* -------------------------------------------------------- get-zone-costs */
@@ -183,11 +141,13 @@ export interface ZoneCostData {
 /** GET `get-zone-costs` : ce que coûte une zone, et ce qui s'y casse le plus souvent. */
 export async function getZoneCosts(payload: JsonPayload): Promise<ActionEnvelope<ZoneCostData>> {
   return run(async () => {
-    const project = await projectOf(requireText(payload, 'projectKey'));
     const zone = requireText(payload, 'zone');
+    const project = await resolveProject(optionalText(payload, 'projectKey'));
     const costs = await zoneCostsOf(project);
     const cost = costs.find((item) => item.zone === zone);
-    if (!cost) throw new Error(`zone « ${zone} » inconnue sur la fenêtre de ${project.settings.windowDays} jours`);
+    // Item E67 : une zone inconnue rend la liste des zones mesurées — l'appelant
+    // corrige son paramètre au lieu de deviner un nom.
+    if (!cost) throw unknownZoneError(zone, costs, project.settings.windowDays);
     return {
       projectKey: project.projectKey,
       windowDays: project.settings.windowDays,
@@ -196,19 +156,6 @@ export async function getZoneCosts(payload: JsonPayload): Promise<ActionEnvelope
       coveredByDebt: await isZoneCovered(project.projectId, zone),
     };
   });
-}
-
-/** Coûts de toutes les zones sur la fenêtre d'analyse du projet. */
-async function zoneCostsOf(project: ProjectContext): Promise<ZoneCost[]> {
-  const now = nowIso();
-  const weeks = weeksBetween(addDays(now, -project.settings.windowDays), now);
-  return listZoneWeeks(project.projectId, weeks);
-}
-
-/** Vrai quand au moins un ticket de dette est rattaché à la zone. */
-async function isZoneCovered(projectId: string, zone: string): Promise<boolean> {
-  const debts = await listDebtIssues(projectId);
-  return debts.some((debt) => debt.zones.includes(zone));
 }
 
 /** Compare la moyenne des semaines récentes à celle des semaines anciennes. */
@@ -246,7 +193,7 @@ export interface PhantomDebtData {
 /** GET `list-phantom-debt` : le coût sans ticket. */
 export async function listPhantomDebt(payload: JsonPayload): Promise<ActionEnvelope<PhantomDebtData>> {
   return run(async () => {
-    const project = await projectOf(requireText(payload, 'projectKey'));
+    const project = await resolveProject(optionalText(payload, 'projectKey'));
     const [costs, debts, evidence] = await Promise.all([
       zoneCostsOf(project),
       listDebtIssues(project.projectId),
@@ -272,7 +219,7 @@ export interface DeadDebtData {
 /** GET `list-dead-debt` : les dettes que plus rien n'alimente. */
 export async function listDeadDebt(payload: JsonPayload): Promise<ActionEnvelope<DeadDebtData>> {
   return run(async () => {
-    const project = await projectOf(requireText(payload, 'projectKey'));
+    const project = await resolveProject(optionalText(payload, 'projectKey'));
     const [debts, evidence, attributions] = await Promise.all([
       listDebtIssues(project.projectId),
       listEvidence(project.projectId),
@@ -303,7 +250,12 @@ export async function getRepaymentReport(payload: JsonPayload): Promise<ActionEn
     const located = await locateProjectOfIssue(issueKey);
     const repayments = await listRepayments(located.projectId);
     const repayment = repayments.find((item) => item.key === issueKey);
-    if (!repayment) throw new Error(`aucun bulletin de remboursement pour « ${issueKey} »`);
+    if (!repayment) {
+      throw new Error(
+        `aucun bulletin de remboursement pour « ${issueKey} » : le bulletin est publié ` +
+          'après la clôture de la dette, une fois les deux périodes observées',
+      );
+    }
     return {
       projectKey: located.projectKey,
       repayment,
@@ -316,14 +268,8 @@ export async function getRepaymentReport(payload: JsonPayload): Promise<ActionEn
 async function locateProjectOfIssue(issueKey: string): Promise<{ projectId: string; projectKey: string }> {
   const fact = await getIssueFactByKey(issueKey);
   if (fact) return { projectId: fact.projectId, projectKey: fact.projectKey };
-  return projectOf(projectKeyOf(issueKey));
-}
-
-/** Préfixe d'une clé de ticket (`PAY-77` → `PAY`). */
-function projectKeyOf(issueKey: string): string {
-  const prefix = issueKey.split('-')[0] ?? '';
-  if (prefix.length === 0) throw new Error(`clé de ticket illisible : « ${issueKey} »`);
-  return prefix;
+  const project = await resolveProject(projectKeyOf(issueKey));
+  return { projectId: project.projectId, projectKey: project.projectKey };
 }
 
 /* --------------------------------------------------- draft-debt-ticket */
@@ -341,14 +287,11 @@ export interface DraftTicketData {
 /** GET `draft-debt-ticket` : le texte prêt à relire, jamais un ticket créé. */
 export async function draftDebtTicket(payload: JsonPayload): Promise<ActionEnvelope<DraftTicketData>> {
   return run(async () => {
-    const project = await projectOf(requireText(payload, 'projectKey'));
     const zone = requireText(payload, 'zone');
-    const [costs, evidence] = await Promise.all([
-      zoneCostsOf(project),
-      listEvidence(project.projectId),
-    ]);
+    const project = await resolveProject(optionalText(payload, 'projectKey'));
+    const [costs, evidence] = await Promise.all([zoneCostsOf(project), listEvidence(project.projectId)]);
     const cost = costs.find((item) => item.zone === zone);
-    if (!cost) throw new Error(`zone « ${zone} » inconnue sur la fenêtre d'analyse`);
+    if (!cost) throw unknownZoneError(zone, costs, project.settings.windowDays);
     const cited = topEvidenceOf(zone, evidence);
     return {
       zone,
@@ -358,15 +301,6 @@ export async function draftDebtTicket(payload: JsonPayload): Promise<ActionEnvel
       evidenceIds: cited.map((item) => item.id),
     };
   });
-}
-
-/** Les cinq preuves les plus coûteuses d'une zone, visibles pour ce lecteur (§18). */
-function topEvidenceOf(zone: string, evidence: Evidence[]): Evidence[] {
-  return evidence
-    .filter((item) => item.zone === zone && item.visible !== false && item.family !== 'C5')
-    .slice()
-    .sort((a, b) => b.costJp - a.costJp || a.id.localeCompare(b.id))
-    .slice(0, 5);
 }
 
 /**
@@ -401,15 +335,38 @@ export interface ConfirmEvidenceData {
   basis: 'confirmed' | 'rejected';
   /** Nombre de parts réécrites (0 pour un rejet, qui n'écrit qu'un refus). */
   updated: number;
+  /** Auteur enregistré de la décision : jamais un nom fourni par l'appelant. */
+  decidedBy: string;
 }
 
 /**
- * UPDATE `confirm-evidence` : l'humain confirme ou rejette un rapprochement.
+ * Auteur d'une décision passée par outil MCP (item E71).
+ *
+ * Un appel d'outil n'a **aucun contexte utilisateur** : le payload vient du
+ * modèle, donc un champ `by` libre permettait à n'importe quel appelant
+ * d'attribuer la décision à un tiers. Ce champ n'est plus lu ; la décision est
+ * enregistrée sous l'identité de l'outil, non usurpable, et le journal des
+ * décisions distingue ainsi un clic humain (`accountId`) d'un appel d'outil.
+ */
+export const MCP_ACTOR = 'rovo-mcp';
+
+/**
+ * UPDATE `confirm-evidence` : la décision de rapprochement est enregistrée (§7.4).
+ *
+ * **Asymétrie assumée (item E70).** Cet outil figure dans `rovo:mcp` mais pas
+ * dans la liste d'actions de l'agent « L'addition » : le §10 réserve la
+ * confirmation à un humain, et c'est l'écran (un clic, avec le `accountId` du
+ * compte) qui la produit. L'outil reste exposé aux **agents de code et aux
+ * automatisations pilotées par un humain** — un ticket, un script d'exploitation
+ * — qui agissent sur demande explicite ; l'agent conversationnel, lui, ne
+ * confirme jamais seul : il explique la proposition et renvoie l'utilisateur à
+ * l'écran (c'est écrit dans son prompt, `agent.ts`).
  *
  * Une confirmation remplace les parts existantes du couple par une attribution
  * `confirmed` à 100 % — elle entre donc dans la fourchette basse (§10). Un rejet
  * enregistre le refus : le rapprochement n'est plus proposé. Dans les deux cas
- * l'addition est recalculée la nuit suivante, pas ici : l'action ne calcule rien.
+ * l'addition est recalculée par le module partagé `jobs/decisions.ts`, le même
+ * que l'écran : une décision survit au recalcul nocturne.
  */
 export async function confirmEvidence(payload: JsonPayload): Promise<ActionEnvelope<ConfirmEvidenceData>> {
   return run(async () => {
@@ -418,28 +375,19 @@ export async function confirmEvidence(payload: JsonPayload): Promise<ActionEnvel
     const confirmed = requireBoolean(payload, 'confirmed');
     const located = await locateDebt(debtKey);
     const evidence = await evidenceFor(evidenceKey, located.project.projectId);
-    const by = optionalText(payload, 'by') ?? 'rovo';
     const projectId = located.project.projectId;
-    // Même module que l'écran : la décision est enregistrée comme telle, donc
-    // elle survit au recalcul nocturne (un simple réécriture des parts, non).
     const outcome = confirmed
-      ? await decideConfirm(projectId, evidence.id, located.debt.issueId, by)
-      : await decideReject(projectId, evidence.id, located.debt.issueId, by);
+      ? await decideConfirm(projectId, evidence.id, located.debt.issueId, MCP_ACTOR)
+      : await decideReject(projectId, evidence.id, located.debt.issueId, MCP_ACTOR);
     return {
       evidenceId: outcome.evidenceId,
       debtIssueId: outcome.debtIssueId,
       confirmed,
       basis: confirmed ? 'confirmed' : 'rejected',
       updated: outcome.bills,
+      decidedBy: MCP_ACTOR,
     };
   });
 }
 
-/** Preuve visée par sa clé : identifiant de preuve d'abord, clé de source ensuite. */
-async function evidenceFor(evidenceKey: string, projectId: string): Promise<Evidence> {
-  const all = await listEvidence(projectId);
-  const found = all.find((item) => item.id === evidenceKey) ?? all.find((item) => item.sourceKey === evidenceKey);
-  if (!found) throw new Error(`preuve « ${evidenceKey} » inconnue du projet`);
-  return found;
-}
-
+/* ------------------------------------------------- lectures internes */

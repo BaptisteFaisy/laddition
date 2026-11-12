@@ -2,15 +2,18 @@
  * Famille C2 — bugs (§9).
  *
  * Un bug coûte le temps passé en statut « en cours », en jours ouvrés, pour une
- * personne. Sans historique de statuts, la durée est approchée (création →
- * résolution) et le coût est marqué « approximé » (§19). Le temps saisi, quand
- * il existe, remplace le calcul. Le coût est partagé entre les zones du ticket.
+ * personne. Sans historique de statuts, ou dans un workflow sans statut actif,
+ * la durée est approchée (création → résolution) et le coût est marqué
+ * « approximé » ; les deux situations sont distinguées dans le détail (§19).
+ * Le temps saisi, quand il existe, remplace le calcul. Le coût est partagé
+ * entre les zones du ticket.
  *
  * Fonction pure : l'instant de référence vient de `ctx.now`, aucune I/O.
  */
 
 import type { CostContext, CostMethod, Evidence, EvidenceDetail, IssueFact, StatusSpan } from '../types';
-import { approximateDays, inProgressDays } from '../duration';
+import { approximateDays, durationBasis, inProgressDays } from '../duration';
+import type { DurationBasis } from '../duration';
 import { addDays, parseIso, round2, secondsToJp } from '../time';
 import { splitAcrossZones, zonesForIssue } from '../zones';
 
@@ -36,10 +39,10 @@ export function c2Bugs(facts: IssueFact[], ctx: CostContext): Evidence[] {
     if (!createdInWindow(fact, windowStart, ctx.now)) continue;
 
     const spans: StatusSpan[] = ctx.spansByIssue.get(fact.issueId) ?? [];
-    const hasSpans = spans.length > 0;
-    const durationDays = hasSpans ? inProgressDays(spans, ctx.now) : approximateDays(fact, ctx.now);
-    const cost = bugCost(fact, durationDays, hasSpans, ctx.settings.hoursPerDay);
-    const detail = buildDetail(fact, durationDays, cost, hasSpans, ctx.settings.hoursPerDay);
+    const basis = durationBasis(spans);
+    const durationDays = basis === 'active-status' ? inProgressDays(spans, ctx.now) : approximateDays(fact, ctx.now);
+    const cost = bugCost(fact, durationDays, basis, ctx.settings.hoursPerDay);
+    const detail = buildDetail(fact, durationDays, cost, basis, ctx.settings.hoursPerDay);
 
     for (const share of splitAcrossZones(cost.costJp, zonesForIssue(fact, ctx.settings))) {
       evidence.push({
@@ -71,16 +74,16 @@ function createdInWindow(fact: IssueFact, windowStartIso: string, nowIso: string
 
 /**
  * Coût d'un bug : durée × 1 personne, remplacé par le temps saisi quand il
- * existe. `approximated` signale une durée déduite faute d'historique. Jamais
- * négatif.
+ * existe. `approximated` signale une durée déduite faute d'historique ou faute
+ * de statut actif. Jamais négatif.
  */
-function bugCost(fact: IssueFact, durationDays: number, hasSpans: boolean, hoursPerDay: number): BugCost {
+function bugCost(fact: IssueFact, durationDays: number, basis: DurationBasis, hoursPerDay: number): BugCost {
   const loggedJp = secondsToJp(fact.loggedSeconds, hoursPerDay);
   const raw = loggedJp ?? Math.max(0, durationDays) * 1;
 
   return {
     costJp: round2(Math.max(0, raw)),
-    method: loggedJp !== null ? 'logged' : hasSpans ? 'computed' : 'approximated',
+    method: loggedJp !== null ? 'logged' : basis === 'active-status' ? 'computed' : 'approximated',
   };
 }
 
@@ -89,18 +92,19 @@ function buildDetail(
   fact: IssueFact,
   durationDays: number,
   cost: BugCost,
-  hasSpans: boolean,
+  basis: DurationBasis,
   hoursPerDay: number,
 ): EvidenceDetail {
   return {
     durationDays: round2(durationDays),
     method: cost.method,
-    formula: formulaOf(fact, durationDays, cost, hasSpans, hoursPerDay),
+    formula: formulaOf(fact, durationDays, cost, basis, hoursPerDay),
     inputs: {
       durationDays: round2(durationDays),
       persons: 1,
       loggedSeconds: fact.loggedSeconds,
-      statusHistory: hasSpans,
+      statusHistory: basis !== 'missing-history',
+      durationBasis: basis,
     },
     familyLabel: FAMILY_LABEL,
     sourceSummary: fact.summary,
@@ -112,7 +116,7 @@ function formulaOf(
   fact: IssueFact,
   durationDays: number,
   cost: BugCost,
-  hasSpans: boolean,
+  basis: DurationBasis,
   hoursPerDay: number,
 ): string {
   const loggedJp = secondsToJp(fact.loggedSeconds, hoursPerDay);
@@ -123,10 +127,17 @@ function formulaOf(
     );
   }
 
-  const basis = hasSpans
-    ? `${fmt(durationDays)} j ouvrés en cours`
-    : `${fmt(durationDays)} j ouvrés (création → résolution, historique de statuts absent)`;
-  return `${basis} × 1 personne = ${fmt(cost.costJp)} j-p`;
+  return `${fmt(durationDays)} j ouvrés ${fallbackLabel(basis)} × 1 personne = ${fmt(cost.costJp)} j-p`;
+}
+
+/**
+ * Origine de la durée, en clair : un historique absent n'est pas un workflow
+ * sans statut actif, et le lecteur doit le voir (§19 cas 6).
+ */
+function fallbackLabel(basis: DurationBasis): string {
+  if (basis === 'missing-history') return '(création → résolution, historique de statuts absent)';
+  if (basis === 'no-active-status') return '(création → résolution, workflow sans statut actif)';
+  return 'en cours';
 }
 
 /** Nombre lisible : deux décimales au plus, virgule française. */

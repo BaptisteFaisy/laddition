@@ -1,7 +1,9 @@
 import type { Request } from '@forge/resolver';
-import type { Attribution, DebtBill, Evidence, Family, FamilyTotal, IssueFact } from '../core/types';
+import type { Attribution, AttributionBasis, DebtBill, Evidence, Family, FamilyTotal, IssueFact } from '../core/types';
 import { BILLED_FAMILIES } from '../core/types';
+import { round2 } from '../core/time';
 import { getBill, getIssueFact } from '../platform/db/index';
+import { maskEvidence } from '../mcp/masking';
 import type { Failure } from '../jobs/support';
 import { guard, nowIso, payloadOf, requireString } from '../jobs/support';
 import { evidenceOfBill } from './read';
@@ -15,7 +17,30 @@ import { loadState } from './state';
  * `evidence`. Ce fichier ne fait que rapprocher les deux et préparer les
  * propositions de rapprochement (§10) et le rattachement d'un ticket qui n'est
  * pas la dette elle-même (écran 3).
+ *
+ * Deux exigences d'audit (items D57/A4) y sont appliquées à la lecture :
+ * - les **parts d'attribution** sont exposées (`shares`), pour que la recette
+ *   §20 n° 2 soit vérifiable à l'écran : un incident partagé entre deux dettes
+ *   montre sa part, et la somme des parts ne dépasse pas 100 % ;
+ * - `hiddenCount` est **réel** : les preuves que ce lecteur ne peut pas ouvrir
+ *   sont comptées mais masquées (§18) — leur contenu (clé source, formule,
+ *   valeurs) ne quitte pas le serveur, seule leur ligne chiffrée reste.
  */
+
+/** Part d'une preuve imputée à cette dette, et total toutes dettes confondues. */
+export interface EvidenceShare {
+  evidenceId: string;
+  /** Clé du ticket source ; vide quand la preuve est masquée (§18). */
+  sourceKey: string;
+  family: Family;
+  costJp: number;
+  /** Part imputée à cette dette (0 à 1). */
+  share: number;
+  basis: AttributionBasis;
+  relevance: number;
+  /** Somme des parts de cette preuve sur toutes les dettes : ≤ 1 (§5, règle 3). */
+  totalShare: number;
+}
 
 /** Un rapprochement proposé, en attente de confirmation humaine (§10). */
 export interface PendingMatch {
@@ -40,8 +65,14 @@ export interface DebtBillView {
   settings: ProjectState['settings'];
   /** Zone du ticket de dette ; vide quand il n'en a pas (§19). */
   zone: string;
+  /** Addition enregistrée, avec `hiddenCount` recalé sur les preuves rendues. */
   bill: DebtBill;
+  /** Preuves de l'addition ; celles hors des droits du lecteur sont masquées. */
   evidence: Evidence[];
+  /** Preuves comptées mais masquées pour ce lecteur (§18) : jamais leur contenu. */
+  hiddenCount: number;
+  /** Parts d'attribution des preuves de cette dette (recette §20 n° 2). */
+  shares: EvidenceShare[];
   pendingMatches: PendingMatch[];
   /** Renseigné pour un ticket qui n'est pas la dette elle-même. */
   attribution: IssueAttribution | null;
@@ -57,11 +88,16 @@ export async function getDebtBill(request: Request<unknown>): Promise<DebtBillVi
     const state = await loadState(projectId, nowIso());
     const fact = state.facts.find((item) => item.issueId === debtIssueId) ?? null;
     const bill = stored ?? emptyBill(fact, debtIssueId, nowIso());
+    const masked = maskEvidence(await evidenceOfBill(projectId, bill.evidenceIds));
     return {
       settings: state.settings,
       zone: fact?.zones[0] ?? '',
-      bill,
-      evidence: await evidenceOfBill(projectId, bill.evidenceIds),
+      // `hiddenCount` réel : compté sur les preuves effectivement rendues, pas
+      // sur la seule valeur écrite la nuit dernière (item D57/A4).
+      bill: { ...bill, hiddenCount: masked.hiddenCount },
+      evidence: masked.evidence,
+      hiddenCount: masked.hiddenCount,
+      shares: sharesOf(state.attributions, masked.evidence, debtIssueId),
       pendingMatches: pendingMatchesOf(state, debtIssueId),
       attribution: fact && !fact.isDebt ? attributionOf(state, fact) : null,
     };
@@ -165,4 +201,47 @@ function toProposal(
     zone: byEvidence.get(attribution.evidenceId)?.zone ?? '',
     relevance: attribution.relevance,
   };
+}
+
+/**
+ * Parts d'attribution des preuves de cette addition (item D57/A4).
+ *
+ * Une ligne par preuve rattachée à la dette : sa part, sa base, et la somme des
+ * parts de cette preuve sur **toutes** les dettes — c'est ce total qui permet de
+ * vérifier la recette §20 n° 2 (« la somme des parts ne dépasse pas 100 % »).
+ * Une preuve sans part enregistrée n'apparaît pas : on ne l'invente pas.
+ */
+function sharesOf(
+  attributions: readonly Attribution[],
+  evidence: readonly Evidence[],
+  debtIssueId: string,
+): EvidenceShare[] {
+  const totals = totalShareByEvidence(attributions);
+  const rows: EvidenceShare[] = [];
+  for (const item of evidence) {
+    const mine = attributions.find(
+      (attribution) => attribution.evidenceId === item.id && attribution.debtIssueId === debtIssueId,
+    );
+    if (!mine) continue;
+    rows.push({
+      evidenceId: item.id,
+      sourceKey: item.sourceKey,
+      family: item.family,
+      costJp: item.costJp,
+      share: mine.share,
+      basis: mine.basis,
+      relevance: mine.relevance,
+      totalShare: round2(totals.get(item.id) ?? mine.share),
+    });
+  }
+  return rows;
+}
+
+/** Somme des parts de chaque preuve, toutes dettes confondues. */
+function totalShareByEvidence(attributions: readonly Attribution[]): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const attribution of attributions) {
+    totals.set(attribution.evidenceId, (totals.get(attribution.evidenceId) ?? 0) + attribution.share);
+  }
+  return totals;
 }

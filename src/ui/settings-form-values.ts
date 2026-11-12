@@ -20,22 +20,49 @@ export const ZONE_MODE_LABELS: Record<ZoneMode, MessageKey> = {
 
 export type NumberField = { name: string; label: MessageKey; value: number };
 
-/** Les douze nombres réglables, dans l'ordre où ils sont affichés. */
+/** Les douze nombres réglables : nom du champ et libellé, dans l'ordre affiché. */
+const NUMBER_FIELD_DEFS: Array<{ name: string; label: MessageKey }> = [
+  { name: 'hoursPerDay', label: 'settings.hoursPerDay' },
+  { name: 'daysPerWeek', label: 'settings.daysPerWeek' },
+  { name: 'windowDays', label: 'settings.windowDays' },
+  { name: 'deadDays', label: 'settings.deadDays' },
+  { name: 'occupationCoefficient', label: 'settings.occupationCoefficient' },
+  { name: 'persistenceFactor', label: 'settings.persistenceFactor' },
+  { name: 'minBaselineSample', label: 'settings.minBaselineSample' },
+  { name: 'clipPercentile', label: 'settings.clipPercentile' },
+  { name: 'maxIncidentPeople', label: 'settings.maxIncidentPeople' },
+  { name: 'postMortemBonusJp', label: 'settings.postMortemBonusJp' },
+  { name: 'relevanceFloor', label: 'settings.relevanceFloor' },
+  { name: 'phantomThresholdJp', label: 'settings.phantomThresholdJp' },
+];
+
+/** Les douze nombres réglables, avec leur valeur en vigueur. */
 export function numberFields(settings: ProjectSettings): NumberField[] {
-  return [
-    { name: 'hoursPerDay', label: 'settings.hoursPerDay', value: settings.hoursPerDay },
-    { name: 'daysPerWeek', label: 'settings.daysPerWeek', value: settings.daysPerWeek },
-    { name: 'windowDays', label: 'settings.windowDays', value: settings.windowDays },
-    { name: 'deadDays', label: 'settings.deadDays', value: settings.deadDays },
-    { name: 'occupationCoefficient', label: 'settings.occupationCoefficient', value: settings.occupationCoefficient },
-    { name: 'persistenceFactor', label: 'settings.persistenceFactor', value: settings.persistenceFactor },
-    { name: 'minBaselineSample', label: 'settings.minBaselineSample', value: settings.minBaselineSample },
-    { name: 'clipPercentile', label: 'settings.clipPercentile', value: settings.clipPercentile },
-    { name: 'maxIncidentPeople', label: 'settings.maxIncidentPeople', value: settings.maxIncidentPeople },
-    { name: 'postMortemBonusJp', label: 'settings.postMortemBonusJp', value: settings.postMortemBonusJp },
-    { name: 'relevanceFloor', label: 'settings.relevanceFloor', value: settings.relevanceFloor },
-    { name: 'phantomThresholdJp', label: 'settings.phantomThresholdJp', value: settings.phantomThresholdJp },
-  ];
+  const values: Record<string, number> = {
+    hoursPerDay: settings.hoursPerDay,
+    daysPerWeek: settings.daysPerWeek,
+    windowDays: settings.windowDays,
+    deadDays: settings.deadDays,
+    occupationCoefficient: settings.occupationCoefficient,
+    persistenceFactor: settings.persistenceFactor,
+    minBaselineSample: settings.minBaselineSample,
+    clipPercentile: settings.clipPercentile,
+    maxIncidentPeople: settings.maxIncidentPeople,
+    postMortemBonusJp: settings.postMortemBonusJp,
+    relevanceFloor: settings.relevanceFloor,
+    phantomThresholdJp: settings.phantomThresholdJp,
+  };
+  return NUMBER_FIELD_DEFS.map((field) => ({
+    name: field.name,
+    label: field.label,
+    value: values[field.name] ?? 0,
+  }));
+}
+
+/** Libellé d'un champ du formulaire, pour nommer un refus de saisie. */
+export function fieldLabel(name: string): MessageKey {
+  const found = NUMBER_FIELD_DEFS.find((field) => field.name === name);
+  return found?.label ?? (name === 'debtRuleValue' ? 'settings.debtRuleValue' : 'settings.debtRule');
 }
 
 /**
@@ -45,8 +72,8 @@ export function numberFields(settings: ProjectSettings): NumberField[] {
  */
 export function patchFromForm(data: Record<string, unknown>): Partial<ProjectSettings> {
   return {
-    debtRule: { kind: readKind(data['debtRuleKind']), value: readText(data['debtRuleValue']) },
-    zoneMode: readZoneMode(data['zoneMode']),
+    debtRule: { kind: debtRuleKindOf(data['debtRuleKind']), value: readText(data['debtRuleValue']) },
+    zoneMode: zoneModeOf(data['zoneMode']),
     zoneLabelField: readText(data['zoneLabelField']),
     hoursPerDay: readNumber(data['hoursPerDay']),
     daysPerWeek: readNumber(data['daysPerWeek']),
@@ -62,6 +89,50 @@ export function patchFromForm(data: Record<string, unknown>): Partial<ProjectSet
     phantomThresholdJp: readNumber(data['phantomThresholdJp']),
     jsmProjectKeys: readList(data['jsmProjectKeys']),
   };
+}
+
+/** Bornes des nombres réglables, alignées sur `core/settings.ts`. */
+const BOUNDS: Record<string, { min: number; max: number }> = {
+  hoursPerDay: { min: 1, max: 24 },
+  daysPerWeek: { min: 1, max: 7 },
+  windowDays: { min: 7, max: 365 },
+  deadDays: { min: 30, max: 730 },
+  occupationCoefficient: { min: 0, max: 1 },
+  persistenceFactor: { min: 0, max: 1 },
+  minBaselineSample: { min: 1, max: 100 },
+  clipPercentile: { min: 50, max: 100 },
+  maxIncidentPeople: { min: 1, max: 50 },
+  postMortemBonusJp: { min: 0, max: 10 },
+  relevanceFloor: { min: 0, max: 1 },
+  phantomThresholdJp: { min: 0, max: 1000 },
+};
+
+/** Un refus de saisie, nommé pour que l'écran dise quoi corriger (item D59). */
+export type FieldProblem =
+  | { field: string; kind: 'number' }
+  | { field: string; kind: 'range'; min: number; max: number }
+  | { field: string; kind: 'required' };
+
+/**
+ * Vérifie la saisie **avant** l'envoi : un champ absent n'est pas vérifié, il
+ * garde sa valeur en vigueur. Sans cette vérification, l'écran annonçait
+ * « Enregistré » alors que la saisie invalide était ignorée (item D59).
+ */
+export function validatePatch(draft: Record<string, unknown>): FieldProblem[] {
+  const problems: FieldProblem[] = [];
+  for (const [name, bounds] of Object.entries(BOUNDS)) {
+    if (!(name in draft)) continue;
+    const value = readNumber(draft[name]);
+    if (!Number.isFinite(value)) {
+      problems.push({ field: name, kind: 'number' });
+    } else if (value < bounds.min || value > bounds.max) {
+      problems.push({ field: name, kind: 'range', min: bounds.min, max: bounds.max });
+    }
+  }
+  if ('debtRuleValue' in draft && readText(draft['debtRuleValue']) === '') {
+    problems.push({ field: 'debtRuleValue', kind: 'required' });
+  }
+  return problems;
 }
 
 function readText(value: unknown): string {
@@ -81,12 +152,12 @@ function readList(value: unknown): string[] {
     .filter((entry) => entry !== '');
 }
 
-function readKind(value: unknown): DebtRuleKind {
-  const found = DEBT_RULE_KINDS.find((kind) => kind === value);
-  return found ?? 'label';
+/** Type de règle lu depuis une chaîne : toute valeur inconnue retombe sur `label`. */
+export function debtRuleKindOf(value: unknown): DebtRuleKind {
+  return DEBT_RULE_KINDS.find((kind) => kind === value) ?? 'label';
 }
 
-function readZoneMode(value: unknown): ZoneMode {
-  const found = ZONE_MODES.find((mode) => mode === value);
-  return found ?? 'component';
+/** Mode de zone lu depuis une chaîne : toute valeur inconnue retombe sur `component`. */
+export function zoneModeOf(value: unknown): ZoneMode {
+  return ZONE_MODES.find((mode) => mode === value) ?? 'component';
 }

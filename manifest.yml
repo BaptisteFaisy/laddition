@@ -33,6 +33,18 @@ modules:
       handler: index.smokeTriggerHandler
     - key: ops
       handler: index.opsTriggerHandler
+    - key: getDebtCase
+      handler: index.getDebtCase
+    - key: listZoneEvidence
+      handler: index.listZoneEvidence
+    - key: listProjects
+      handler: index.listProjects
+    - key: worklog-changed
+      handler: index.worklogChanged
+    - key: issue-commented
+      handler: index.issueCommented
+    - key: issue-deleted
+      handler: index.issueDeleted
     # Actions Rovo / rovo:mcp : chaque action a sa propre fonction, pour que
     # l'agent puisse les invoquer une par une (§13).
     - key: getDebtRanking
@@ -151,6 +163,31 @@ modules:
       events:
         - avi:jira:deleted:issuelink
       function: link-deleted
+    # Le temps saisi change C1 et C2 (item B21) : sans ces événements, les
+    # coûts restaient figés jusqu'au recalcul nocturne.
+    - key: laddition-worklog-created
+      events:
+        - avi:jira:created:worklog
+      function: worklog-changed
+    - key: laddition-worklog-updated
+      events:
+        - avi:jira:updated:worklog
+      function: worklog-changed
+    - key: laddition-worklog-deleted
+      events:
+        - avi:jira:deleted:worklog
+      function: worklog-changed
+    # Les commentaires font le décompte des intervenants d'un incident (C1).
+    - key: laddition-issue-commented
+      events:
+        - avi:jira:commented:issue
+      function: issue-commented
+    # Un ticket supprimé doit sortir de la base (item B22) : sans cela il
+    # continuait de produire preuves, zones et additions.
+    - key: laddition-issue-deleted
+      events:
+        - avi:jira:deleted:issue
+      function: issue-deleted
 
   scheduledTrigger:
     - key: laddition-nightly
@@ -178,151 +215,191 @@ modules:
   # --------------------------------------------------------- agent et MCP
   action:
     - key: get-debt-ranking
-      name: Get debt ranking
-      description: Renvoie les tickets de dette classés par coût constaté, avec
-        fourchette et retour.
+      name: "Get Debt Ranking"
+      description: "Lists the debt tickets of a project, ranked by measured cost, with ranges and return."
       actionVerb: GET
       function: getDebtRanking
       inputs:
         projectKey:
           type: string
           required: true
-          title: Project key
-          description: Clé du projet Jira (ex. PAY).
+          title: "Project key"
+          description: "Jira project key, for example PAY."
         limit:
           type: number
           required: false
-          title: Limit
-          description: Nombre maximal de dettes renvoyées (10 par défaut).
+          title: "Limit"
+          description: "Maximum number of debts returned (10 by default, 50 at most)."
     - key: get-debt-bill
-      name: Get debt bill
-      description: Renvoie l'addition détaillée d'un ticket de dette, ses preuves et
-        ses formules.
+      name: "Get Debt Bill"
+      description: "Returns the detailed bill of one debt ticket: range, cost families, evidence and formulas."
       actionVerb: GET
       function: getDebtBill
       inputs:
         issueKey:
           type: string
           required: true
-          title: Issue key
-          description: Clé du ticket de dette (ex. PAY-77).
+          title: "Issue key"
+          description: "Key of the debt ticket, for example PAY-77."
+    - key: get-debt-case
+      name: "Get Debt Case"
+      description: "Writes the one-page case for a debt ticket: cost, main evidence, repayment, return and limits of the method."
+      actionVerb: GET
+      function: getDebtCase
+      inputs:
+        issueKey:
+          type: string
+          required: true
+          title: "Issue key"
+          description: "Key of the debt ticket, for example PAY-77."
     - key: get-zone-costs
-      name: Get zone costs
-      description: Renvoie le coût d'une zone par famille et sa tendance hebdomadaire.
+      name: "Get Zone Costs"
+      description: "Returns the cost of a zone by family, its weekly trend and whether a debt ticket covers it."
       actionVerb: GET
       function: getZoneCosts
       inputs:
         projectKey:
           type: string
           required: true
-          title: Project key
-          description: Clé du projet Jira (ex. PAY).
+          title: "Project key"
+          description: "Jira project key, for example PAY."
         zone:
           type: string
           required: true
-          title: Zone
-          description: Nom de la zone (composant, service ou étiquette).
+          title: "Zone"
+          description: "Zone name: a Jira component, a Compass component, a service or a label."
+    - key: list-zone-evidence
+      name: "List Zone Evidence"
+      description: "Lists the evidence of a zone with source key, family, cost and formula."
+      actionVerb: GET
+      function: listZoneEvidence
+      inputs:
+        projectKey:
+          type: string
+          required: true
+          title: "Project key"
+          description: "Jira project key, for example PAY."
+        zone:
+          type: string
+          required: true
+          title: "Zone"
+          description: "Zone name: a Jira component, a Compass component, a service or a label."
     - key: list-phantom-debt
-      name: List phantom debt
-      description: Renvoie les zones coûteuses sans aucun ticket de dette.
+      name: "List Phantom Debt"
+      description: "Lists the zones that cost a lot and have no debt ticket at all."
       actionVerb: GET
       function: listPhantomDebt
       inputs:
         projectKey:
           type: string
           required: true
-          title: Project key
-          description: Clé du projet Jira (ex. PAY).
+          title: "Project key"
+          description: "Jira project key, for example PAY."
     - key: list-dead-debt
-      name: List dead debt
-      description: Renvoie les tickets de dette sans aucune preuve depuis 180 jours.
+      name: "List Dead Debt"
+      description: "Lists the debt tickets with no evidence for 180 days."
       actionVerb: GET
       function: listDeadDebt
       inputs:
         projectKey:
           type: string
           required: true
-          title: Project key
-          description: Clé du projet Jira (ex. PAY).
+          title: "Project key"
+          description: "Jira project key, for example PAY."
     - key: get-repayment-report
-      name: Get repayment report
-      description: Renvoie la comparaison avant/après d'une dette close, avec ses limites.
+      name: "Get Repayment Report"
+      description: "Returns the before/after comparison of a closed debt, with its limits."
       actionVerb: GET
       function: getRepaymentReport
       inputs:
         issueKey:
           type: string
           required: true
-          title: Issue key
-          description: Clé du ticket de dette (ex. PAY-77).
+          title: "Issue key"
+          description: "Key of the debt ticket, for example PAY-77."
     - key: draft-debt-ticket
-      name: Draft debt ticket
-      description: Rédige un brouillon de ticket de dette à partir des preuves d'une zone.
+      name: "Draft Debt Ticket"
+      description: "Drafts a debt ticket from the evidence of a zone."
       actionVerb: GET
       function: draftDebtTicket
       inputs:
         projectKey:
           type: string
           required: true
-          title: Project key
-          description: Clé du projet Jira (ex. PAY).
+          title: "Project key"
+          description: "Jira project key, for example PAY."
         zone:
           type: string
           required: true
-          title: Zone
-          description: Nom de la zone (composant, service ou étiquette).
+          title: "Zone"
+          description: "Zone name: a Jira component, a Compass component, a service or a label."
+    - key: list-projects
+      name: "List Projects"
+      description: "Lists the projects known to the app, with their analysis window and whether they are initialized."
+      actionVerb: GET
+      function: listProjects
+      inputs: {}
     - key: confirm-evidence
-      name: Confirm evidence
-      description: Confirme ou rejette le rapprochement entre une preuve et un ticket
-        de dette.
+      name: "Confirm Evidence"
+      description: "Confirms or rejects the match between one piece of evidence and one debt ticket."
       actionVerb: UPDATE
       function: confirmEvidence
       inputs:
         evidenceKey:
           type: string
           required: true
-          title: Evidence key
-          description: Identifiant de la preuve à rapprocher.
+          title: "Evidence key"
+          description: "Identifier of the evidence to match, or the source issue key."
         debtKey:
           type: string
           required: true
-          title: Debt key
-          description: Clé du ticket de dette concerné.
+          title: "Debt key"
+          description: "Key of the debt ticket the evidence is matched to."
         confirmed:
           type: boolean
           required: true
-          title: Confirmed
-          description: true pour confirmer le rapprochement, false pour le rejeter.
+          title: "Confirmed"
+          description: "true to confirm the match, false to reject it permanently."
 
   rovo:agent:
     - key: laddition-agent
       name: L'addition
-      description: Répond sur le coût réel des dettes techniques, avec fourchettes et
-        preuves.
-      prompt: >-
-        Tu es l'agent « L'addition ». Tu réponds aux questions sur le coût réel
-        de la dette technique d'un projet Jira, sur 90 jours, en jours-personne.
-        Tu ne calcules jamais toi-même : tu appelles les actions disponibles
-        (get-debt-ranking, get-debt-bill, get-zone-costs, list-phantom-debt,
-        list-dead-debt, get-repayment-report, draft-debt-ticket) et tu restitues
-        leurs chiffres. Tu donnes toujours la fourchette basse et haute, jamais
-        une valeur unique, et tu cites la méthode et les preuves. Tu ne classes
-        jamais des personnes : l'unité est la zone ou l'équipe. Si une donnée
-        manque, tu le dis au lieu d'estimer.
+      description: "Answers on the real cost of technical debt, with ranges, evidence and method."
+      prompt: |-
+        You are the "L'addition" agent. You answer questions about the real cost of technical debt in a Jira project, measured over that project's rolling analysis window in person-days (p-d).
+
+        - You never compute anything yourself: you call the tools (get-debt-ranking, get-debt-bill, get-debt-case, get-zone-costs, list-zone-evidence, list-phantom-debt, list-dead-debt, get-repayment-report, draft-debt-ticket, list-projects) and you report the numbers they return.
+        - You always give the range, low and high, never a single value: the low bound counts only linked or confirmed evidence, the high bound adds the proposed matches.
+        - Every number you state carries its method: the cost family (C1 incidents, C2 bugs, C3 slowness, C4 rework), the formula, and the source issues. A number without its method never leaves.
+        - You never rank people: the unit is the zone, the team or the issue. No assignee name, no individual ranking, even when asked.
+        - You invent no number. A missing value, a family flagged "insufficient data", an unpriced repayment: you say so, you do not estimate it.
+        - Induced delay (C5) is time, not effort: you show it separately and you never add it to the cost.
+        - No evidence is counted twice: the shares of one evidence across the debts of a zone never exceed 100 %.
+        - A before/after comparison proves no causality: you restate the caveats of a repayment report whenever you quote one.
+        - Confirming or rejecting a match belongs to a human: you explain the proposal and ask the user to decide in the app, you never confirm a match yourself.
+        - You never assume a duration, a coefficient or a rate: the window and the thresholds are the project's settings, and the tools return them.
+        - When the question does not name a project, call list-projects first; omit projectKey only when a single project is initialized.
+        - Evidence the reader has no right to open is counted but hidden: you say how many items are hidden, you never guess their content.
+        - You answer briefly, in the language of the question, with numbers and their sources. No sweeping judgement about a person, a team or a past decision.
+
+        When a value is not in the stored results, you answer: "I do not have that value in the stored results: I will not estimate it."
       conversationStarters:
-        - Quelle dette nous coûte le plus ?
-        - Détaille l'addition de PAY-77.
-        - Y a-t-il de la dette sans ticket ?
-        - Qu'a rapporté le remboursement de PAY-41 ?
-        - Prépare l'argumentaire pour PAY-77.
+        - "Which debt costs us the most?"
+        - "Break down the bill for PAY-77."
+        - "Is there debt without a ticket?"
+        - "What did repaying PAY-41 return?"
+        - "Draft the case for PAY-77."
       actions:
         - get-debt-ranking
         - get-debt-bill
+        - get-debt-case
         - get-zone-costs
+        - list-zone-evidence
         - list-phantom-debt
         - list-dead-debt
         - get-repayment-report
         - draft-debt-ticket
+        - list-projects
 
   rovo:mcp:
     - key: laddition-mcp
@@ -330,11 +407,14 @@ modules:
       tools:
         - get-debt-ranking
         - get-debt-bill
+        - get-debt-case
         - get-zone-costs
+        - list-zone-evidence
         - list-phantom-debt
         - list-dead-debt
         - get-repayment-report
         - draft-debt-ticket
+        - list-projects
         - confirm-evidence
 
 resources:
@@ -355,8 +435,6 @@ permissions:
   scopes:
     - read:jira-work
     - write:jira-work
-    - read:jira-user
-    - storage:app
     - read:graph:component:compass
     - read:graph:team:atlassian
     - read:graph:issue:jira

@@ -14,9 +14,18 @@
  * Les colonnes de filtre utilisées par les écrans (projet, zone, ticket de
  * dette, semaine) sont indexées. Les dates sont des `DATETIME(3)` en UTC ; les
  * structures variables (listes, ventilations, détails de preuve) sont du JSON.
+ *
+ * Trois ajouts récents :
+ * - `score_cache` : le cache des scores de pertinence (§18 « les scores de
+ *   pertinence sont mis en cache et ne sont recalculés que si un texte
+ *   change ») ;
+ * - `batch_id` : le marqueur du lot écrit, qui rend le remplacement d'un
+ *   sous-ensemble sûr sans transaction (voir `query.ts`) ;
+ * - les nouvelles colonnes métier : `story_points`, `history_truncated`,
+ *   `blocked_reason`, `story_point_field`, `error`, `attempts`.
  */
 
-/** Les onze tables du §16, dans l'ordre de création. */
+/** Les tables du §16, plus le cache des scores, dans l'ordre de création. */
 export const TABLE_NAMES = [
   'issue_fact',
   'status_span',
@@ -29,6 +38,7 @@ export const TABLE_NAMES = [
   'repayment',
   'settings',
   'bootstrap_progress',
+  'score_cache',
 ] as const;
 
 /** Nom d'une table du schéma. */
@@ -36,6 +46,15 @@ export type TableName = (typeof TABLE_NAMES)[number];
 
 /** Options communes à toutes les tables : InnoDB, UTF-8, comparaison binaire. */
 const TABLE_OPTIONS = 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin';
+
+/**
+ * Colonne de marquage du lot écrit.
+ *
+ * Elle permet l'écriture en deux temps de `replaceRows` : le nouveau jeu est
+ * écrit et marqué, puis l'ancien est effacé (Forge SQL n'a pas de transaction,
+ * §17 — d'où le marqueur).
+ */
+export const BATCH_COLUMN = 'batch_id';
 
 /** DDL complet, une instruction par entrée (§17). */
 export const SCHEMA_STATEMENTS: string[] = [
@@ -61,12 +80,16 @@ export const SCHEMA_STATEMENTS: string[] = [
     affected_services JSON NULL,
     has_post_mortem TINYINT(1) NOT NULL DEFAULT 0,
     participants INT NOT NULL DEFAULT 0,
+    story_points DOUBLE NULL,
+    history_truncated TINYINT(1) NOT NULL DEFAULT 0,
     visible TINYINT(1) NOT NULL DEFAULT 1,
     summary VARCHAR(512) NOT NULL DEFAULT '',
     description MEDIUMTEXT NULL,
     PRIMARY KEY (issue_id),
     KEY idx_issue_fact_project (project_id, is_debt),
     KEY idx_issue_fact_created (project_id, created_at),
+    KEY idx_issue_fact_resolved (project_id, resolved_at),
+    KEY idx_issue_fact_closed (project_id, closed_at),
     KEY idx_issue_fact_key (issue_key)
   ) ${TABLE_OPTIONS}`,
 
@@ -76,6 +99,7 @@ export const SCHEMA_STATEMENTS: string[] = [
     category VARCHAR(16) NOT NULL,
     started_at DATETIME(3) NOT NULL,
     ended_at DATETIME(3) NULL,
+    ${BATCH_COLUMN} VARCHAR(64) NULL,
     PRIMARY KEY (issue_id, started_at),
     KEY idx_status_span_category (issue_id, category)
   ) ${TABLE_OPTIONS}`,
@@ -94,10 +118,12 @@ export const SCHEMA_STATEMENTS: string[] = [
     insufficient TINYINT(1) NOT NULL DEFAULT 0,
     visible TINYINT(1) NOT NULL DEFAULT 1,
     detail JSON NULL,
+    ${BATCH_COLUMN} VARCHAR(64) NULL,
     PRIMARY KEY (evidence_id),
     KEY idx_evidence_project_zone (project_id, zone),
     KEY idx_evidence_project_occurred (project_id, occurred_at),
-    KEY idx_evidence_source (project_id, source_issue_id)
+    KEY idx_evidence_source (project_id, source_issue_id),
+    KEY idx_evidence_project_batch (project_id, ${BATCH_COLUMN})
   ) ${TABLE_OPTIONS}`,
 
   // Part d'une preuve imputée à un ticket de dette (§10).
@@ -109,9 +135,11 @@ export const SCHEMA_STATEMENTS: string[] = [
     basis VARCHAR(16) NOT NULL DEFAULT 'inferred',
     relevance DOUBLE NOT NULL DEFAULT 0,
     rationale VARCHAR(1024) NOT NULL DEFAULT '',
+    ${BATCH_COLUMN} VARCHAR(64) NULL,
     PRIMARY KEY (evidence_id, debt_issue_id),
     KEY idx_attribution_debt (debt_issue_id),
-    KEY idx_attribution_project (project_id)
+    KEY idx_attribution_project (project_id),
+    KEY idx_attribution_project_batch (project_id, ${BATCH_COLUMN})
   ) ${TABLE_OPTIONS}`,
 
   // Rejet d'un rapprochement : la preuve n'est plus proposée (§7.4).
@@ -123,7 +151,8 @@ export const SCHEMA_STATEMENTS: string[] = [
     rejected_at DATETIME(3) NOT NULL,
     PRIMARY KEY (evidence_id, debt_issue_id),
     KEY idx_rejection_debt (debt_issue_id),
-    KEY idx_rejection_project (project_id)
+    KEY idx_rejection_project (project_id),
+    KEY idx_rejection_rejected (project_id, rejected_at)
   ) ${TABLE_OPTIONS}`,
 
   // L'addition d'un ticket de dette (DT-06), recalculée puis remplacée.
@@ -142,8 +171,10 @@ export const SCHEMA_STATEMENTS: string[] = [
     roi_low DOUBLE NULL,
     roi_high DOUBLE NULL,
     payback_days DOUBLE NULL,
+    blocked_reason VARCHAR(16) NULL,
     PRIMARY KEY (debt_issue_id),
-    KEY idx_debt_bill_project (project_id, low_jp)
+    KEY idx_debt_bill_project (project_id, low_jp),
+    KEY idx_debt_bill_computed (project_id, computed_at)
   ) ${TABLE_OPTIONS}`,
 
   // Coût d'une zone pour une semaine ISO : la brique des courbes et du brouillon.
@@ -166,7 +197,9 @@ export const SCHEMA_STATEMENTS: string[] = [
     median_days DOUBLE NOT NULL DEFAULT 0,
     sample_size INT NOT NULL DEFAULT 0,
     computed_at DATETIME(3) NOT NULL,
-    PRIMARY KEY (project_id, issue_type, size_class)
+    ${BATCH_COLUMN} VARCHAR(64) NULL,
+    PRIMARY KEY (project_id, issue_type, size_class),
+    KEY idx_baseline_project_batch (project_id, ${BATCH_COLUMN})
   ) ${TABLE_OPTIONS}`,
 
   // Bulletin de remboursement avant/après (§11).
@@ -183,7 +216,9 @@ export const SCHEMA_STATEMENTS: string[] = [
     caveats JSON NULL,
     published_at DATETIME(3) NULL,
     PRIMARY KEY (debt_issue_id),
-    KEY idx_repayment_project_zone (project_id, zone)
+    KEY idx_repayment_project_zone (project_id, zone),
+    KEY idx_repayment_project_closed (project_id, closed_at),
+    KEY idx_repayment_project_published (project_id, published_at)
   ) ${TABLE_OPTIONS}`,
 
   // Réglages d'un projet (écran 6) : une ligne par projet.
@@ -208,8 +243,10 @@ export const SCHEMA_STATEMENTS: string[] = [
     jsm_project_keys JSON NULL,
     team_by_zone JSON NULL,
     day_rate_eur DOUBLE NULL,
+    story_point_field VARCHAR(128) NULL,
     demo_data TINYINT(1) NOT NULL DEFAULT 0,
-    PRIMARY KEY (project_id)
+    PRIMARY KEY (project_id),
+    KEY idx_settings_project_key (project_key)
   ) ${TABLE_OPTIONS}`,
 
   // Progression de l'initialisation (DT-12), lue par la barre de progression.
@@ -221,6 +258,52 @@ export const SCHEMA_STATEMENTS: string[] = [
     started_at DATETIME(3) NOT NULL,
     updated_at DATETIME(3) NOT NULL,
     finished TINYINT(1) NOT NULL DEFAULT 0,
+    error VARCHAR(512) NULL,
+    attempts INT NOT NULL DEFAULT 0,
     PRIMARY KEY (project_id)
   ) ${TABLE_OPTIONS}`,
+
+  // Cache des scores de pertinence (§18) : une empreinte de texte, un score.
+  `CREATE TABLE IF NOT EXISTS score_cache (
+    fingerprint VARCHAR(128) NOT NULL,
+    project_id VARCHAR(64) NOT NULL,
+    relevance DOUBLE NOT NULL DEFAULT 0,
+    rationale VARCHAR(1024) NOT NULL DEFAULT '',
+    computed_at DATETIME(3) NOT NULL,
+    PRIMARY KEY (fingerprint, project_id),
+    KEY idx_score_cache_project (project_id),
+    KEY idx_score_cache_computed (project_id, computed_at)
+  ) ${TABLE_OPTIONS}`,
+];
+
+/**
+ * Migrations des installations déjà en place.
+ *
+ * `CREATE TABLE IF NOT EXISTS` n'ajoute pas une colonne à une table qui
+ * existe déjà : sans ces `ALTER`, une installation antérieure n'aurait ni les
+ * nouvelles colonnes ni les nouveaux index. Chaque instruction est idempotente
+ * *en pratique* (MySQL refuse une colonne ou un index déjà présent, erreur
+ * 1060/1061) : `ensureSchema()` les exécute et tolère ce refus.
+ */
+export const SCHEMA_MIGRATIONS: string[] = [
+  `ALTER TABLE issue_fact ADD COLUMN story_points DOUBLE NULL`,
+  `ALTER TABLE issue_fact ADD COLUMN history_truncated TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE issue_fact ADD KEY idx_issue_fact_resolved (project_id, resolved_at)`,
+  `ALTER TABLE issue_fact ADD KEY idx_issue_fact_closed (project_id, closed_at)`,
+  `ALTER TABLE status_span ADD COLUMN ${BATCH_COLUMN} VARCHAR(64) NULL`,
+  `ALTER TABLE evidence ADD COLUMN ${BATCH_COLUMN} VARCHAR(64) NULL`,
+  `ALTER TABLE evidence ADD KEY idx_evidence_project_batch (project_id, ${BATCH_COLUMN})`,
+  `ALTER TABLE attribution ADD COLUMN ${BATCH_COLUMN} VARCHAR(64) NULL`,
+  `ALTER TABLE attribution ADD KEY idx_attribution_project_batch (project_id, ${BATCH_COLUMN})`,
+  `ALTER TABLE baseline ADD COLUMN ${BATCH_COLUMN} VARCHAR(64) NULL`,
+  `ALTER TABLE baseline ADD KEY idx_baseline_project_batch (project_id, ${BATCH_COLUMN})`,
+  `ALTER TABLE debt_bill ADD COLUMN blocked_reason VARCHAR(16) NULL`,
+  `ALTER TABLE debt_bill ADD KEY idx_debt_bill_computed (project_id, computed_at)`,
+  `ALTER TABLE repayment ADD KEY idx_repayment_project_closed (project_id, closed_at)`,
+  `ALTER TABLE repayment ADD KEY idx_repayment_project_published (project_id, published_at)`,
+  `ALTER TABLE settings ADD COLUMN story_point_field VARCHAR(128) NULL`,
+  `ALTER TABLE bootstrap_progress ADD COLUMN error VARCHAR(512) NULL`,
+  `ALTER TABLE bootstrap_progress ADD COLUMN attempts INT NOT NULL DEFAULT 0`,
+  `ALTER TABLE rejection ADD KEY idx_rejection_rejected (project_id, rejected_at)`,
+  `ALTER TABLE settings ADD KEY idx_settings_project_key (project_key)`,
 ];

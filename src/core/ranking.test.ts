@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import type { DebtBill, Family, FamilyTotal, IssueFact } from './types';
 import { rankDebts } from './ranking';
+import { assertNoPersonRanking } from './privacy';
 
 /** Ventilation par famille, tout à zéro : le classement ne la lit pas. */
 function zeroFamilies(): Record<Family, FamilyTotal> {
@@ -166,4 +167,11 @@ test('un ticket introuvable tombe dans « non classé » sans résumé', () => {
 
 test('aucune addition, aucun classement', () => {
   assert.deepEqual(rankDebts([], [debtFact()]), []);
+});
+
+test('§18 — les lignes du classement passent le garde-fou « aucune personne »', () => {
+  const ranked = rankDebts([bill({ lowJp: 3 }), bill({ debtIssueId: 'D2', key: 'PROJ-2', lowJp: 1 })], [debtFact()]);
+
+  assert.equal(ranked.length, 2);
+  assert.doesNotThrow(() => assertNoPersonRanking(ranked));
 });

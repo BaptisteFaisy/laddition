@@ -4,6 +4,7 @@ import type { Evidence } from '../core/types';
 import { listEvidence } from '../platform/db/index';
 import { jiraSendJson } from '../platform/jira';
 import { draftDebtTicket as draftWithModel } from '../platform/llm';
+import type { Draft } from '../platform/llm';
 import { projectIdByKey, requireSettings } from '../jobs/projects';
 import type { Failure } from '../jobs/support';
 import { guard, optionalString, payloadOf, requireString } from '../jobs/support';
@@ -22,20 +23,40 @@ export interface DraftedTicket {
   url: string;
 }
 
+/**
+ * Brouillon d'un ticket de dette, **sans création** (§7.2).
+ *
+ * C'est la moitié lecture du parcours : le tech lead relit et corrige avant de
+ * créer. `draftDebtTicket` et `previewDebtTicket` passent par la même fonction
+ * — une seule implémentation par logique (§18).
+ */
+export async function previewDebtTicket(request: Request<unknown>): Promise<Draft | Failure> {
+  return guard(async () => {
+    const payload = payloadOf(request);
+    return buildDraft(requireString(payload, 'projectKey'), requireString(payload, 'zone'));
+  });
+}
+
 /** Rédige puis crée le ticket d'une zone coûteuse sans dette. */
 export async function draftDebtTicket(request: Request<unknown>): Promise<DraftedTicket | Failure> {
   return guard(async () => {
     const payload = payloadOf(request);
     const projectKey = requireString(payload, 'projectKey');
-    const zone = requireString(payload, 'zone');
-    const projectId = await projectIdByKey(projectKey);
-    if (!projectId) throw new Error(`projet « ${projectKey} » inconnu : ouvrir l'écran Réglages`);
-    const settings = await requireSettings(projectId);
-    const evidence = await evidenceOfZone(projectId, zone);
-    if (evidence.length === 0) throw new Error(`aucune preuve sur la zone « ${zone} »`);
-    const draft = await draftWithModel(zone, evidence, settings);
+    const draft = await buildDraft(projectKey, requireString(payload, 'zone'));
     return createIssue(projectKey, draft.title, draft.description, optionalString(payload, 'siteUrl'));
   });
+}
+
+/** Rédaction du brouillon : projet, réglages, preuves de la zone, puis modèle. */
+async function buildDraft(projectKey: string, zone: string): Promise<Draft> {
+  const projectId = await projectIdByKey(projectKey);
+  if (!projectId) throw new Error(`projet « ${projectKey} » inconnu : ouvrir l'écran Réglages`);
+  const settings = await requireSettings(projectId);
+  const evidence = await evidenceOfZone(projectId, zone);
+  if (evidence.length === 0) {
+    throw new Error(`aucune preuve sur la zone « ${zone} » : vérifier la zone, ou attendre le calcul nocturne`);
+  }
+  return draftWithModel(zone, evidence, settings);
 }
 
 /** Preuves d'une zone, les plus coûteuses d'abord (le brouillon s'appuie dessus). */

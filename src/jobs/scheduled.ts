@@ -1,60 +1,29 @@
-import type {
-  DebtBill,
-  IssueFact,
-  IssueLink,
-  ProjectSettings,
-  Repayment,
-  StatusSpan,
-} from '../core/types';
-import { REPAYMENT_WEEKS, buildRepayment, isRepaymentStale } from '../core/repayment';
-import { addDays, weeksBetween } from '../core/time';
-import {
-  listDebtIssues,
-  listIssuesInWindow,
-  listRejections,
-  listRepayments,
-  listStatusSpans,
-  listZoneWeeks,
-  replaceAttributions,
-  replaceBaselines,
-  replaceEvidence,
-  upsertBill,
-  upsertRepayment,
-  upsertZoneWeek,
-} from '../platform/db/index';
-import { ensureDebtCostField, writeDebtCost } from '../platform/field';
-import { fetchLinks } from '../platform/jira';
-import { listConfirmations } from './confirmations';
-import { clearInvalid } from './invalidation';
-import { listProjectIds, requireSettings } from './projects';
-import type { RecomputeInput, RecomputeResult } from './recompute';
-import { debtFieldValues, finish, prepare } from './recompute';
-import { scoreCandidates } from './relevance';
+import type { ProjectSettings } from '../core/types';
+import { getSettings } from '../platform/db/index';
+import { createDeadline, DEFAULT_BUDGET_MS } from './deadline';
+import { listProjectIds } from './projects';
+import type { ProjectRecalc } from './recalc';
+import { skipReason } from './recalc';
+import { enqueueRecalc } from './recalcQueue';
+import type { RepaymentOutcome } from './repayments';
+import { publishProjectRepayments } from './repayments';
 import { ensureReady } from './schema';
-import { groupSpans } from './spans';
 import { messageOf, nowIso } from './support';
-import { zoneWeekly } from './zoneCosts';
 
 /**
- * `scheduledTrigger` (§15) : le calcul lourd, une fois par nuit.
+ * `scheduledTrigger` (§15) : la nuit, et les bulletins de remboursement.
  *
- * Tout est découpé pour qu'aucune fonction ne fasse deux métiers : lire
- * (`gatherInput`), calculer (`recomputeAll`), enregistrer (`persist`), publier
- * (`writeFields`, `publishRepayments`). Une erreur sur un projet n'empêche pas
- * les autres d'être traités : chaque projet rend son bilan.
+ * Le déclencheur planifié ne calcule plus rien lui-même (C34) : il met **un
+ * message de file par projet**, et le consommateur existant les traite un par
+ * un, chacun avec sa propre limite de 900 s. Un projet lent ne bloque plus les
+ * autres ; un échec ne rejoue que le projet concerné.
+ *
+ * Les projets marqués `demoData` ne sont ni mis en file ni recalculés (B16) :
+ * la nuit ne rescore pas le jeu d'exemple et n'écrit jamais de coût fictif sur
+ * un vrai ticket.
  */
 
-/** Nombre de tickets dont on relit les liens chez Jira à chaque nuit. */
-const MAX_LINK_ISSUES = 300;
-
-/** Bilan du calcul d'un projet. */
-export interface ProjectRecalc {
-  projectId: string;
-  evidence: number;
-  bills: number;
-  fieldUpdated: number;
-  error?: string;
-}
+export type { ProjectRecalc } from './recalc';
 
 /** Bilan du recalcul nocturne, rendu au manifeste et aux journaux. */
 export interface NightlyResult {
@@ -62,164 +31,140 @@ export interface NightlyResult {
   projects: ProjectRecalc[];
   startedAt: string;
   finishedAt: string;
+  /** Projets mis en file pour recalcul (C34). */
+  queued: number;
+}
+
+/** Bilan des bulletins d'un projet (§11). */
+export interface RepaymentProjectResult {
+  projectId: string;
+  published: number;
+  /** Bulletins retirés : dettes rouvertes (§19 cas 8). */
+  removed?: number;
+  /** Groupes zone × mois traités (§19 cas 9). */
+  groups?: number;
+  /** Motif d'un projet écarté (jeu d'exemple, temps écoulé). */
+  skipped?: string;
+  error?: string;
 }
 
 /** Bilan des bulletins de remboursement (§11). */
 export interface RepaymentResult {
   ok: boolean;
-  projects: Array<{ projectId: string; published: number; error?: string }>;
+  projects: RepaymentProjectResult[];
   at: string;
 }
 
+/** Ce que la nuit touche : le schéma, la liste des projets, leurs réglages, la file. */
+export interface NightlyPorts {
+  ensureReady(): Promise<void>;
+  listProjects(): Promise<string[]>;
+  settingsOf(projectId: string): Promise<ProjectSettings | null>;
+  enqueue(projectId: string): Promise<void>;
+}
+
+/** Le câblage réel : la base des réglages et la file de l'app. */
+export const defaultNightlyPorts: NightlyPorts = {
+  ensureReady: () => ensureReady(),
+  listProjects: () => listProjectIds(),
+  settingsOf: (projectId) => getSettings(projectId),
+  enqueue: (projectId) => enqueueRecalc(projectId),
+};
+
 /**
- * Recalcule preuves, attributions, additions et classement de tous les projets,
- * écrit le champ des tickets de dette et l'instantané hebdomadaire.
+ * Met en file le recalcul de chaque projet réglé.
+ *
+ * C'est le `scheduledTrigger` quotidien : il revient en quelques secondes, le
+ * travail lourd est dans le consommateur (`runRecalcMessage`).
  */
-export async function nightlyRecalc(): Promise<NightlyResult> {
-  await ensureReady();
+export async function nightlyRecalc(ports: NightlyPorts = defaultNightlyPorts): Promise<NightlyResult> {
+  await ports.ensureReady();
   const startedAt = nowIso();
   const projects: ProjectRecalc[] = [];
-  for (const projectId of await listProjectIds()) {
-    projects.push(await recalcSafely(projectId, startedAt));
+  for (const projectId of await ports.listProjects()) {
+    projects.push(await queueProject(projectId, ports));
   }
-  return { ok: projects.every((item) => !item.error), projects, startedAt, finishedAt: nowIso() };
-}
-
-/** Un projet isolé : son échec est un bilan, jamais une exception. */
-async function recalcSafely(projectId: string, now: string): Promise<ProjectRecalc> {
-  try {
-    return await recalcProject(projectId, now);
-  } catch (error) {
-    return { projectId, evidence: 0, bills: 0, fieldUpdated: 0, error: messageOf(error) };
-  }
-}
-
-/** Lecture, calcul, enregistrement, publication : la chaîne d'un projet. */
-async function recalcProject(projectId: string, now: string): Promise<ProjectRecalc> {
-  const settings = await requireSettings(projectId);
-  const input = await gatherInput(projectId, settings, now);
-  const prepared = prepare(input);
-  const scores = await scoreCandidates(prepared.evidence, prepared.debts, new Map());
-  const result = finish({ ...input, scores }, prepared);
-  await persist(projectId, result);
-  const fieldUpdated = await writeFields(settings, result.bills);
-  return { projectId, evidence: result.evidence.length, bills: result.bills.length, fieldUpdated };
-}
-
-/** Tout ce que le calcul doit lire : fenêtre, historique, liens, rejets. */
-async function gatherInput(
-  projectId: string,
-  settings: ProjectSettings,
-  now: string,
-): Promise<RecomputeInput> {
-  const from = addDays(now, -settings.windowDays);
-  const facts = await listIssuesInWindow(projectId, from);
   return {
-    projectId,
-    settings,
-    facts,
-    links: await linksOf(facts),
-    spansByIssue: groupSpans(await listStatusSpans(projectId)),
-    scores: [],
-    rejections: await listRejections(projectId),
-    confirmations: await listConfirmations(projectId),
-    now,
+    ok: projects.every((item) => !item.error),
+    projects,
+    startedAt,
+    finishedAt: nowIso(),
+    queued: projects.filter((item) => item.queued).length,
   };
 }
 
-/**
- * Liens Jira des tickets de la fenêtre.
- *
- * Les liens ne sont pas une table du §16 : ils se relisent chez Jira, au nom de
- * l'app, une fois par nuit. Le plafond borne le nombre d'appels REST ; au-delà,
- * les tickets les plus anciens gardent leurs attributions de la veille.
- */
-async function linksOf(facts: IssueFact[]): Promise<IssueLink[]> {
-  const links: IssueLink[] = [];
-  for (const fact of facts.slice(0, MAX_LINK_ISSUES)) {
-    const found = await fetchLinks(fact.issueId);
-    if (found) links.push(...found);
+/** Un projet mis en file : son échec est un bilan, jamais une exception. */
+async function queueProject(projectId: string, ports: NightlyPorts): Promise<ProjectRecalc> {
+  const empty = { projectId, evidence: 0, bills: 0, fieldUpdated: 0 };
+  try {
+    const settings = await ports.settingsOf(projectId);
+    if (!settings) return { ...empty, error: 'projet sans réglages' };
+    const skipped = skipReason(settings);
+    if (skipped) return { ...empty, skipped };
+    await ports.enqueue(projectId);
+    return { ...empty, queued: true };
+  } catch (error) {
+    return { ...empty, error: messageOf(error) };
   }
-  return links;
 }
 
-/** Remplace les résultats enregistrés, puis efface les marques « à recalculer ». */
-async function persist(projectId: string, result: RecomputeResult): Promise<void> {
-  await replaceEvidence(projectId, result.evidence);
-  await replaceAttributions(projectId, result.attributions);
-  for (const bill of result.bills) await upsertBill(bill);
-  await replaceBaselines(projectId, result.baselines);
-  await upsertZoneWeek(result.zoneWeeks);
-  await clearInvalid(projectId);
+/** Ce que la publication des bulletins touche. */
+export interface RepaymentRunPorts {
+  ensureReady(): Promise<void>;
+  listProjects(): Promise<string[]>;
+  settingsOf(projectId: string): Promise<ProjectSettings | null>;
+  publish(projectId: string, at: string): Promise<RepaymentOutcome>;
 }
 
-/** Écrit la fourchette basse dans le champ « Coût de la dette » (DT-11). */
-async function writeFields(settings: ProjectSettings, bills: DebtBill[]): Promise<number> {
-  if (bills.length === 0) return 0;
-  const setup = await ensureDebtCostField(settings.projectKey);
-  if (!setup.ok || !setup.fieldId) return 0;
-  const { keys, values } = debtFieldValues(bills);
-  const outcome = await writeDebtCost(keys, values, setup.fieldId);
-  return outcome.updated.length;
-}
+/** Le câblage réel des bulletins. */
+export const defaultRepaymentPorts: RepaymentRunPorts = {
+  ensureReady: () => ensureReady(),
+  listProjects: () => listProjectIds(),
+  settingsOf: (projectId) => getSettings(projectId),
+  publish: (projectId, at) => publishProjectRepayments(projectId, at),
+};
 
 /**
- * Publie les bulletins des dettes closes (§11), et rafraîchit ceux qui sont
- * périmés. Un bulletin n'est jamais une preuve de causalité : les limites
- * voyagent avec lui (`core/repayment.ts`).
+ * Publie les bulletins des dettes closes (§11), retire ceux des dettes
+ * rouvertes (§19 cas 8) et fusionne ceux d'une même zone sur un même mois
+ * (§19 cas 9). Une garde de durée rend la main proprement (C34).
  */
-export async function publishRepayments(): Promise<RepaymentResult> {
-  await ensureReady();
+export async function publishRepayments(
+  ports: RepaymentRunPorts = defaultRepaymentPorts,
+): Promise<RepaymentResult> {
+  await ports.ensureReady();
   const at = nowIso();
-  const projects: RepaymentResult['projects'] = [];
-  for (const projectId of await listProjectIds()) {
-    try {
-      projects.push({ projectId, published: await publishProject(projectId, at) });
-    } catch (error) {
-      projects.push({ projectId, published: 0, error: messageOf(error) });
+  const deadline = createDeadline(DEFAULT_BUDGET_MS);
+  const projects: RepaymentProjectResult[] = [];
+  for (const projectId of await ports.listProjects()) {
+    if (deadline.expired()) {
+      projects.push({ projectId, published: 0, skipped: 'temps écoulé' });
+      continue;
     }
+    projects.push(await publishSafely(projectId, at, ports));
   }
   return { ok: projects.every((item) => !item.error), projects, at };
 }
 
-/** Bulletins d'un projet : seules les dettes closes en ont un. */
-async function publishProject(projectId: string, now: string): Promise<number> {
-  await requireSettings(projectId);
-  const debts = (await listDebtIssues(projectId)).filter((debt) => debt.closedAt !== null);
-  if (debts.length === 0) return 0;
-  const published = await listRepayments(projectId);
-  const spansByIssue = groupSpans(await listStatusSpans(projectId));
-  let count = 0;
-  for (const debt of debts) {
-    const existing = published.find((item) => item.debtIssueId === debt.issueId) ?? null;
-    if (existing && existing.publishedAt !== null && !isRepaymentStale(debt, existing, now)) continue;
-    const repayment = await repaymentFor(projectId, debt, spansByIssue.get(debt.issueId) ?? [], now);
-    if (!repayment) continue;
-    await upsertRepayment(repayment);
-    count += 1;
-  }
-  return count;
-}
-
-/** Construit le bulletin d'une dette close, ou `null` si rien n'est mesurable. */
-async function repaymentFor(
+/** Bulletins d'un projet isolé : son échec est un bilan, jamais une exception. */
+async function publishSafely(
   projectId: string,
-  debt: IssueFact,
-  spans: StatusSpan[],
-  now: string,
-): Promise<Repayment | null> {
-  const closedAt = debt.closedAt;
-  const zone = debt.zones[0] ?? '';
-  if (!closedAt || zone.length === 0) return null;
-  const start = workStartOf(debt, spans);
-  const weeks = weeksBetween(addDays(start, -7 * REPAYMENT_WEEKS), addDays(closedAt, 7 * REPAYMENT_WEEKS));
-  const costs = await listZoneWeeks(projectId, weeks);
-  const series = zoneWeekly(costs.find((cost) => cost.zone === zone), weeks);
-  return { ...buildRepayment(debt, series, closedAt, start), publishedAt: now };
-}
-
-/** Début du travail sur la dette : premier passage en cours, sinon création. */
-function workStartOf(debt: IssueFact, spans: StatusSpan[]): string {
-  const started = spans.find((span) => span.category === 'inprogress');
-  return started?.startedAt ?? debt.createdAt;
+  at: string,
+  ports: RepaymentRunPorts,
+): Promise<RepaymentProjectResult> {
+  try {
+    const settings = await ports.settingsOf(projectId);
+    if (!settings) return { projectId, published: 0, error: 'projet sans réglages' };
+    const skipped = skipReason(settings);
+    if (skipped) return { projectId, published: 0, skipped };
+    const outcome = await ports.publish(projectId, at);
+    return {
+      projectId,
+      published: outcome.published,
+      removed: outcome.removed,
+      groups: outcome.groups,
+    };
+  } catch (error) {
+    return { projectId, published: 0, error: messageOf(error) };
+  }
 }
