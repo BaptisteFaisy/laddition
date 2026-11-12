@@ -106,8 +106,10 @@ once hosted, the Marketplace privacy-policy field takes the published **URL**
 on the site where it is installed: issues and their status history (changelogs),
 issue links, comments, components, labels, issue types and logged time. It reads
 user identifiers (account IDs — never display names) solely to count the
-distinct participants of an incident (cost family C1). It declares no Teamwork
-Graph scope and reads no Teamwork Graph data.
+distinct participants of an incident (cost family C1). It declares three
+`read:graph:*` scopes that **only the operator diagnostic probe** calls
+(§5, decision G93): no screen a user opens reads Teamwork Graph data, and every
+shipped feature runs on Jira data through the documented fallbacks.
 
 **What the app stores.** Everything is stored in Forge SQL, inside the
 installation's own storage partition on the Atlassian platform: computed costs
@@ -156,10 +158,11 @@ submission.** The table above is re-checked against the code at freeze time
 `manifest.yml` rather than justified after the fact.
 
 **Decision on the Teamwork Graph scopes (G93, decided on 12 November 2026).** The
-three `read:graph:*` scopes have been **removed from `manifest.yml`**. They
-were consumed **only by the diagnostic probe** (`?action=probe`,
-`src/jobs/opsValidate.ts` → `src/platform/graph.ts`), never by a screen a user
-opens. The probe was exercised on 11 November and recorded in
+three `read:graph:*` scopes are **kept in `manifest.yml` for now, and scheduled
+for removal at the freeze** (15 December) if the graph still cannot be
+demonstrated from a real screen. They are consumed **only by the diagnostic
+probe** (`?action=probe`, `src/jobs/opsValidate.ts` → `src/platform/graph.ts`),
+never by a screen a user opens. The probe was exercised on 11 November and recorded in
 `docs/VALIDATIONS.md`: on the demo site the graph returned nothing for affected
 services, pull requests and Compass components, because the organisation-level
 scopes are not granted there — and no site available before the freeze (15
@@ -167,16 +170,22 @@ December) can grant them, so they could not be demonstrated before submission.
 Under the rule above, a scope the shipped product does not use for a shipped
 feature is dropped rather than justified after the fact; three
 organisation-level scopes that cannot be demonstrated are exactly what a
-Marketplace reviewer checks first.
+Marketplace reviewer checks first. They are not dropped tonight for one
+operational reason: a scope change triggers a **major version upgrade** on
+deploy (`forge lint`, rule `MAJOR_VERSION_RULE`) and re-declaring them later
+would trigger a second one, so the change is made **once**, at the freeze,
+together with the removal of the graph code itself (`src/platform/graph.ts` and
+the V4/V5/V6 probe) — dropping the scopes while the code still calls the graph
+leaves a `teamwork-graph-scopes` warning in the build.
 
 Everything the product ships today works without them, through the documented
 fallbacks, which are the shipped behaviour: zones come from Jira components,
 pull-request slowness from review-status time, and there is no Compass
 dependency. The graph integration code stays in the repository (adapters and
-probe, on behalf of the user by design, §15); the scopes will be declared again
-in a later version, together with the §8 priority-2 features (Compass zone
-mode, cost per team), once they can be demonstrated from a real screen on a
-site whose organisation admin granted them.
+probe, on behalf of the user by design, §15); if they are dropped at the freeze,
+the scopes will be declared again in a later version, together with the §8
+priority-2 features (Compass zone mode, cost per team), once they can be
+demonstrated from a real screen on a site whose organisation admin granted them.
 
 ## 6. Versioning and support
 
@@ -205,8 +214,8 @@ site whose organisation admin granted them.
   `MCP`, `Forge`, `Runs on Atlassian`. (`prioritization` was
   removed on purpose — spec §24: the product measures a past cost and checks a
   repayment, it does not score or rank the backlog. `Teamwork Graph` was
-  removed on 12 November with the graph scopes — see §5, decision G93: a label
-  must match what the shipped app actually calls.)
+  removed on 12 November — see §5, decision G93: no feature a user opens reads
+  the graph, and a label must match what the shipped app does for its user.)
 
 ## 8. Screenshots to produce (with their caption)
 

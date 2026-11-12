@@ -124,15 +124,17 @@
 ## Ce qui reste à faire avant le 22 décembre
 
 - [ ] Enregistrer la vidéo de moins de cinq minutes (scénario prêt dans `docs/VIDEO.md`).
-- [ ] ~~Rouvrir V4, V5 et V6 sur un site dont l'administrateur d'organisation a
-      accordé les scopes du Teamwork Graph~~ → **abandonné pour cette
-      soumission** : les trois scopes `read:graph:*` ont été retirés du
-      manifeste le 12/11 (décision G93, voir `docs/MARKETPLACE.md` §5). Le
-      code graphe (adaptateurs + sonde) reste dans le dépôt ; les scopes
-      seront redéclarés **dans une version ultérieure**, avec les fonctions §8
-      de priorité 2, le jour où elles pourront être démontrées depuis un
-      écran réel. Conséquence : le bonus « Teamwork Graph » n'est pas réclamé
-      comme démontré sur cette soumission.
+- [ ] Trancher les scopes `read:graph:*` **au gel du 15/12** (décision G93,
+      voir `docs/MARKETPLACE.md` §5) : **conservés le 12/11**, parce que la
+      sonde de diagnostic les appelle réellement et qu'un changement de scopes
+      déclenche une **montée de version majeure** au déploiement (`forge lint`,
+      règle `MAJOR_VERSION_RULE`). Le bonus « Teamwork Graph » n'est donc pas
+      réclamé comme démontré sur cette soumission. Au gel, si le graphe ne peut
+      toujours pas être démontré depuis un écran réel : retirer les trois scopes
+      **et** le code graphe (`src/platform/graph.ts`, sonde V4/V5/V6) dans la
+      même version — sinon `forge lint` laisse l'avertissement
+      `teamwork-graph-scopes`. Les scopes seront redéclarés dans une version
+      ultérieure, avec les fonctions §8 de priorité 2.
 - [ ] Vérifier les six écrans dans le navigateur (Projet → L'addition, panneau de
       ticket, encart sur un bug, champ, gadget, réglages).
 - [ ] Produire les 12 captures : la liste des écrans, les tickets à afficher, la
