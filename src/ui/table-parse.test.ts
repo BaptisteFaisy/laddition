@@ -17,9 +17,9 @@ import { createTableParser, markTableRow } from './table-parse';
 const { createElement: h, Fragment } = React;
 
 /** Faux `Head` et `Row` : le parseur ne connaît que leur identité. */
-const Head = (props: { children?: React.ReactNode }) => props.children;
-const Row = (props: { children?: React.ReactNode }) => props.children;
-const Cell = (props: { children?: React.ReactNode }) => props.children;
+const Head = (props: { children?: React.ReactNode }): React.ReactElement => h(Fragment, null, props.children);
+const Row = (props: { children?: React.ReactNode }): React.ReactElement => h(Fragment, null, props.children);
+const Cell = (props: { children?: React.ReactNode }): React.ReactElement => h(Fragment, null, props.children);
 
 const { parseTable } = createTableParser({ Head, Row });
 
@@ -43,7 +43,7 @@ describe('parseTable — les lignes sont lues, quel que soit leur forme', () => 
   });
 
   it('résout un composant de ligne marqué (le correctif du 12/11)', () => {
-    const CustomRow = markTableRow((props: { label: string }) =>
+    const CustomRow = markTableRow((props: { label: string }): React.ReactElement =>
       h(Row, { key: 'r1' }, h(Cell, { key: 'c' }, props.label)),
     );
     const parsed = parseTable([h(CustomRow, { key: 'r1', label: 'PAY-77' })]);
@@ -52,13 +52,14 @@ describe('parseTable — les lignes sont lues, quel que soit leur forme', () => 
   });
 
   it('ignore un composant qui n’est pas marqué comme ligne', () => {
-    const NotARow = (props: { label: string }) => h(Row, { key: 'r1' }, h(Cell, { key: 'c' }, props.label));
+    const NotARow = (props: { label: string }): React.ReactElement =>
+      h(Row, { key: 'r1' }, h(Cell, { key: 'c' }, props.label));
     const parsed = parseTable([h(NotARow, { key: 'r1', label: 'PAY-77' })]);
     assert.equal(parsed.rows.length, 0, 'un composant non marqué n’est pas une ligne');
   });
 
   it('refuse de marquer un composant qui utilise un hook', () => {
-    const WithHook = () => {
+    const WithHook = (): React.ReactElement => {
       const [value] = React.useState(0);
       return h(Row, { key: 'r' }, h(Cell, { key: 'c' }, String(value)));
     };

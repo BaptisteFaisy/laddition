@@ -1,5 +1,6 @@
 import { Children, isValidElement } from 'react';
 import type React from 'react';
+import type { ReactElement } from 'react';
 
 /**
  * Lecture de l'arbre JSX d'un tableau, avant le rendu.
@@ -22,7 +23,7 @@ export interface TableParts {
 }
 
 /** Un composant qui rend une ligne de tableau. */
-export type TableRowComponent<P> = ((props: P) => unknown) & { isTableRow?: true };
+export type TableRowComponent<P> = ((props: P) => ReactElement | null) & { isTableRow?: true };
 
 /**
  * Déclare un composant comme ligne de tableau.
@@ -32,7 +33,7 @@ export type TableRowComponent<P> = ((props: P) => unknown) & { isTableRow?: true
  * dont les cellules sont alors lues. D'où l'interdiction des hooks, vérifiée
  * ici pour qu'un futur composant ne casse pas les tableaux en silence.
  */
-export function markTableRow<P>(component: (props: P) => unknown): (props: P) => unknown {
+export function markTableRow<P>(component: (props: P) => ReactElement | null): (props: P) => ReactElement | null {
   const source = component.toString();
   if (/\buse(State|Effect|Memo|Ref|Callback|Reducer|Context)\b/.test(source)) {
     throw new Error(
