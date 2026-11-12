@@ -1,7 +1,7 @@
-import { sql } from '@forge/sql';
 import type { Confirmation } from '../core/attribution';
-import { insertRows, onDuplicateUpdate, runStatement, selectRows } from '../platform/db/query';
+import { insertRows, onDuplicateUpdate, runDdl, runStatement, selectRows } from '../platform/db/query';
 import { toDbDateRequired, toText } from '../platform/db/rows';
+import { oncePerExecutor } from '../platform/db/once';
 
 /**
  * Rapprochements confirmés par un humain (§10, règle 2).
@@ -22,19 +22,8 @@ const DDL =
   'confirmed_at DATETIME(3) NOT NULL, PRIMARY KEY (evidence_id, debt_issue_id)' +
   ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin';
 
-let tableReady: Promise<void> | null = null;
-
-/** Crée la table des confirmations une seule fois par instance. */
-function ensureTable(): Promise<void> {
-  tableReady ??= sql
-    .executeDDL(DDL)
-    .then(() => undefined)
-    .catch((error: unknown) => {
-      tableReady = null;
-      throw error;
-    });
-  return tableReady;
-}
+/** Crée la table des confirmations une fois par exécuteur. */
+const ensureTable = oncePerExecutor(() => runDdl(DDL));
 
 /** Enregistre une confirmation ; rejouer la même décision ne duplique rien. */
 export async function addConfirmation(
