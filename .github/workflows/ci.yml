@@ -54,11 +54,20 @@ jobs:
         run: |
           HASH=$(sha256sum package-lock.json | cut -d' ' -f1)
           SHARED="$HOME/.cache/laddition-nm/$HASH"
+          STAMP="node_modules/.laddition-nm-hash"
           # Copie à liens durs, PAS un lien symbolique : avec node_modules en
           # symlink, Node résout les dépendances transitives depuis le chemin
           # réel et ne remonte jamais jusqu'au vrai node_modules
           # (constat du 11/11 : « Cannot find module 'fast-deep-equal' »).
           # cp -al ne copie aucun octet, seulement des inœuds.
+          # L'empreinte évite de recopier un arbre déjà en place : cp -al crée
+          # ~150 000 entrées et, worker chargé (charge 47 mesurée le 12/11),
+          # la recopie seule dépasse le budget de 5 min — sans jamais allonger
+          # ce budget (règle user 2026-10-24), on ne recopie que si nécessaire.
+          if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$HASH" ] && [ -d node_modules/typescript ]; then
+            echo "arbre déjà en place ($HASH) : aucune recopie"
+            exit 0
+          fi
           rm -rf node_modules
           if [ -d "$SHARED" ]; then
             cp -al "$SHARED" node_modules
@@ -70,6 +79,7 @@ jobs:
             cp -al node_modules "$SHARED"
             echo "arbre installé puis mis en cache ($HASH)"
           fi
+          echo "$HASH" > "$STAMP"
       - name: Typage strict
         run: npm run typecheck
       - name: Tests du domaine
