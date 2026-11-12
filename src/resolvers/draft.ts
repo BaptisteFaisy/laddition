@@ -1,8 +1,10 @@
 import { route } from '@forge/api';
+import type { Route } from '@forge/api';
 import type { Request } from '@forge/resolver';
-import type { Evidence } from '../core/types';
+import type { Evidence, ProjectSettings } from '../core/types';
 import { listEvidence } from '../platform/db/index';
 import { jiraSendJson } from '../platform/jira';
+import type { SendResult } from '../platform/jira';
 import { draftDebtTicket as draftWithModel } from '../platform/llm';
 import type { Draft } from '../platform/llm';
 import { projectIdByKey, requireSettings } from '../jobs/projects';
@@ -24,6 +26,34 @@ export interface DraftedTicket {
 }
 
 /**
+ * Champs de zone posés sur le ticket créé : ils le rattachent à sa zone (§8).
+ * Sans eux, le ticket reste hors zone et ne capte aucune preuve (§7.2).
+ */
+export interface ZoneFields {
+  labels: string[];
+  components: Array<{ name: string }>;
+}
+
+/** Envoi Jira injectable : les tests remplacent le transport (aucun réseau). */
+export type SendJson = <T>(
+  method: string,
+  url: Route,
+  payload: unknown,
+  what: string,
+) => Promise<SendResult<T>>;
+
+/** Transport par défaut : l'adaptateur Jira de `platform/jira`. */
+const defaultSend: SendJson = async <T>(method: string, url: Route, payload: unknown, what: string) =>
+  jiraSendJson<T>(method, url, payload, what);
+
+let sendJson: SendJson = defaultSend;
+
+/** Remplace l'envoi Jira (tests) ; `null` rend le transport par défaut. */
+export function setDraftSend(send: SendJson | null): void {
+  sendJson = send ?? defaultSend;
+}
+
+/**
  * Brouillon d'un ticket de dette, **sans création** (§7.2).
  *
  * C'est la moitié lecture du parcours : le tech lead relit et corrige avant de
@@ -33,7 +63,8 @@ export interface DraftedTicket {
 export async function previewDebtTicket(request: Request<unknown>): Promise<Draft | Failure> {
   return guard(async () => {
     const payload = payloadOf(request);
-    return buildDraft(requireString(payload, 'projectKey'), requireString(payload, 'zone'));
+    const prepared = await buildDraft(requireString(payload, 'projectKey'), requireString(payload, 'zone'));
+    return prepared.draft;
   });
 }
 
@@ -42,13 +73,25 @@ export async function draftDebtTicket(request: Request<unknown>): Promise<Drafte
   return guard(async () => {
     const payload = payloadOf(request);
     const projectKey = requireString(payload, 'projectKey');
-    const draft = await buildDraft(projectKey, requireString(payload, 'zone'));
-    return createIssue(projectKey, draft.title, draft.description, optionalString(payload, 'siteUrl'));
+    const prepared = await buildDraft(projectKey, requireString(payload, 'zone'));
+    return createIssue(
+      projectKey,
+      prepared.draft.title,
+      prepared.draft.description,
+      prepared.zoneFields,
+      optionalString(payload, 'siteUrl'),
+    );
   });
 }
 
+/** Brouillon et champs de zone : la création porte la zone dès le départ (§8). */
+interface PreparedDraft {
+  draft: Draft;
+  zoneFields: ZoneFields;
+}
+
 /** Rédaction du brouillon : projet, réglages, preuves de la zone, puis modèle. */
-async function buildDraft(projectKey: string, zone: string): Promise<Draft> {
+async function buildDraft(projectKey: string, zone: string): Promise<PreparedDraft> {
   const projectId = await projectIdByKey(projectKey);
   if (!projectId) throw new Error(`projet « ${projectKey} » inconnu : ouvrir l'écran Réglages`);
   const settings = await requireSettings(projectId);
@@ -56,7 +99,21 @@ async function buildDraft(projectKey: string, zone: string): Promise<Draft> {
   if (evidence.length === 0) {
     throw new Error(`aucune preuve sur la zone « ${zone} » : vérifier la zone, ou attendre le calcul nocturne`);
   }
-  return draftWithModel(zone, evidence, settings);
+  const draft = await draftWithModel(zone, evidence, settings);
+  return { draft, zoneFields: zoneFieldsOf(settings, zone) };
+}
+
+/**
+ * Champs de zone du ticket créé, selon le mode du projet (§8) : une étiquette
+ * `zone:` en mode étiquette, un composant dans les autres modes. Le même
+ * ticket, la même zone : une seule implémentation de la règle (§18).
+ */
+export function zoneFieldsOf(settings: ProjectSettings, zone: string): ZoneFields {
+  if (settings.zoneMode === 'label') {
+    const prefix = settings.zoneLabelField ? `${settings.zoneLabelField}:` : 'zone:';
+    return { labels: [`${prefix}${zone}`], components: [] };
+  }
+  return { labels: [], components: [{ name: zone }] };
 }
 
 /** Preuves d'une zone, les plus coûteuses d'abord (le brouillon s'appuie dessus). */
@@ -70,9 +127,10 @@ async function createIssue(
   projectKey: string,
   summary: string,
   description: string,
+  zoneFields: ZoneFields,
   siteUrl: string | undefined,
 ): Promise<DraftedTicket> {
-  const sent = await jiraSendJson<{ id?: string; key?: string }>(
+  const sent = await sendJson<{ id?: string; key?: string }>(
     'POST',
     route`/rest/api/3/issue`,
     {
@@ -81,6 +139,8 @@ async function createIssue(
         issuetype: { name: 'Task' },
         summary,
         description: toAdf(description),
+        labels: zoneFields.labels,
+        components: zoneFields.components,
       },
     },
     'draftDebtTicket',
