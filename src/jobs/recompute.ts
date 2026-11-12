@@ -111,7 +111,11 @@ export function recomputeAll(input: RecomputeInput): RecomputeResult {
  * quand l'appelant a dû les lire avant (c'est le cas du calcul nocturne, qui
  * demande des scores au modèle à partir des preuves).
  */
-export function finish(input: RecomputeInput, prepared: Prepared): RecomputeResult {
+export function finish(
+  input: RecomputeInput,
+  prepared: Prepared,
+  scoresTruncated = false,
+): RecomputeResult {
   const attributions = attributeEvidence(
     prepared.evidence,
     prepared.debts,
@@ -131,7 +135,7 @@ export function finish(input: RecomputeInput, prepared: Prepared): RecomputeResu
     ranking: rankDebts(bills, prepared.debts),
     zoneWeeks: weeklyZoneCosts(prepared.evidence, input.projectId, input.settings.teamByZone),
     baselines: [...prepared.ctx.baselines.values()],
-    quality: computeQuality(input.facts, prepared.evidence, input.settings),
+    quality: computeQuality(input.facts, prepared.evidence, input.settings, scoresTruncated),
   };
 }
 
