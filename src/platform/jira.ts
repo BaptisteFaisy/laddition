@@ -277,21 +277,6 @@ export async function searchIssues(
 }
 
 /** Un ticket complet (champs du calcul + `expand=changelog`). */
-/**
- * Identifiant Jira d'un ticket, sans historique ni champs lourds.
- *
- * Sert à aligner le jeu d'exemple sur les vrais tickets du site (§7.2, DT-13) :
- * un écran qui reçoit l'identifiant réel du ticket doit retrouver sa fiche.
- * Rend `null` si le ticket n'existe pas ou n'est pas lisible — jamais d'erreur.
- */
-export async function fetchIssueId(key: string): Promise<string | null> {
-  const issue = await jiraGetJson<{ id?: unknown }>(
-    route`/rest/api/3/issue/${key}?fields=id`,
-    `fetchIssueId ${key}`,
-  );
-  return typeof issue?.id === 'string' ? issue.id : null;
-}
-
 export async function fetchIssue(key: string): Promise<JiraIssueJson | null> {
   const fields = [...ISSUE_FIELDS, ...(await serviceFieldIds())].join(',');
   return jiraGetJson<JiraIssueJson>(
