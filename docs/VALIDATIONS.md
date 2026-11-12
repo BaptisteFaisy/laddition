@@ -305,3 +305,28 @@ Vérifications complémentaires du même jour, sur le même site :
 Ce que cette sonde **ne prouve pas** : le rendu UI Kit 2 dans le navigateur
 (item H98) et les captures (item H99). Ces deux points exigent une session
 Atlassian authentifiée ; la procédure est prête dans `docs/CAPTURES.md`.
+
+## Vérification du 12/11 — les écrans ouverts dans un navigateur
+
+La prise des captures a été la première ouverture réelle des six écrans (item
+H98). Résultat : **trois défauts que ni la CI ni les tests de domaine ne
+voyaient**, tous corrigés et mergés le jour même.
+
+| Défaut trouvé à l'écran | Cause | Correctif |
+|---|---|---|
+| **Aucun tableau n'affichait de ligne** (classement, zones, dettes, preuves, méthode, gadget) | `parseTable` ne reconnaît que `Head`, `Row` et `Fragment` : un composant de ligne personnalisé (`RankingRow`…) était invisible, donc ignoré | #77 : `markTableRow` + `src/ui/table-parse.ts` (pur, testé) ; garde `src/ui/table-rows.test.ts` |
+| **« Part du coût non classé : 147 % »** pour 1,47 % | les parts de `DataQuality` sont des pourcentages (0-100), `formatPercent` attend un ratio 0-1 | #76 et #79 : `formatPercentValue`, sémantiques explicites dans `core/types.ts` |
+| **« ticket 66499 inconnu »** sur le panneau de PAY-77 | le jeu d'exemple est pur (identifiants dérivés des clés) alors que les écrans reçoivent l'identifiant Jira du ticket | #75 : alignement des identifiants sur les vrais tickets à l'injection |
+
+Autre constat du même jour : **l'installation de production datait d'avant les
+nouvelles colonnes** — les 20 `ALTER TABLE` sont refusés par Forge SQL, et le
+recalcul y échouait (`Unknown SQL execution error`, à `purgeProject`). Le schéma
+a été recréé (`?action=reset-schema`) puis le jeu d'exemple réinjecté ; le
+recalcul d'un projet réel reste à rejouer (point ouvert, voir
+`docs/NOTES-DE-SOUMISSION.md`).
+
+Après correction, les captures montrent bien : le classement complet (10 dettes,
+PAY-77 à 19–34 p-d), les zones (5), la dette fantôme, les 7 dettes mortes, le
+bulletin, la méthode (1,5 % de coût non classé), la simulation (3 dettes
+sélectionnées) et l'argumentaire de PAY-77 (remboursement 8 p-d, évitable
+26,6 p-d, retour ×3,3–×6, délai 37,9 j, 8 preuves, limites).

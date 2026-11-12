@@ -62,10 +62,32 @@ files, each caption re-checked against `docs/MARKETPLACE.md` §8.
 
 ## State of the shoot (12 November 2026)
 
-Not shot yet: it needs an authenticated Atlassian session in the browser, and
-the agent never types credentials. Everything else is ready — the app is
-deployed (`production` 3.1.0, installed and upgraded), the sample dataset is
-loaded on **PAY** (68 facts, 65 evidence, 5 zones, 650 €/day), and the data path
-of all 26 read surfaces was verified live the same day (`?action=screens`, see
-`docs/VALIDATIONS.md`). What only a browser can prove: that UI Kit 2 renders
-without a runtime error, and the images themselves.
+**Twelve captures taken** (files 01 to 09, 12, 13, 14 — English UI, the demo
+account's language switched to English on the day). They were taken on the
+**production** install (`3.4.0`), project **PAY**, sample dataset loaded (68
+facts, 65 evidence, 5 zones, 650 €/day).
+
+Taking them was not a formality: **the screens had never rendered a single
+table row**. Opening the site for the shoot exposed three defects, all fixed
+and merged the same day (see `docs/VALIDATIONS.md`):
+
+1. the table parser could not see a row component → **every** table showed its
+   header and nothing else (fixed in #77, guarded by `src/ui/table-rows.test.ts`);
+2. the data-quality shares were multiplied by 100 → « 147 % » for 1,47 %
+   (fixed in #76 and #79);
+3. the sample dataset used fictional issue ids → opening PAY-77 answered «
+   ticket 66499 unknown » (fixed in #75, the sample is now aligned on the real
+   tickets).
+
+**Two captures remain**, both needing a click the automation did not reach:
+
+- **10 — the gadget**: open *Dashboards → Default dashboard* → *Edit* →
+  *Add gadget* → search *L'addition* → *Add*. The dashboard's own toolbar was
+  not reachable from the script (the page kept its toolbar out of the DOM).
+- **11 — the Rovo chat**: click *Ask Rovo* in the top bar, choose the
+  **L'addition** agent, ask *Prepare the argument for PAY-77*. The chat did not
+  open from the script either.
+
+Both are quick manual steps in a browser; the features behind them are
+verified live (the gadget data — top debts, cost per team, cost per quarter —
+and all 11 MCP actions answer on the site, see `docs/VALIDATIONS.md`).
