@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { insertRows, onDuplicateUpdate, runDdl, runStatement, selectRows } from '../platform/db/query';
 import { toBool, toDbDateRequired, toIso, toNumber, toTextOrNull } from '../platform/db/rows';
+import { oncePerExecutor } from '../platform/db/once';
 
 /**
  * État des lots d'initialisation (B25, B26).
@@ -49,16 +50,8 @@ function tokenKey(pageToken: string): string {
   return createHash('sha256').update(pageToken).digest('hex');
 }
 
-let tableReady: Promise<void> | null = null;
-
-/** Crée la table des lots une seule fois par instance. */
-function ensureTable(): Promise<void> {
-  tableReady ??= runDdl(DDL).catch((error: unknown) => {
-    tableReady = null;
-    throw error;
-  });
-  return tableReady;
-}
+/** Crée la table des lots une fois par exécuteur (voir `oncePerExecutor`). */
+const ensureTable = oncePerExecutor(() => runDdl(DDL));
 
 /** Ce qu'un lot a fait, et combien de fois il a été joué. */
 export interface BatchState {
