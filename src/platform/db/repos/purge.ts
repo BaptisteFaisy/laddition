@@ -77,22 +77,32 @@ export interface PurgeReport {
 /**
  * Purge un projet : tout ce qui est plus vieux que les fenêtres conservées.
  *
- * Idempotente et sans effet sur un projet récent. Ne jette pas pour une table
- * vide ; propage en revanche une erreur SQL réelle (l'appelant décide).
+ * Idempotente et sans effet sur un projet récent. **Résiliente** : une
+ * instruction qui échoue n'interrompt pas la purge — chaque échec est consigné
+ * dans `report.errors`, et le passage nocturne va au bout. Constaté le 12/11 en
+ * production : la purge qui échouait annulait tout le recalcul.
  */
 export async function purgeProject(projectId: string, options: PurgeOptions = {}): Promise<PurgeReport> {
   const cutoffs = purgeCutoffs(options);
   const batch = options.batchSize ?? PURGE_BATCH;
-  const report: PurgeReport = { projectId, deleted: {}, trimmedDescriptions: 0 };
+  const report: PurgeReport = { projectId, deleted: {}, trimmedDescriptions: 0, errors: [] };
+  const attempt = async <T>(what: string, run: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await run();
+    } catch (error) {
+      report.errors?.push(`${what} : ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+  };
 
-  report.deleted['attribution'] = await deleteBounded(
+  report.deleted['attribution'] = (await attempt('attribution', () => deleteBounded(
     'attribution',
     batch,
     `project_id = ? AND evidence_id IN (
        SELECT evidence_id FROM evidence WHERE project_id = ? AND occurred_at < ?)`,
     [projectId, projectId, cutoffs.old],
-  );
-  report.deleted['status_span'] = await deleteBounded(
+  ))) ?? 0;
+  report.deleted['status_span'] = (await attempt('status_span', () => deleteBounded(
     'status_span',
     batch,
     `issue_id IN (
@@ -101,28 +111,29 @@ export async function purgeProject(projectId: string, options: PurgeOptions = {}
           AND created_at < ?
           AND COALESCE(resolved_at, closed_at, created_at) < ?)`,
     [projectId, cutoffs.old, cutoffs.old],
-  );
-  report.deleted['evidence'] = await deleteBounded(
+  ))) ?? 0;
+  report.deleted['evidence'] = (await attempt('evidence', () => deleteBounded(
     'evidence',
     batch,
     'project_id = ? AND occurred_at < ?',
     [projectId, cutoffs.old],
-  );
-  report.trimmedDescriptions = await trimDescriptions(projectId, cutoffs.old, batch);
-  report.deleted['zone_week'] = await deleteBounded(
+  ))) ?? 0;
+  report.trimmedDescriptions = (await attempt('descriptions', () => trimDescriptions(projectId, cutoffs.old, batch))) ?? 0;
+  report.deleted['zone_week'] = (await attempt('zone_week', () => deleteBounded(
     'zone_week',
     batch,
     'project_id = ? AND week < ?',
     [projectId, cutoffs.oldWeek],
-  );
-  report.deleted['score_cache'] = await deleteBounded(
+  ))) ?? 0;
+  report.deleted['score_cache'] = (await attempt('score_cache', () => deleteBounded(
     'score_cache',
     batch,
     'project_id = ? AND computed_at < ?',
     [projectId, cutoffs.old],
-  );
+  ))) ?? 0;
   // Après `evidence` : les confirmations perdues par la purge deviennent orphelines.
-  Object.assign(report.deleted, await purgeDecisions(projectId, cutoffs.old, batch));
+  const decisions = await attempt('décisions', () => purgeDecisions(projectId, cutoffs.old, batch));
+  if (decisions) Object.assign(report.deleted, decisions);
   return report;
 }
 
