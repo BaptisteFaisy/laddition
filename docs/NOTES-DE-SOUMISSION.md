@@ -59,12 +59,35 @@
 - [x] `forge deploy -e development` : déployé.
 - [x] `forge site provision` : site de démo `https://<DEMO_SITE>` (actif jusqu'au 09/02/2027).
 - [x] `forge install --demo-site --product jira -e development` : installé et à jour sur Jira.
-- [x] `forge eligibility` : confirmé éligible au programme **Runs on Atlassian**.
+- [ ] `forge eligibility` : **non éligible en l'état** (mesuré le 12/11, versions
+      development 4.14.0 et production 3.1.0) — motif unique : « App is using a
+      webtrigger module that can egress data ». L'éligibilité revient dès que les
+      deux modules `webtrigger` sont retirés du manifeste (tâche ci-dessous). Les
+      affirmations d'éligibilité dans `docs/MARKETPLACE.md`, `docs/DEVPOST.md`,
+      `docs/PRIVACY.md` et `docs/TERMS.md` ont été corrigées le 12/11 en
+      conséquence : aucune ne déclare plus le programme comme acquis.
 - [x] Tickets de test réels créés dans le projet PAY du site : `<TICKET_A>` (dette « Supprimer le double système de calcul des taxes ») et `<TICKET_B>` (bug « Montant de TVA incohérent »).
 - [x] **Déployé et installé en `production`** sur `<DEMO_SITE>`
       (installation `<INSTALLATION_ID_PROD>`, à jour), en plus de l'environnement
       `development` (`<INSTALLATION_ID_DEV>`). Console :
       `https://developer.atlassian.com/console/myapps/<APP_ID>`.
+- [x] **12/11** : toutes les corrections de l'audit mergées (PR #24 à #73),
+      redéployé en `development` (**4.14.0**) et `production` (**3.1.0**,
+      `forge install --upgrade` : « Upgrade complete! »). Le passage en
+      production a exigé `--approve MAJOR_VERSION_RULE` (scopes modifiés depuis
+      le dernier déploiement prod) — une seule fois, les scopes ne bougent plus
+      avant le gel.
+- [x] **12/11** : jeton d'exploitation posé en variable d'app sur les deux
+      environnements (`forge variables set LADDITION_OPS_TOKEN … -e <env>`).
+      Vérifié en réel : 403 sans jeton, 200 avec. Piège corrigé au passage (PR
+      #65) : Forge expose la variable sous `FORGE_USER_VAR_LADDITION_OPS_TOKEN`,
+      le garde ne lisait que le nom nu et refusait donc tout sur site installé.
+- [x] **12/11** : jeu d'exemple réinjecté sur le projet **PAY** en production
+      (68 faits, 65 preuves, 5 zones) avec `dayRateEur = 650` et
+      `storyPointField = customfield_10016` ; PAY-77 à 19–34 j-p, PAY-41 à 1–2 j-p,
+      1 dette fantôme, 7 dettes mortes, 1 bulletin, équipes et trimestres
+      renseignés. Les chiffres de `docs/JUGES.md` sont donc reproductibles tels
+      quels sur le site.
 
 ## Les six validations du §17 — mesurées le 11/11 sur le runtime
 
@@ -135,10 +158,16 @@
       même version — sinon `forge lint` laisse l'avertissement
       `teamwork-graph-scopes`. Les scopes seront redéclarés dans une version
       ultérieure, avec les fonctions §8 de priorité 2.
-- [ ] Vérifier les six écrans dans le navigateur (Projet → L'addition, panneau de
-      ticket, encart sur un bug, champ, gadget, réglages).
-- [ ] Produire les 12 captures : la liste des écrans, les tickets à afficher, la
-      recette §20 correspondante et les noms de fichiers sont dans
+- [ ] Vérifier les six écrans **dans le navigateur** (Projet → L'addition, panneau
+      de ticket, encart sur un bug, champ, gadget, réglages). Le chemin de données
+      de toutes les surfaces est déjà vérifié en réel le 12/11 (sonde
+      `?action=screens`, 26 surfaces vertes dont la simulation DT-21 et
+      l'argumentaire DT-17 — voir `docs/VALIDATIONS.md`) ; il reste le rendu UI
+      Kit 2, que seule l'ouverture dans Jira peut prouver. Une session navigateur
+      authentifiée est nécessaire (l'agent ne saisit aucun identifiant).
+- [ ] Produire les **14 captures** (12 prévues + l'onglet Simulation et
+      l'argumentaire, ajoutés le 12/11) : la liste des écrans, les tickets à
+      afficher, la recette §20 correspondante et les noms de fichiers sont dans
       `docs/CAPTURES.md` (les captions sont dans `docs/MARKETPLACE.md` §8).
 - [ ] Publier la politique de confidentialité et les conditions d'utilisation
       (`docs/PRIVACY.md`, `docs/TERMS.md`) et coller leurs URL dans le
@@ -146,9 +175,19 @@
 - [ ] Déposer sur Devpost (texte prêt dans `docs/DEVPOST.md`) et sur le
       Marketplace (texte prêt dans `docs/MARKETPLACE.md`) — les deux dépôts se
       font depuis un navigateur, avec ton compte.
-- [ ] Avant le dépôt Marketplace : retirer les deux modules `webtrigger` du
-      manifeste (ou laisser le jeton `LADDITION_OPS_TOKEN` obligatoire —
-      `src/jobs/opsAuth.ts`, échec fermé) ; voir `docs/JUGES.md`.
+- [ ] **Au gel du 15/12** : retirer les deux modules `webtrigger`
+      (`laddition-smoke`, `laddition-ops`) du manifeste, puis redéployer et
+      relancer `forge eligibility`. C'est la condition d'éligibilité **Runs on
+      Atlassian** (motif mesuré le 12/11 : « webtrigger module that can egress
+      data »). Conséquences à accepter ce jour-là : l'outillage d'exploitation
+      disparaît (plus de `?action=init|bootstrap|sample|report|screens`), donc
+      l'initialisation d'un site se fait par l'assistant en trois étapes de
+      l'écran Réglages (DT-12, `BootstrapWizard`) et le bouton « Load sample
+      data » ; retirer aussi `src/jobs/opsAuth.ts`, `opsTrigger.ts`,
+      `smokeTrigger.ts` et leurs fonctions au manifeste pour que `forge lint` ne
+      signale pas de code mort. En attendant, les deux webtriggers exigent le
+      jeton `LADDITION_OPS_TOKEN` (échec fermé, `src/jobs/opsAuth.ts`) — vérifié
+      en réel le 12/11 : 403 sans jeton, 200 avec.
 - [ ] Exécuter la procédure de gel (version 1.0.0 + tag) au gel du 15/12 —
       procédure ci-dessous.
 

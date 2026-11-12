@@ -1,6 +1,6 @@
 # Privacy Policy — L'addition
 
-**App:** L'addition (Forge app for Jira, "Runs on Atlassian")
+**App:** L'addition (Forge app for Jira, hosted entirely on Atlassian infrastructure)
 **Publisher:** Baptiste Faisy
 **Effective date:** `<EFFECTIVE_DATE — set on publication day, see the publication plan in docs/NOTES-DE-SOUMISSION.md>`
 
