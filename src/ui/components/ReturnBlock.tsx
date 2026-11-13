@@ -2,7 +2,7 @@ import { Fragment, Heading, Text } from '../kit';
 import type { DebtBill } from '../../core/types';
 import type { Locale, MessageKey, MessageVars } from '../i18n/index';
 import { t } from '../i18n/index';
-import { formatDays, formatJp, formatRatio, pair } from '../format';
+import { formatDays, formatJpUnit, formatRatio, pair } from '../format';
 import { Disclosure } from './Disclosure';
 
 /**
@@ -22,8 +22,8 @@ export function ReturnBlock({ locale, bill }: { locale: Locale; bill: DebtBill }
         <Text>{t(locale, 'panel.noRepayment')}</Text>
       ) : (
         <Fragment>
-          <Text>{pair(locale, t(locale, 'project.col.repayment'), formatJp(locale, bill.repaymentJp))}</Text>
-          <Text>{pair(locale, t(locale, 'panel.avoidable'), formatJp(locale, bill.avoidableJp))}</Text>
+          <Text>{pair(locale, t(locale, 'project.col.repayment'), formatJpUnit(locale, bill.repaymentJp))}</Text>
+          <Text>{pair(locale, t(locale, 'panel.avoidable'), formatJpUnit(locale, bill.avoidableJp))}</Text>
           <Text>
             {pair(locale, t(locale, 'panel.roi'), `${formatRatio(locale, bill.roiLow)} – ${formatRatio(locale, bill.roiHigh)}`)}
           </Text>
@@ -43,8 +43,8 @@ function RoiMethod({ locale, bill }: { locale: Locale; bill: DebtBill }): JSX.El
     <Disclosure label={t(locale, 'common.showFormula')} labelOpen={t(locale, 'common.hideFormula')}>
       <Fragment>
         <Text>{formulaText(locale, ROI_FORMULA, composed)}</Text>
-        <Text>{input(locale, t(locale, 'panel.avoidable'), formatJp(locale, bill.avoidableJp))}</Text>
-        <Text>{input(locale, t(locale, 'project.col.repayment'), formatJp(locale, bill.repaymentJp))}</Text>
+        <Text>{input(locale, t(locale, 'panel.avoidable'), formatJpUnit(locale, bill.avoidableJp))}</Text>
+        <Text>{input(locale, t(locale, 'project.col.repayment'), formatJpUnit(locale, bill.repaymentJp))}</Text>
         <Text>
           {input(
             locale,
@@ -60,12 +60,12 @@ function RoiMethod({ locale, bill }: { locale: Locale; bill: DebtBill }): JSX.El
 /** Divulgation du délai de retour : sa formule et ses entrées (§5 principe 1, §18). */
 function PaybackMethod({ locale, bill }: { locale: Locale; bill: DebtBill }): JSX.Element {
   const weekly = weeklyCost(bill);
-  const composed = `${t(locale, 'panel.payback')} = ${t(locale, 'project.col.repayment')} ÷ ${formatJp(locale, weekly)} × 7`;
+  const composed = `${t(locale, 'panel.payback')} = ${t(locale, 'project.col.repayment')} ÷ ${formatJpUnit(locale, weekly)} × 7`;
   return (
     <Disclosure label={t(locale, 'common.showFormula')} labelOpen={t(locale, 'common.hideFormula')}>
       <Fragment>
-        <Text>{formulaText(locale, PAYBACK_FORMULA, composed, { weekly: formatJp(locale, weekly) })}</Text>
-        <Text>{input(locale, t(locale, 'project.col.repayment'), formatJp(locale, bill.repaymentJp))}</Text>
+        <Text>{formulaText(locale, PAYBACK_FORMULA, composed, { weekly: formatJpUnit(locale, weekly) })}</Text>
+        <Text>{input(locale, t(locale, 'project.col.repayment'), formatJpUnit(locale, bill.repaymentJp))}</Text>
         <Text>{input(locale, t(locale, 'panel.payback'), formatDays(locale, bill.paybackDays))}</Text>
       </Fragment>
     </Disclosure>

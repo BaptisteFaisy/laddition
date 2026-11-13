@@ -1,6 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatPercent, formatPercentValue, formatRangeEur } from './format';
+import { formatJpUnit, formatPercent, formatPercentValue, formatRangeEur } from './format';
+
+/**
+ * Un coût lu hors d'un en-tête unité doit porter son unité : « 62 » ne dit rien
+ * (§18). Régression constatée à l'ouverture du gadget — « Cost by team : 62 ».
+ */
+test('formatJpUnit accole l’unité au coût', () => {
+  assert.equal(formatJpUnit('en', 62), '62 p-d');
+  assert.equal(formatJpUnit('fr', 62), '62 j-p');
+  assert.equal(formatJpUnit('en', 58.5), '58.5 p-d');
+  assert.equal(formatJpUnit('fr', 58.5), '58,5 j-p');
+});
+
+test('formatJpUnit n’accole pas d’unité à une valeur absente', () => {
+  assert.equal(formatJpUnit('en', null), '—');
+  assert.equal(formatJpUnit('fr', undefined), '—');
+  assert.equal(formatJpUnit('en', Number.NaN), '—');
+});
 
 test('la fourchette s’affiche en euros au taux journalier du projet (item 65)', () => {
   assert.equal(formatRangeEur('en', 2, 3, 500), '€1000–€1500');

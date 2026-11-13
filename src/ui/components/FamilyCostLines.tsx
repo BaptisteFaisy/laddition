@@ -3,7 +3,7 @@ import type { Family } from '../../core/types';
 import { BILLED_FAMILIES } from '../../core/types';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
-import { familyLabel, formatJp, pair } from '../format';
+import { familyLabel, formatJpUnit, pair } from '../format';
 
 /**
  * Le coût d'une zone ou d'une dette fantôme, famille par famille.
@@ -40,5 +40,5 @@ function costOf(
   family: Family,
 ): string {
   if (insufficientByFamily?.[family]) return t(locale, 'common.insufficient');
-  return formatJp(locale, byFamily[family]);
+  return formatJpUnit(locale, byFamily[family]);
 }

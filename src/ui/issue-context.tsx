@@ -7,7 +7,7 @@ import { errorMessage, useResolver } from './async';
 import type { ScreenContext } from './context';
 import type { Locale, MessageKey, MessageVars } from './i18n/index';
 import { t } from './i18n/index';
-import { formatJp, formatPercent, formatRange } from './format';
+import { formatJpUnit, formatPercent, formatRange } from './format';
 import { AsyncView } from './components/AsyncView';
 import { ErrorState } from './components/ErrorState';
 import { ScreenShell } from './components/ScreenShell';
@@ -94,7 +94,7 @@ function CostLine({ locale, issueId, view }: { locale: Locale; issueId: string; 
   }
   const proof = view.evidence.find((item) => item.sourceIssueId === issueId);
   if (!proof) return null;
-  return <Text>{t(locale, 'ctx.issueCost', { value: formatJp(locale, proof.costJp) })}</Text>;
+  return <Text>{t(locale, 'ctx.issueCost', { value: formatJpUnit(locale, proof.costJp) })}</Text>;
 }
 
 function AttributionBody({
