@@ -24,7 +24,7 @@ concurrency:
 jobs:
   ci-budget:
     name: ci-budget
-    runs-on: [self-hosted, laddition-worker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout (superficiel)
@@ -39,5 +39,9 @@ jobs:
           # chargé, et le job suivant doit tout recopier (cp -al) ou réinstaller
           # (npm ci) — d'où les annulations en cascade sur ci et couche0.
           clean: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
       - name: Vérifier le budget de 5 min par job
         run: python3 .github/ci-budget/check_timeouts.py
