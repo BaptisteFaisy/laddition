@@ -148,8 +148,8 @@ export function getDebtBill(debtIssueId: string): Promise<DebtBillView> {
 }
 
 /** La page d'argumentaire d'une dette : chiffres, limites et texte rédigé. */
-export function getDebtCase(issueKey: string): Promise<DebtCaseView> {
-  return call<DebtCaseView>('getDebtCase', { issueKey });
+export function getDebtCase(issueKey: string, locale: 'fr' | 'en'): Promise<DebtCaseView> {
+  return call<DebtCaseView>('getDebtCase', { issueKey, locale });
 }
 
 export function listPhantomDebt(projectId: string, projectKey: string): Promise<PhantomDebt[]> {
@@ -204,8 +204,13 @@ export function bootstrapProgress(projectId: string): Promise<BootstrapProgress 
 }
 
 /** Crée le ticket de dette d'une zone et rend sa clé et son adresse. */
-export function draftDebtTicket(projectKey: string, zone: string, siteUrl = ''): Promise<DraftedTicket> {
-  return call<DraftedTicket>('draftDebtTicket', { projectKey, zone, siteUrl });
+export function draftDebtTicket(
+  projectKey: string,
+  zone: string,
+  locale: 'fr' | 'en',
+  siteUrl = '',
+): Promise<DraftedTicket> {
+  return call<DraftedTicket>('draftDebtTicket', { projectKey, zone, siteUrl, locale });
 }
 
 /**
@@ -214,8 +219,8 @@ export function draftDebtTicket(projectKey: string, zone: string, siteUrl = ''):
  */
 // TODO(integration): clé resolver à exposer — `previewDebtTicket` doit rendre
 // le brouillon (titre, description) sans créer de ticket.
-export function previewDebtTicket(projectKey: string, zone: string): Promise<DebtDraft> {
-  return call<DebtDraft>('previewDebtTicket', { projectKey, zone });
+export function previewDebtTicket(projectKey: string, zone: string, locale: 'fr' | 'en'): Promise<DebtDraft> {
+  return call<DebtDraft>('previewDebtTicket', { projectKey, zone, locale });
 }
 
 /** Preuves d'une zone et leurs parts d'attribution : le chemin du chiffre (§18). */

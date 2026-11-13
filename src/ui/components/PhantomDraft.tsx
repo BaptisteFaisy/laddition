@@ -26,7 +26,7 @@ export function PhantomDraft({
   projectKey: string;
   zone: string;
 }): JSX.Element {
-  const flow = useDraftFlow(projectKey, zone);
+  const flow = useDraftFlow(projectKey, zone, locale);
   return (
     <Fragment>
       {flow.created ? <CreatedTicket locale={locale} ticket={flow.created} /> : null}
@@ -74,7 +74,7 @@ function PrepareFallback({
 }
 
 /** Les deux appels réseau du brouillon : préparer, puis créer. */
-function useDraftFlow(projectKey: string, zone: string) {
+function useDraftFlow(projectKey: string, zone: string, locale: Locale) {
   const siteUrl = useSiteUrl();
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<DebtDraft | null>(null);
@@ -96,7 +96,7 @@ function useDraftFlow(projectKey: string, zone: string) {
   const prepare = () =>
     run(async () => {
       try {
-        setDraft(await previewDebtTicket(projectKey, zone));
+        setDraft(await previewDebtTicket(projectKey, zone, locale));
         setPreviewFailed(false);
       } catch (error) {
         setPreviewFailed(true);
@@ -111,7 +111,7 @@ function useDraftFlow(projectKey: string, zone: string) {
     failure,
     previewFailed,
     prepare,
-    create: () => run(async () => setCreated(await draftDebtTicket(projectKey, zone, siteUrl))),
+    create: () => run(async () => setCreated(await draftDebtTicket(projectKey, zone, locale, siteUrl))),
   };
 }
 
