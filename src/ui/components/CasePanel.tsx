@@ -19,7 +19,7 @@ import { ReturnBlock } from './ReturnBlock';
  * serveur l'a construite, avec les mêmes chiffres que l'outil MCP.
  */
 export function CasePanel({ locale, issueKey }: { locale: Locale; issueKey: string }): JSX.Element {
-  const resolver = useResolver(issueKey, issueKey === '' ? null : () => getDebtCase(issueKey));
+  const resolver = useResolver(`${issueKey}#${locale}`, issueKey === '' ? null : () => getDebtCase(issueKey, locale));
   return (
     <AsyncView
       state={resolver.state}

@@ -6,7 +6,7 @@ import { getIssueFact } from '../platform/db/index';
 import type { Argumentaire } from '../platform/llm';
 import { writeArgumentaire } from '../platform/llm';
 import type { Failure } from '../jobs/support';
-import { guard, optionalString, payloadOf } from '../jobs/support';
+import { guard, optionalString, payloadOf, textLocaleOf } from '../jobs/support';
 
 /**
  * §7.6 (item E68) : la page d'argumentaire d'une dette.
@@ -41,8 +41,14 @@ export async function getDebtCase(request: Request<unknown>): Promise<DebtCaseVi
     if (!issueKey) {
       throw new Error('champ « issueKey » manquant ou vide : la clé du ticket de dette (ex. PAY-77)');
     }
-    const collected = await collectDebtCase(issueKey);
-    const argumentaire = await writeArgumentaire(collected.bill, collected.evidence, collected.settings);
+    const locale = textLocaleOf(payload);
+    const collected = await collectDebtCase(issueKey, locale);
+    const argumentaire = await writeArgumentaire(
+      collected.bill,
+      collected.evidence,
+      collected.settings,
+      locale,
+    );
     return { ...collected.data, bill: collected.bill, argumentaire };
   });
 }

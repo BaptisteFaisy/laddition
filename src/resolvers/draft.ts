@@ -9,7 +9,7 @@ import { draftDebtTicket as draftWithModel } from '../platform/llm';
 import type { Draft } from '../platform/llm';
 import { projectIdByKey, requireSettings } from '../jobs/projects';
 import type { Failure } from '../jobs/support';
-import { guard, optionalString, payloadOf, requireString } from '../jobs/support';
+import { guard, optionalString, payloadOf, requireString, textLocaleOf } from '../jobs/support';
 
 /**
  * DT-08 : préparer le ticket d'une dette fantôme.
@@ -63,7 +63,11 @@ export function setDraftSend(send: SendJson | null): void {
 export async function previewDebtTicket(request: Request<unknown>): Promise<Draft | Failure> {
   return guard(async () => {
     const payload = payloadOf(request);
-    const prepared = await buildDraft(requireString(payload, 'projectKey'), requireString(payload, 'zone'));
+    const prepared = await buildDraft(
+      requireString(payload, 'projectKey'),
+      requireString(payload, 'zone'),
+      textLocaleOf(payload),
+    );
     return prepared.draft;
   });
 }
@@ -73,7 +77,7 @@ export async function draftDebtTicket(request: Request<unknown>): Promise<Drafte
   return guard(async () => {
     const payload = payloadOf(request);
     const projectKey = requireString(payload, 'projectKey');
-    const prepared = await buildDraft(projectKey, requireString(payload, 'zone'));
+    const prepared = await buildDraft(projectKey, requireString(payload, 'zone'), textLocaleOf(payload));
     return createIssue(
       projectKey,
       prepared.draft.title,
@@ -91,7 +95,7 @@ interface PreparedDraft {
 }
 
 /** Rédaction du brouillon : projet, réglages, preuves de la zone, puis modèle. */
-async function buildDraft(projectKey: string, zone: string): Promise<PreparedDraft> {
+async function buildDraft(projectKey: string, zone: string, locale: 'fr' | 'en'): Promise<PreparedDraft> {
   const projectId = await projectIdByKey(projectKey);
   if (!projectId) throw new Error(`projet « ${projectKey} » inconnu : ouvrir l'écran Réglages`);
   const settings = await requireSettings(projectId);
@@ -99,7 +103,7 @@ async function buildDraft(projectKey: string, zone: string): Promise<PreparedDra
   if (evidence.length === 0) {
     throw new Error(`aucune preuve sur la zone « ${zone} » : vérifier la zone, ou attendre le calcul nocturne`);
   }
-  const draft = await draftWithModel(zone, evidence, settings);
+  const draft = await draftWithModel(zone, evidence, settings, locale);
   return { draft, zoneFields: zoneFieldsOf(settings, zone) };
 }
 

@@ -70,6 +70,17 @@ export function optionalString(payload: Record<string, unknown>, key: string): s
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/**
+ * Langue de rédaction demandée par un écran ou une action.
+ *
+ * L'anglais est le défaut : c'est la langue de l'application et de la
+ * soumission. Une valeur absente ou inconnue retombe dessus — un appelant ne
+ * choisit jamais une troisième langue.
+ */
+export function textLocaleOf(payload: Record<string, unknown>): 'fr' | 'en' {
+  return optionalString(payload, 'locale') === 'fr' ? 'fr' : 'en';
+}
+
 /** Sous-objet d'un objet, ou `{}` : lecture tolérante des payloads Forge. */
 export function childRecord(source: Record<string, unknown>, key: string): Record<string, unknown> {
   const value = source[key];
