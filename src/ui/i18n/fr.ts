@@ -257,6 +257,7 @@ export const fr: Messages = {
   'gadget.top': 'Les dettes les plus chères',
   'gadget.team': 'Coût par équipe',
   'gadget.quarter': 'Coût par trimestre',
+  'gadget.quarterCol': 'Trimestre',
   'gadget.empty': 'Aucun coût enregistré pour ce projet.',
   'gadget.open': 'Ouvrir la page du projet',
   'gadget.project': 'Clé de projet',

@@ -248,6 +248,7 @@ export const en = {
   'gadget.top': 'Costliest debts',
   'gadget.team': 'Cost by team',
   'gadget.quarter': 'Cost by quarter',
+  'gadget.quarterCol': 'Quarter',
   'gadget.empty': 'No cost recorded yet for this project.',
   'gadget.open': 'Open the project page',
   'gadget.project': 'Project key',

@@ -120,11 +120,8 @@ function GadgetBody({
     <Fragment>
       <Heading size="small">{t(locale, 'app.title')}</Heading>
       <ProjectLink projectKey={projectKey} label={t(locale, 'gadget.open')} />
-      <Text>{t(locale, 'gadget.top')}</Text>
       <TopDebtsTable locale={locale} debts={data.debts} />
-      <Text>{t(locale, 'gadget.team')}</Text>
       <TeamCostTable locale={locale} rows={data.costByTeam} />
-      <Text>{t(locale, 'gadget.quarter')}</Text>
       <QuarterCostTable locale={locale} rows={data.costByQuarter} />
       <Disclosure label={t(locale, 'common.method')} labelOpen={t(locale, 'common.hideFormula')}>
         <FormulaList locale={locale} />
