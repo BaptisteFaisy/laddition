@@ -3,7 +3,7 @@ import { Button, Cell, Fragment, Head, markTableRow, Row, Table, Text } from '..
 import type { RankedDebt } from '../../core/types';
 import type { Locale } from '../i18n/index';
 import { t } from '../i18n/index';
-import { formatDays, formatJp, formatRatio } from '../format';
+import { formatDays, formatJpUnit, formatRatio } from '../format';
 import { RangeBadge } from './RangeBadge';
 import { TicketLink } from './TicketLink';
 
@@ -64,7 +64,8 @@ function RankingRow({
   selected: boolean;
   onSelect: (debtIssueId: string) => void;
 }): JSX.Element {
-  const repayment = row.repaymentJp === null ? t(locale, 'project.unpriced') : formatJp(locale, row.repaymentJp);
+  const repayment =
+    row.repaymentJp === null ? t(locale, 'project.unpriced') : formatJpUnit(locale, row.repaymentJp);
   return (
     <Row>
       <Cell>

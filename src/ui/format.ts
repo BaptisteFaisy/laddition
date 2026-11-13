@@ -36,9 +36,22 @@ export function formatJp(locale: Locale, value: number | null | undefined): stri
   return formatNumber(locale, value);
 }
 
+/**
+ * Un montant en jours-personne **avec son unité** (« 62 p-d »).
+ *
+ * À utiliser partout où le chiffre est lu hors d'un en-tête porteur d'unité :
+ * une cellule de tableau, une paire libellé/valeur, une phrase. Sans lui, un
+ * coût s'affichait « 62 » — un nombre sans unité ne dit rien (§18). Une valeur
+ * absente reste « — » : on n'accole pas une unité à un tiret.
+ */
+export function formatJpUnit(locale: Locale, value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return t(locale, 'common.none');
+  return t(locale, 'common.exact', { value: formatJp(locale, value) });
+}
+
 /** Une fourchette : un seul chiffre quand les bornes se rejoignent. */
 export function formatRange(locale: Locale, lowJp: number, highJp: number): string {
-  if (lowJp === highJp) return t(locale, 'common.exact', { value: formatJp(locale, lowJp) });
+  if (lowJp === highJp) return formatJpUnit(locale, lowJp);
   return t(locale, 'common.range', { low: formatJp(locale, lowJp), high: formatJp(locale, highJp) });
 }
 
