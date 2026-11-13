@@ -19,7 +19,7 @@ concurrency:
   # Groupe déjà par PR ; on n'annule plus un run en cours : un check annulé
   # compte rouge pour Mergify (piège de concurrency n°1).
   group: ci-budget-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   ci-budget:

@@ -18,7 +18,7 @@ concurrency:
   # `cancel-in-progress: true`, deux runs concurrents s'annulaient et un check
   # annulé compte rouge pour Mergify (piège de concurrency n°1).
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
