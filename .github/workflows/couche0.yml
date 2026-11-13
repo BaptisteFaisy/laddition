@@ -23,7 +23,7 @@ concurrency:
   # Un groupe PAR PR (par ref pour push/main) et aucune annulation : un check
   # annulé compte rouge pour Mergify (piège de concurrency n°1).
   group: couche0-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read

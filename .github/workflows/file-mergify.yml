@@ -50,7 +50,7 @@ permissions:
 # Un seul balayage a la fois, sans annulation (lecon isee).
 concurrency:
   group: file-mergify
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   sweep:
