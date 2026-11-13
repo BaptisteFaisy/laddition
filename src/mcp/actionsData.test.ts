@@ -29,7 +29,7 @@ import {
   listPhantomDebt,
 } from './actions';
 import type { DebtCaseData } from './debtCase';
-import { METHOD_LIMITS, getDebtCase } from './debtCase';
+import { METHOD_LIMITS, METHOD_LIMITS_EN, getDebtCase } from './debtCase';
 import type { ZoneEvidenceData } from './zoneEvidence';
 import { listZoneEvidence } from './zoneEvidence';
 import type { ListProjectsData } from './projectList';
@@ -157,7 +157,10 @@ describe('get-debt-case — la page d’argumentaire (item E68, §7.6)', () => {
     assert.equal(data.hiddenCount, 1);
     assert.equal(data.method.windowDays, 90);
     assert.equal(data.method.billedFamilies.includes('C5'), false, 'C5 est un délai, pas un coût');
-    assert.equal(data.method.limits, METHOD_LIMITS);
+    // L'action rend l'anglais par défaut (langue de l'app), le français sur demande.
+    assert.equal(data.method.limits, METHOD_LIMITS_EN);
+    const french = dataOf<DebtCaseData>(await getDebtCase({ issueKey: 'PAY-77', locale: 'fr' }));
+    assert.equal(french.method.limits, METHOD_LIMITS);
   });
 
   it('cite les preuves principales avec leur part et leur formule (§10)', async (t) => {

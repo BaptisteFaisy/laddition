@@ -53,6 +53,27 @@ export const METHOD_LIMITS: readonly string[] = [
   'Aucun chiffre ne classe une personne : lʼunité est la zone, lʼéquipe ou le ticket.',
 ];
 
+/**
+ * Les mêmes limites en anglais. L'agent Rovo lit ces phrases telles quelles et
+ * répond dans la langue de la question : des limites françaises sous une
+ * interface anglaise faisaient répondre l'agent en français (défaut DT-17,
+ * constaté sur la capture du chat Rovo).
+ */
+export const METHOD_LIMITS_EN: readonly string[] = [
+  'Observed cost, never proven causality: matches are proposed, then confirmed or rejected by a human.',
+  'The low bound counts only linked or confirmed evidence; the high bound adds the proposed matches.',
+  'No evidence is counted twice: the shares of one evidence never exceed 100 %.',
+  'Induced delay (C5) is time, not effort: it is shown separately and never added to the cost.',
+  'A family without enough reference is declared “insufficient data” rather than costed.',
+  'An unpriced repayment stays unpriced: no estimate is invented.',
+  'Evidence beyond the reader’s rights is counted but hidden: a total may rest on items the reader cannot open.',
+  'No figure ranks a person: the unit is the zone, the team or the issue.',
+];
+
+/** Les limites dans la langue du lecteur ; anglais par défaut (langue de l'app). */
+export function methodLimits(locale: 'fr' | 'en'): readonly string[] {
+  return locale === 'fr' ? METHOD_LIMITS : METHOD_LIMITS_EN;
+}
 /** Une preuve citée dans la page, avec sa part d'attribution (§10). */
 export interface DebtCaseEvidence {
   id: string;
@@ -103,9 +124,15 @@ export interface DebtCaseData {
   method: DebtCaseMethod;
 }
 
+/** Langue demandée par l'appelant ; l'anglais est le défaut de l'application. */
+function localeOf(payload: JsonPayload): 'fr' | 'en' {
+  const value = payload['locale'];
+  return value === 'fr' ? 'fr' : 'en';
+}
+
 /** GET `get-debt-case` : l'argumentaire d'une dette, chiffres et limites compris. */
 export async function getDebtCase(payload: JsonPayload): Promise<ActionEnvelope<DebtCaseData>> {
-  return run(() => buildDebtCase(requireText(payload, 'issueKey')));
+  return run(() => buildDebtCase(requireText(payload, 'issueKey'), localeOf(payload)));
 }
 
 /**
@@ -133,7 +160,7 @@ export interface CollectedCase {
  * Jette un motif actionnable (ticket inconnu, pas une dette, aucune addition) ;
  * l'action et le résolveur l'enveloppent chacun à leur façon.
  */
-export async function collectDebtCase(issueKey: string): Promise<CollectedCase> {
+export async function collectDebtCase(issueKey: string, locale: 'fr' | 'en' = 'en'): Promise<CollectedCase> {
   const located = await locateDebt(issueKey);
   const projectId = located.project.projectId;
   const bill = await billOf(projectId, issueKey);
@@ -158,14 +185,14 @@ export async function collectDebtCase(issueKey: string): Promise<CollectedCase> 
     roiLow: bill.roiLow,
     roiHigh: bill.roiHigh,
     paybackDays: bill.paybackDays,
-    method: caseMethod(located.project.settings),
+    method: caseMethod(located.project.settings, locale),
   };
   return { data, bill, evidence: masked.evidence, settings: located.project.settings };
 }
 
 /** La page seule : l'action MCP et le résolveur partagent cette construction. */
-export async function buildDebtCase(issueKey: string): Promise<DebtCaseData> {
-  return (await collectDebtCase(issueKey)).data;
+export async function buildDebtCase(issueKey: string, locale: 'fr' | 'en' = 'en'): Promise<DebtCaseData> {
+  return (await collectDebtCase(issueKey, locale)).data;
 }
 
 /** Parts imputées à cette dette, indexées par preuve. */
@@ -204,12 +231,12 @@ function toCaseEvidence(item: Evidence, attribution: Attribution | undefined): D
 }
 
 /** Méthode et limites, rappelées sur chaque page. */
-function caseMethod(settings: ProjectSettings): DebtCaseMethod {
+function caseMethod(settings: ProjectSettings, locale: 'fr' | 'en'): DebtCaseMethod {
   return {
     windowDays: settings.windowDays,
     occupationCoefficient: settings.occupationCoefficient,
     minBaselineSample: settings.minBaselineSample,
     billedFamilies: BILLED_FAMILIES,
-    limits: METHOD_LIMITS,
+    limits: methodLimits(locale),
   };
 }

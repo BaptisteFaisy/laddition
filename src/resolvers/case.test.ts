@@ -90,13 +90,29 @@ describe('getDebtCase — la page d’argumentaire côté écran', () => {
     assert.match(view.argumentaire.markdown, /Le texte du modèle/);
   });
 
-  it('repli déterministe : sans modèle, le gabarit tient la page', async (t) => {
+  /**
+   * La langue de rédaction est celle de l'écran (défaut : anglais, la langue de
+   * l'application). Un argumentaire français sous une interface anglaise était
+   * le défaut DT-17 constaté sur la capture du chat Rovo.
+   */
+  it('repli déterministe en anglais par défaut : sans modèle, le gabarit tient la page', async (t) => {
     await startFakeDb(t);
     await seedPayProject();
     setLlmTransport(brokenTransport);
     t.after(() => setLlmTransport(null));
     const view = (await getDebtCase(request({ issueKey: 'PAY-77' }))) as DebtCaseView;
     assert.equal(view.argumentaire.source, 'template');
+    assert.match(view.argumentaire.markdown, /Case — PAY-77/);
+    assert.match(view.argumentaire.markdown, /## Limits/);
+  });
+
+  it('repli déterministe en français quand l’écran le demande', async (t) => {
+    await startFakeDb(t);
+    await seedPayProject();
+    setLlmTransport(brokenTransport);
+    t.after(() => setLlmTransport(null));
+    const view = (await getDebtCase(request({ issueKey: 'PAY-77', locale: 'fr' }))) as DebtCaseView;
     assert.match(view.argumentaire.markdown, /Argumentaire — PAY-77/);
+    assert.match(view.argumentaire.markdown, /## Limites/);
   });
 });
