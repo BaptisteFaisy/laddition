@@ -15,8 +15,19 @@
 import type { Message } from '@forge/llm';
 import { createHash } from 'node:crypto';
 import { clamp, round2 } from '../core/time';
-import { BILLED_FAMILIES } from '../core/types';
-import type { DebtBill, Evidence, Family, ProjectSettings } from '../core/types';
+import type { DebtBill, Evidence, ProjectSettings } from '../core/types';
+import type { TextLocale } from './llm-text';
+import {
+  argumentaireInstruction,
+  argumentaireSystemPrompt,
+  billFacts,
+  draftInstruction,
+  draftSystemPrompt,
+  evidenceFacts,
+  draftTitle,
+  templateArgumentaire,
+  templateDraft,
+} from './llm-text';
 import { logShort, shortError } from './log';
 import { acquireLlmBudget } from './ratelimit';
 
@@ -43,18 +54,6 @@ export const BUDGET_UNAVAILABLE = 'plafond LLM atteint (score neutre)';
 /** Bornes de texte envoyées au modèle : on ne lui donne pas un roman. */
 const MAX_INPUT_CHARS = 1_500;
 
-/** Nombre de preuves citées dans un brouillon ou un argumentaire. */
-const MAX_CITED = 10;
-
-const FAMILY_LABELS: Record<Family, string> = {
-  C1: 'Incidents',
-  C2: 'Bugs',
-  C3: 'Lenteur',
-  C4: 'Retouches',
-  C5: 'Retard induit',
-};
-
-const BILLED: ReadonlySet<Family> = new Set(BILLED_FAMILIES);
 
 const SCORE_SYSTEM = [
   'Tu mesures la dette technique d’une équipe.',
@@ -63,22 +62,6 @@ const SCORE_SYSTEM = [
   '{"relevance": <nombre entre 0 et 1>, "rationale": "<une phrase>"}',
   '0 = aucun rapport ; 1 = la preuve est directement causée par ce ticket de dette.',
   'N’invente rien : juge seulement les deux textes fournis.',
-].join('\n');
-
-const DRAFT_SYSTEM = [
-  'Tu rédiges un ticket de dette technique pour une équipe Jira.',
-  'Réponds STRICTEMENT par un objet JSON, sans texte autour, de la forme :',
-  '{"title": "<titre court, factuel>", "description": "<Markdown>"}',
-  'La description contient : la zone, ce que la dette coûte (chiffres fournis),',
-  'les preuves citées, puis une proposition d’action mesurable.',
-  'N’invente aucun chiffre : reprends uniquement ceux fournis.',
-].join('\n');
-
-const ARGUMENTAIRE_SYSTEM = [
-  'Tu rédiges un argumentaire d’une page, en Markdown, pour faire prioriser une dette technique.',
-  'Structure : contexte, ce que coûte la dette, ce que coûterait de la traiter, ce que ça rapporte, limites.',
-  'Reprends uniquement les chiffres fournis. Aucune causalité affirmée :',
-  'parle de « coût observé », jamais de « gain garanti ».',
 ].join('\n');
 
 /** Score de pertinence mis en cache par empreinte. */
@@ -215,14 +198,16 @@ export async function draftDebtTicket(
   zone: string,
   evidence: Evidence[],
   settings: ProjectSettings,
+  locale: TextLocale = 'en',
 ): Promise<Draft> {
-  const facts = evidenceFacts(zone, evidence, settings);
-  const outcome = await askModel(DRAFT_SYSTEM, `${facts}\n\nRédige le brouillon de ticket en JSON.`, TOKENS_DRAFT, TEMP_WRITING);
+  const facts = evidenceFacts(zone, evidence, settings, locale);
+  const prompt = `${facts}\n\n${draftInstruction(locale)}`;
+  const outcome = await askModel(draftSystemPrompt(locale), prompt, TOKENS_DRAFT, TEMP_WRITING);
   const parsed = outcome.status === 'text' ? parseObject(outcome.text) : null;
   const title = asText(parsed?.['title']);
   const description = asText(parsed?.['description']);
   if (title && description) return { title: clipText(title, 160), description, source: 'model' };
-  return templateDraft(zone, evidence, settings);
+  return { title: draftTitle(zone, evidence, settings, locale), description: templateDraft(zone, evidence, settings, locale), source: 'template' };
 }
 
 /** Argumentaire d'une page pour un ticket de dette (DT-17, §7.6). */
@@ -230,148 +215,21 @@ export async function writeArgumentaire(
   bill: DebtBill,
   evidence: Evidence[],
   settings: ProjectSettings,
+  locale: TextLocale = 'en',
 ): Promise<Argumentaire> {
-  const facts = [billFacts(bill), evidenceFacts(bill.key, evidence, settings)].join('\n\n');
+  const facts = [billFacts(bill, locale), evidenceFacts(bill.key, evidence, settings, locale)].join('\n\n');
   const outcome = await askModel(
-    ARGUMENTAIRE_SYSTEM,
-    `${facts}\n\nRédige l’argumentaire en Markdown, une page maximum.`,
+    argumentaireSystemPrompt(locale),
+    `${facts}\n\n${argumentaireInstruction(locale)}`,
     TOKENS_ARGUMENTAIRE,
     TEMP_WRITING,
   );
   const markdown = outcome.status === 'text' ? asText(outcome.text) : null;
   if (markdown) return { markdown, source: 'model' };
-  return { markdown: templateArgumentaire(bill, evidence, settings), source: 'template' };
+  return { markdown: templateArgumentaire(bill, evidence, settings, locale), source: 'template' };
 }
 
-/** Repli déterministe : le gabarit se suffit à lui-même, sans modèle. */
-function templateDraft(zone: string, evidence: Evidence[], settings: ProjectSettings): Draft {
-  const total = billedTotal(evidence);
-  const title = `Dette technique — ${zone} : ${num(total)} j-p sur ${settings.windowDays} jours`;
-  const lines = [
-    '## Zone',
-    zone,
-    '',
-    '## Ce que la dette coûte',
-    `- Coût observé : **${num(total)} j-p** sur ${settings.windowDays} jours, sur ${evidence.length} preuve(s).`,
-    `- Familles : ${familySummary(evidence)}.`,
-    '',
-    '## Preuves',
-    ...evidenceLines(evidence),
-    '',
-    '## Proposition',
-    `- Traiter la zone \`${zone}\` sur une itération, puis laisser recalculer l’addition.`,
-    `- Critère de réussite : coût observé de la zone en baisse sur ${settings.windowDays} jours.`,
-  ];
-  return { title: clipText(title, 160), description: lines.join('\n'), source: 'template' };
-}
-
-/** Repli déterministe de l'argumentaire. */
-function templateArgumentaire(bill: DebtBill, evidence: Evidence[], settings: ProjectSettings): string {
-  return [
-    `# Argumentaire — ${bill.key}`,
-    '',
-    '## Contexte',
-    `Cette dette technique coûte **${num(bill.lowJp)} à ${num(bill.highJp)} j-p** sur ${settings.windowDays} jours.`,
-    `Calcul du ${bill.computedAt.slice(0, 10)}, sur ${evidence.length} preuve(s) rattachée(s).`,
-    '',
-    ...argumentaireFamilies(bill),
-    '## Preuves principales',
-    ...evidenceLines(evidence),
-    '',
-    ...argumentaireRepayment(bill, settings),
-    '## Limites',
-    '- Coût observé, jamais une causalité démontrée : le rapprochement est proposé, puis validé ou rejeté.',
-    '- Les délais (famille C5) sont hors addition : ils ne sont pas additionnés aux j-p.',
-    '- Une famille sans référence suffisante affiche « données insuffisantes » plutôt qu’un chiffre.',
-    '',
-  ].join('\n');
-}
-
-/** Ventilation par famille de l'addition, en Markdown. */
-function argumentaireFamilies(bill: DebtBill): string[] {
-  const lines = ['## Ce que coûte la dette', '', '| Famille | Coût (j-p) | Preuves |', '|---|---|---|'];
-  for (const family of BILLED_FAMILIES) {
-    const total = bill.byFamily[family];
-    const cost = total.insufficient ? 'données insuffisantes' : `${num(total.lowJp)} – ${num(total.highJp)}`;
-    lines.push(`| ${FAMILY_LABELS[family]} | ${cost} | ${total.evidenceCount} |`);
-  }
-  lines.push('', `Preuves comptées mais masquées pour ce lecteur : ${bill.hiddenCount}.`, '');
-  return lines;
-}
-
-/** Remboursement et retour sur investissement, en Markdown. */
-function argumentaireRepayment(bill: DebtBill, settings: ProjectSettings): string[] {
-  const lines = ['## Ce que ça rapporte', ''];
-  const repay = bill.repaymentJp;
-  lines.push(repay === null ? '- Remboursement non chiffré : la mesure avant/après n’est pas encore disponible.' : `- Remboursement estimé : **${num(repay)} j-p**.`);
-  if (bill.avoidableJp !== null) lines.push(`- Coût évitable sur deux trimestres : ${num(bill.avoidableJp)} j-p.`);
-  if (bill.roiLow !== null) lines.push(`- Retour sur investissement : ${num(bill.roiLow)}× à ${num(bill.roiHigh ?? bill.roiLow)}×.`);
-  if (bill.paybackDays !== null) lines.push(`- Délai de retour : ${Math.round(bill.paybackDays)} jours.`);
-  const rate = settings.dayRateEur;
-  if (rate !== undefined && rate > 0) {
-    lines.push(`- Au taux de ${num(rate)} € par j-p : ${num(bill.lowJp * rate)} € à ${num(bill.highJp * rate)} €.`);
-  }
-  lines.push('');
-  return lines;
-}
-
-// --- Faits fournis au modèle (aucun chiffre inventé) ---
-
-/** Résumé factuel d'une zone et de ses preuves, en clair pour le modèle. */
-function evidenceFacts(zone: string, evidence: Evidence[], settings: ProjectSettings): string {
-  return [
-    `SUJET: ${zone}`,
-    `FENÊTRE: ${settings.windowDays} jours`,
-    `COÛT OBSERVÉ: ${num(billedTotal(evidence))} j-p (hors délais)`,
-    `FAMILLES: ${familySummary(evidence)}`,
-    `PREUVES (${evidence.length}):`,
-    ...evidenceLines(evidence),
-  ].join('\n');
-}
-
-/** Résumé factuel d'une addition, en clair pour le modèle. */
-function billFacts(bill: DebtBill): string {
-  return [
-    `TICKET: ${bill.key}`,
-    `ADDITION: ${num(bill.lowJp)} à ${num(bill.highJp)} j-p`,
-    `REMBOURSEMENT: ${bill.repaymentJp === null ? 'non chiffré' : `${num(bill.repaymentJp)} j-p`}`,
-    `COÛT ÉVITABLE: ${bill.avoidableJp === null ? 'non chiffré' : `${num(bill.avoidableJp)} j-p`}`,
-    `PREUVES MASQUÉES: ${bill.hiddenCount}`,
-  ].join('\n');
-}
-
-/** Preuves citables, les plus coûteuses d'abord, masquées si invisibles. */
-function evidenceLines(evidence: Evidence[]): string[] {
-  const sorted = evidence
-    .filter((item) => BILLED.has(item.family))
-    .sort((a, b) => b.costJp - a.costJp)
-    .slice(0, MAX_CITED);
-  if (sorted.length === 0) return ['- Aucune preuve chiffrée sur la période.'];
-  return sorted.map((item) => {
-    const source = item.visible ? item.sourceKey : 'preuve masquée';
-    const summary = item.visible && item.detail.sourceSummary ? ` — ${clipText(item.detail.sourceSummary, 90)}` : '';
-    return `- **${source}** · ${item.detail.familyLabel} · ${num(item.costJp)} j-p · ${item.occurredAt.slice(0, 10)}${summary}`;
-  });
-}
-
-/** Somme des preuves facturables (C5 en est exclue : c'est un délai). */
-function billedTotal(evidence: Evidence[]): number {
-  return round2(evidence.filter((item) => BILLED.has(item.family)).reduce((sum, item) => sum + item.costJp, 0));
-}
-
-/** « Incidents 3 j-p · Bugs 1,5 j-p », familles facturables seulement. */
-function familySummary(evidence: Evidence[]): string {
-  const totals = new Map<Family, number>();
-  for (const item of evidence) {
-    if (!BILLED.has(item.family)) continue;
-    totals.set(item.family, round2((totals.get(item.family) ?? 0) + item.costJp));
-  }
-  if (totals.size === 0) return 'aucune';
-  return Array.from(totals.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([family, cost]) => `${FAMILY_LABELS[family]} ${num(cost)} j-p`)
-    .join(' · ');
-}
+// Les textes et gabarits de rédaction vivent dans `llm-text.ts` (fr/en).
 
 // --- Accès au modèle (transport injectable, jamais de throw) ---
 
