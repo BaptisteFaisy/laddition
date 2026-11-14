@@ -66,6 +66,20 @@ describe('draftDebtTicket — le ticket fantôme porte sa zone (item 51)', () =>
     assert.deepEqual(zoneFieldsOf(named, 'legacy').labels, ['area:legacy']);
   });
 
+  /**
+   * Le brouillon est du texte lu par une personne : il suit la langue de
+   * l'écran, anglais par défaut (langue de l'application et de la soumission).
+   */
+  it('le brouillon est anglais par défaut, français sur demande', async (t) => {
+    await startFakeDb(t);
+    await seedPayProject();
+    captureSend(t);
+    const english = draftOf(await previewDebtTicket(request({ projectKey: 'PAY', zone: 'legacy' })));
+    assert.match(english.title, /^Technical debt — legacy/, `titre anglais attendu, reçu : ${english.title}`);
+    const french = draftOf(await previewDebtTicket(request({ projectKey: 'PAY', zone: 'legacy', locale: 'fr' })));
+    assert.match(french.title, /^Dette technique — legacy/, `titre français attendu, reçu : ${french.title}`);
+  });
+
   it('la relecture ne crée rien : le ticket attend la relecture', async (t) => {
     await startFakeDb(t);
     await seedPayProject();
