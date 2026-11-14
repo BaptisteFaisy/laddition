@@ -1,8 +1,8 @@
 import { Fragment, Text } from '../kit';
 import type { EvidenceDetail, Family } from '../../core/types';
-import { formulaOf, formulaText, inputLabel, inputValue } from '../domain-strings';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import { formulaOf, formulaText, inputLabel, inputValue } from '../../i18n/domain-strings';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatDays, methodLabel, pair } from '../format';
 import { Disclosure } from './Disclosure';
 

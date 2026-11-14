@@ -4,8 +4,8 @@ import type { Attribution, Family } from '../../core/types';
 import type { DebtBillView } from '../api';
 import { listDebtAttributions } from '../api';
 import { useResolver } from '../async';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { EvidenceList } from './EvidenceList';
 import { FamilyTable } from './FamilyTable';
 

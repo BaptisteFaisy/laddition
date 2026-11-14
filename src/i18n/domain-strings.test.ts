@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { formulaText, inputLabel, inputValue } from './domain-strings';
+import { formulaText, inputLabel, inputValue, methodText, zoneLabel } from './domain-strings';
 
 /**
  * Item D54/A54 : la formule brute du domaine (français, valeurs réelles) doit
@@ -86,4 +87,85 @@ test('A14 — entrées C4 sans clé i18n : libellés locaux, valeur nulle = donn
   assert.equal(inputLabel('en', 'revueJp'), 'Rejected-PR review time (p-d)');
   assert.equal(inputLabel('en', 'inconnu'), 'inconnu');
   assert.equal(inputValue('en', null), '—');
+});
+
+/**
+ * Textes de méthode de la simulation (`core/simulation.ts:methodTextOf`),
+ * repris mot pour mot : toute évolution du domaine casse ces cas au lieu de
+ * laisser du français apparaître en silence sous une interface anglaise.
+ */
+const SIM_METHODS: ReadonlyArray<readonly [string, string]> = [
+  ['bulletin publié : 3,4 − 0,6 = 2,8 j-p par semaine (coût de zone avant − après)',
+    'published bulletin: 3.4 − 0.6 = 2.8 p-d per week (zone cost before − after)'],
+  ['bulletin publié : aucune baisse observée (avant 3,4, après 3,4 j-p par semaine)',
+    'published bulletin: no observed drop (before 3.4, after 3.4 p-d per week)'],
+  ['addition stockée : 12 j-p évités sur deux trimestres (persistance déjà appliquée)',
+    'stored bill: 12 p-d avoided over two quarters (persistence already applied)'],
+  ['aucune addition stockée : capacité non chiffrable',
+    'no stored bill: capacity cannot be priced'],
+  ['addition stockée sans coût évitable chiffré (addition basse nulle ou absente)',
+    'stored bill with no priced avoidable cost (null or missing low bill)'],
+  ['dette absente du projet : sélection inconnue, aucun chiffre',
+    'debt missing from the project: unknown selection, no figure'],
+];
+
+for (const [french, english] of SIM_METHODS) {
+  test(`D54 — simulation : « ${french.slice(0, 28)}… » traduite intégralement`, () => {
+    assert.equal(methodText('en', french), english);
+    assert.doesNotMatch(methodText('en', french), FRENCH_LEFTOVERS);
+  });
+}
+
+/**
+ * Garde anti-dérive : les phrases de méthode sont lues dans la SOURCE du
+ * domaine (`src/core/simulation.ts`), pas recopiées. Si le domaine ajoute ou
+ * modifie une phrase sans que `SIM_METHOD_PHRASES` suive, la traduction laisse
+ * du français à l’écran et ce test rougit — au lieu de le découvrir dans une
+ * capture ou devant un juge (motif de `src/ui/table-rows.test.ts`).
+ */
+const SIM_SOURCE = readFileSync(
+  new URL('../core/simulation.ts', import.meta.url),
+  'utf8',
+);
+
+/** Phrases françaises retournées par `methodTextOf` et par la ligne inconnue. */
+function domainMethodPhrases(): string[] {
+  const body = SIM_SOURCE.slice(SIM_SOURCE.indexOf('function methodTextOf('));
+  const literals = [
+    ...body.matchAll(/return [`']([^`']+)[`']/g),
+    ...SIM_SOURCE.matchAll(/methodText: ['`]([^`']+)['`]/g),
+  ];
+  return literals.map((match) => match[1] ?? '').filter((text) => text.length > 0);
+}
+
+test('D54 — garde : toute phrase de méthode du domaine est traduite sans français', () => {
+  const phrases = domainMethodPhrases();
+  assert.ok(phrases.length >= 5, `peu de phrases extraites (${phrases.length}) : la garde est aveugle`);
+  const leaks = phrases
+    .map((phrase) => methodText('en', interpolate(phrase)))
+    .filter((text) => FRENCH_LEFTOVERS.test(text))
+    .filter((text) => !/[{}]/.test(text));
+  assert.deepEqual(leaks, [], `français rendu à l’écran : ${leaks.join(' | ')}`);
+});
+
+/** Remplace les interpolations `${…}` d’une phrase par une valeur numérique. */
+function interpolate(phrase: string): string {
+  return phrase.replace(/\$\{[^}]*\}/g, '1.5');
+}
+
+/** Première phrase de méthode, pour le cas « le français passe tel quel ». */
+const FIRST_SIM = SIM_METHODS[0] as readonly [string, string];
+
+test('D54 — simulation : le français passe tel quel, fragment inconnu conservé', () => {
+  assert.equal(methodText('fr', FIRST_SIM[0]), FIRST_SIM[0]);
+  const inconnu = 'origine jamais vue : 3 j-p';
+  assert.match(methodText('en', inconnu), /origine jamais vue/);
+  assert.match(methodText('en', inconnu), /3 p-d/);
+});
+
+test('D54 — zone du domaine : « non classé » et vide rendus dans la langue de l’écran', () => {
+  assert.equal(zoneLabel('en', 'non classé'), 'Unclassified');
+  assert.equal(zoneLabel('en', ''), 'Unclassified');
+  assert.equal(zoneLabel('fr', 'non classé'), 'Non classé');
+  assert.equal(zoneLabel('en', 'api'), 'api');
 });

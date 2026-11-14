@@ -1,6 +1,6 @@
 import type { ProjectSettings } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { Fragment, TextField } from '../kit';
 import { numberFields } from '../settings-form-values';
 

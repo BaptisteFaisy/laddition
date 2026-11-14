@@ -1,7 +1,7 @@
 import { Fragment, Heading, Text } from '../kit';
 import type { ProjectSettings } from '../../core/types';
-import type { Locale, MessageKey } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale, MessageKey } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatNumber } from '../format';
 
 /** Les coefficients réellement appliqués au dernier calcul. */

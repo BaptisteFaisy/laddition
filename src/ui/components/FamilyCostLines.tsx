@@ -1,8 +1,8 @@
 import { Fragment, Text } from '../kit';
 import type { Family } from '../../core/types';
 import { BILLED_FAMILIES } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { familyLabel, formatJpUnit, pair } from '../format';
 
 /**

@@ -1,7 +1,7 @@
 import { Fragment, Heading, IssuePanel } from './kit';
 import { mountScreen } from './mount';
 import type { ScreenContext } from './context';
-import { t } from './i18n/index';
+import { t } from '../i18n/index';
 import { BillView } from './components/BillView';
 import { CaseButton } from './components/CaseButton';
 import { ErrorState } from './components/ErrorState';

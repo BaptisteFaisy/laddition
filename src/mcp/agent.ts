@@ -19,7 +19,7 @@
  * celle de l'utilisateur, et le prompt doit pouvoir la lui rappeler.
  */
 
-import type { Locale } from '../ui/i18n/index';
+import type { Locale } from '../i18n/index';
 import { AGENT_ACTION_KEYS } from './registry';
 
 /** Rôle et interdits de l'agent, par langue. */

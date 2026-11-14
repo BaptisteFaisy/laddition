@@ -2,8 +2,9 @@ import { getDebtCase } from '../api';
 import type { DebtCaseView } from '../api';
 import { useResolver } from '../async';
 import { formatNumber, pair } from '../format';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import { zoneLabel } from '../../i18n/domain-strings';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { Badge, Fragment, Heading, Stack, Text } from '../kit';
 import { AsyncView } from './AsyncView';
 import { RangeBadge } from './RangeBadge';
@@ -36,7 +37,7 @@ function CaseBody({ locale, view }: { locale: Locale; view: DebtCaseView }): JSX
     <Stack space="space.200">
       <Heading size="medium">{view.issueKey}</Heading>
       <Text>{view.summary}</Text>
-      <Text>{pair(locale, t(locale, 'common.zone'), view.zone || t(locale, 'common.unclassified'))}</Text>
+      <Text>{pair(locale, t(locale, 'common.zone'), zoneLabel(locale, view.zone))}</Text>
       <Text>{t(locale, 'panel.range', { days: formatNumber(locale, view.method.windowDays) })}</Text>
       <RangeBadge locale={locale} lowJp={view.lowJp} highJp={view.highJp} />
       <ReturnBlock locale={locale} bill={view.bill} />

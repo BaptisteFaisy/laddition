@@ -12,10 +12,11 @@
  */
 
 import { Banner, Cell, Fragment, Head, Row, Stack, Table, Text } from '../kit';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatDays, formatJp, formatNumber, pair } from '../format';
 import type { SimulationResult, SimulationRow } from '../../core/simulation';
+import { caveatLabel, methodText } from '../../i18n/domain-strings';
 import { TicketLink } from './TicketLink';
 
 /** Textes de l'écran, en constantes : à recopier dans `src/ui/i18n`. */
@@ -93,9 +94,9 @@ function SimulationRows({ rows, locale }: { rows: readonly SimulationRow[]; loca
 function MethodCell({ row, locale }: { row: SimulationRow; locale: Locale }): JSX.Element {
   return (
     <Fragment>
-      <Text>{row.methodText}</Text>
+      <Text>{methodText(locale, row.methodText)}</Text>
       {row.caveats.map((caveat) => (
-        <Text key={caveat}>{`${t(locale, 'simulation.caveatPrefix')}${caveat}`}</Text>
+        <Text key={caveat}>{`${t(locale, 'simulation.caveatPrefix')}${caveatLabel(locale, caveat)}`}</Text>
       ))}
     </Fragment>
   );

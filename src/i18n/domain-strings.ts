@@ -5,8 +5,8 @@ import {
   CAVEAT_OTHER_CHANGES,
 } from '../core/repayment';
 import { UNKNOWN_TEAM } from '../resolvers/aggregate';
-import type { Locale, MessageKey } from './i18n/index';
-import { t } from './i18n/index';
+import type { Locale, MessageKey } from './index';
+import { t } from './index';
 
 /**
  * Chaînes produites par le domaine en français (formules, limites du bulletin,
@@ -140,19 +140,27 @@ export function formulaOf(locale: Locale, family: Family): string {
 }
 
 /**
- * Formule brute du domaine (valeurs réelles incluses), dans la langue de
- * l'écran : une seule implémentation pour les cinq familles (item D54/A54).
- * En français elle est rendue telle quelle ; sinon les fragments connus sont
- * traduits et la virgule décimale devient un point. Ce qui n'est pas reconnu
- * reste en français plutôt que de disparaître (§18).
+ * Traduit un texte du domaine (français, valeurs réelles incluses) dans la
+ * langue de l'écran : **une seule implémentation** pour les formules des cinq
+ * familles (item D54/A54) et les textes de méthode (item D54). En français il
+ * est rendu tel quel ; sinon les fragments connus sont remplacés — du plus long
+ * au plus court — et la virgule décimale devient un point. Ce qui n'est pas
+ * reconnu reste en français plutôt que de disparaître (§18).
  */
-export function formulaText(locale: Locale, formula: string): string {
-  if (locale === 'fr') return formula;
-  let out = formula;
-  for (const [fr, en] of FORMULA_FRAGMENTS) {
+function translateDomain(locale: Locale, text: string, fragments: ReadonlyArray<readonly [string, string]>): string {
+  if (locale === 'fr') return text;
+  let out = text;
+  for (const [fr, en] of fragments) {
     out = out.split(fr).join(en);
   }
   return out.replace(/(\d),(\d)/g, '$1.$2');
+}
+
+/**
+ * Formule brute du domaine, dans la langue de l'écran (item D54/A54).
+ */
+export function formulaText(locale: Locale, formula: string): string {
+  return translateDomain(locale, formula, FORMULA_FRAGMENTS);
 }
 
 /** Nom d'une entrée de formule, dans la langue de l'écran (sinon le nom brut). */
@@ -189,3 +197,56 @@ export function teamLabel(locale: Locale, team: string | undefined): string {
   if (!team || team === UNKNOWN_TEAM) return t(locale, 'zones.noTeam');
   return team;
 }
+
+/** Zone par défaut du domaine (`mcp/debtCase.ts`, `mcp/actions.ts`). */
+const UNCLASSIFIED_ZONE = 'non classé';
+
+/**
+ * Libellé de zone : le domaine rend « non classé » quand la dette n'a pas de
+ * zone. La chaîne est véridique, donc un `view.zone || t(...)` ne l'attrape
+ * jamais : elle doit passer par ici pour être traduite à l'affichage (item D54).
+ */
+export function zoneLabel(locale: Locale, zone: string | undefined): string {
+  if (!zone || zone === UNCLASSIFIED_ZONE) return t(locale, 'common.unclassified');
+  return zone;
+}
+
+/**
+ * Texte de méthode d'une ligne de simulation (`core/simulation.ts`, écrit en
+ * français avec ses valeurs), traduit à l'affichage pour l'UI anglaise : mêmes
+ * fragments que les formules (unités, décimale) plus les siens, par le même
+ * helper — aucune seconde implémentation (item D54). Inconnu rendu tel quel (§18).
+ */
+export function methodText(locale: Locale, text: string): string {
+  return translateDomain(locale, text, METHOD_TEXT_FRAGMENTS);
+}
+
+/** Phrases de méthode propres à la simulation (`core/simulation.ts`). */
+const SIM_METHOD_PHRASES: ReadonlyArray<readonly [string, string]> = [
+  ['dette absente du projet : sélection inconnue, aucun chiffre',
+    'debt missing from the project: unknown selection, no figure'],
+  ['bulletin publié : ', 'published bulletin: '],
+  ['aucune baisse observée (avant ', 'no observed drop (before '],
+  [', après ', ', after '],
+  [' j-p par semaine (coût de zone avant − après)', ' p-d per week (zone cost before − after)'],
+  ['aucune addition stockée : capacité non chiffrable',
+    'no stored bill: capacity cannot be priced'],
+  ['addition stockée : ', 'stored bill: '],
+  [' j-p évités sur deux trimestres (persistance déjà appliquée)',
+    ' p-d avoided over two quarters (persistence already applied)'],
+  [' j-p par semaine', ' p-d per week'],
+  ['addition stockée sans coût évitable chiffré (addition basse nulle ou absente)',
+    'stored bill with no priced avoidable cost (null or missing low bill)'],
+];
+
+/**
+ * Fragments des textes de méthode : les phrases propres à la simulation
+ * (déclarées juste au-dessus), puis les fragments communs aux formules — unités
+ * « j-p », décimale, « : ». Ordre impératif : du plus long au plus court, les
+ * phrases spécifiques avant les morceaux partagés.
+ */
+const METHOD_TEXT_FRAGMENTS: ReadonlyArray<readonly [string, string]> = [
+  ...SIM_METHOD_PHRASES,
+  ...FORMULA_FRAGMENTS,
+];
+

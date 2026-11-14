@@ -1,7 +1,7 @@
 import { Fragment, Text } from '../kit';
 import type { ProjectSettings, ZoneCost } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { FamilyCostLines } from './FamilyCostLines';
 import { FormulaList } from './FormulaList';
 

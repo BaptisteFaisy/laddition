@@ -1,6 +1,6 @@
 import { Fragment } from '../kit';
 import type { AsyncState } from '../async';
-import type { Locale } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
 import { ErrorState } from './ErrorState';
 import { LoadingState } from './LoadingState';
 

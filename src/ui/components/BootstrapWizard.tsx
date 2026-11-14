@@ -3,8 +3,8 @@ import { Button, Fragment, Heading, RadioField, SelectField, Text, TextField } f
 import type { DebtRuleKind, ProjectSettings, ZoneMode } from '../../core/types';
 import { mergeSettings } from '../../core/settings';
 import { saveSettings } from '../api';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { useAction } from '../use-action';
 import {
   DEBT_RULE_KINDS,
