@@ -59,7 +59,7 @@ export function QuarterCostTable({ locale, rows }: { locale: Locale; rows: Quart
   return (
     <Table caption={caption} label={caption} empty={t(locale, 'gadget.empty')}>
       <Head>
-        <Cell><Text>{t(locale, 'gadget.quarter')}</Text></Cell>
+        <Cell><Text>{t(locale, 'gadget.quarterCol')}</Text></Cell>
         <Cell><Text>{t(locale, 'zones.col.cost')}</Text></Cell>
       </Head>
       {rows.map((row) => (
