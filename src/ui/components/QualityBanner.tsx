@@ -1,7 +1,7 @@
 import { Banner, Text } from '../kit';
 import type { DataQuality } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatNumber, formatPercentValue, pair } from '../format';
 
 /**

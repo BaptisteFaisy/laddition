@@ -1,7 +1,7 @@
 import { Fragment, Heading, Text } from '../kit';
 import type { DataQuality } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { familyLabel, formatNumber, formatPercentValue, pair } from '../format';
 
 /** Qualité des données affichée dans l'onglet Méthode (§14). */

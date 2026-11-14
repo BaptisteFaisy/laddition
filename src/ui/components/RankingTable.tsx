@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { Button, Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { RankedDebt } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatDays, formatJpUnit, formatRatio } from '../format';
 import { RangeBadge } from './RangeBadge';
 import { TicketLink } from './TicketLink';

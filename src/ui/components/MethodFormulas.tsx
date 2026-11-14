@@ -1,7 +1,7 @@
 import { Fragment, Heading, Text } from '../kit';
 import type { ProjectSettings } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { familyLabel, formatNumber, pair } from '../format';
 
 /** Les cinq formules, écrites telles quelles, avec les coefficients en vigueur. */

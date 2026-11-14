@@ -2,8 +2,8 @@ import { view } from '@forge/bridge';
 import { useEffect, useState } from 'react';
 import type { AsyncState } from './async';
 import { errorMessage } from './async';
-import type { Locale } from './i18n/index';
-import { localeFrom } from './i18n/index';
+import type { Locale } from '../i18n/index';
+import { localeFrom } from '../i18n/index';
 
 /** Ce dont un écran a besoin du contexte Forge, et rien de plus. */
 export type ScreenContext = {

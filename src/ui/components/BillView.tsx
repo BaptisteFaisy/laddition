@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getDebtBill } from '../api';
 import { useResolver } from '../async';
-import type { Locale } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
 import { AsyncView } from './AsyncView';
 import { BillSummary } from './BillSummary';
 

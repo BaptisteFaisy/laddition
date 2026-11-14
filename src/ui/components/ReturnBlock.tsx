@@ -1,7 +1,7 @@
 import { Fragment, Heading, Text } from '../kit';
 import type { DebtBill } from '../../core/types';
-import type { Locale, MessageKey, MessageVars } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale, MessageKey, MessageVars } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatDays, formatJpUnit, formatRatio, pair } from '../format';
 import { Disclosure } from './Disclosure';
 

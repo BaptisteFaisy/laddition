@@ -1,6 +1,6 @@
 import { Button, Banner, Text } from '../kit';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 
 /** État d'erreur explicite : ce qui a échoué, et un moyen de réessayer. */
 export function ErrorState({

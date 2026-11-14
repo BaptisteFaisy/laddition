@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { Button, Fragment } from '../kit';
 import { CasePanel } from './CasePanel';
 

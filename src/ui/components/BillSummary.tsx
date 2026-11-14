@@ -1,8 +1,9 @@
 import { Fragment, Text } from '../kit';
 import type { DebtBillView } from '../api';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatNumber, formatRangeEur, pair } from '../format';
+import { zoneLabel } from '../../i18n/domain-strings';
 import { BillFamilies } from './BillFamilies';
 import { MatchList } from './MatchList';
 import { RangeBadge } from './RangeBadge';
@@ -33,7 +34,7 @@ export function BillSummary({
       {view.zone === '' ? <Text>{t(locale, 'panel.noZone')}</Text> : null}
       <Text>{t(locale, 'common.debt')}</Text>
       <TicketLink issueKey={bill.key} />
-      <Text>{pair(locale, t(locale, 'common.zone'), view.zone || t(locale, 'common.unclassified'))}</Text>
+      <Text>{pair(locale, t(locale, 'common.zone'), zoneLabel(locale, view.zone))}</Text>
       <RangeBadge locale={locale} lowJp={bill.lowJp} highJp={bill.highJp} />
       <Text>
         {pair(
