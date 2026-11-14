@@ -91,3 +91,15 @@ and merged the same day (see `docs/VALIDATIONS.md`):
 Both are quick manual steps in a browser; the features behind them are
 verified live (the gadget data — top debts, cost per team, cost per quarter —
 and all 11 MCP actions answer on the site, see `docs/VALIDATIONS.md`).
+
+**State on 14 November 2026.** Capture 10 was taken on 13 November, *before*
+the gadget title fix (#85), so it still shows the title twice and must be
+taken again. Driving a browser over CDP (an Atlassian session already
+connected) did not work: Jira renders the dashboard and serves the module
+bundle with HTTP 200, but the Forge iframe keeps a zero height, so nothing is
+visible to capture. Another Forge app on the same site behaves the same way,
+so it is not specific to this app. The bundle was checked — valid JavaScript,
+it contains the current code — and rolling production back to the previous
+commit did not restore the render either. This is unresolved; a real browser
+is the shortest way to settle it. Capture 11 was not attempted, for the same
+reason.
