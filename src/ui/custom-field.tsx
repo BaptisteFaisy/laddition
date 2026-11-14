@@ -6,8 +6,8 @@ import { useResolver } from './async';
 import type { ScreenContext } from './context';
 import { formatNumber, formatRange } from './format';
 import { costOfBill } from './issue-cost';
-import type { Locale } from './i18n/index';
-import { t } from './i18n/index';
+import type { Locale } from '../i18n/index';
+import { t } from '../i18n/index';
 import { AsyncView } from './components/AsyncView';
 import { ScreenShell } from './components/ScreenShell';
 

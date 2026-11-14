@@ -1,6 +1,6 @@
 import { Badge } from '../kit';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatRange } from '../format';
 
 /**

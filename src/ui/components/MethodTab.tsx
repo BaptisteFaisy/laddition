@@ -1,7 +1,7 @@
 import { Fragment, Text } from '../kit';
 import type { DataQuality, ProjectSettings } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatNumber } from '../format';
 import { MethodCoefficients } from './MethodCoefficients';
 import { MethodFormulas } from './MethodFormulas';

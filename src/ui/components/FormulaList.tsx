@@ -1,7 +1,7 @@
 import { Fragment, Text } from '../kit';
 import type { Family } from '../../core/types';
-import { formulaOf } from '../domain-strings';
-import type { Locale } from '../i18n/index';
+import { formulaOf } from '../../i18n/domain-strings';
+import type { Locale } from '../../i18n/index';
 import { familyLabel, pair } from '../format';
 
 /** Les cinq familles et leur formule, sans les coefficients (item D54). */

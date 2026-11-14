@@ -1,6 +1,6 @@
 import type { ProjectSettings } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { Fragment, Heading, RadioField, SelectField, TextField } from '../kit';
 import { DEBT_RULE_KINDS, KIND_LABELS, ZONE_MODES, ZONE_MODE_LABELS } from '../settings-form-values';
 

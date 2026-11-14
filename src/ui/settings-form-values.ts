@@ -1,5 +1,5 @@
 import type { DebtRuleKind, ProjectSettings, ZoneMode } from '../core/types';
-import type { MessageKey } from './i18n/index';
+import type { MessageKey } from '../i18n/index';
 
 /** Les valeurs autorisées des deux listes de la règle de dette. */
 export const DEBT_RULE_KINDS: readonly DebtRuleKind[] = ['issueType', 'label', 'jql'];

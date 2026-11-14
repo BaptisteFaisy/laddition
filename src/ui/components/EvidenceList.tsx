@@ -1,7 +1,7 @@
 import { Cell, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { Evidence, Family } from '../../core/types';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { familyLabel, formatDate, formatJp, formatPercent } from '../format';
 import { FormulaDisclosure } from './FormulaDisclosure';
 import { TicketLink } from './TicketLink';

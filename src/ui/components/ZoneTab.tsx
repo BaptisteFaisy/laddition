@@ -1,9 +1,9 @@
 import { Cell, Fragment, Head, markTableRow, Row, Table, Text } from '../kit';
 import type { Family, ProjectSettings, RankedDebt, ZoneCost } from '../../core/types';
 import { BILLED_FAMILIES } from '../../core/types';
-import { teamLabel } from '../domain-strings';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import { teamLabel } from '../../i18n/domain-strings';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatJp, formatPercent } from '../format';
 import { Disclosure } from './Disclosure';
 import { RangeBadge } from './RangeBadge';

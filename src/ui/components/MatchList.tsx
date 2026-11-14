@@ -3,8 +3,8 @@ import { Button, Cell, Fragment, Head, markTableRow, Row, Table, Text } from '..
 import type { PendingMatch } from '../api';
 import { confirmEvidence, rejectEvidence } from '../api';
 import { errorMessage } from '../async';
-import type { Locale, MessageKey } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale, MessageKey } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { familyLabel, formatJp, formatPercent } from '../format';
 import { ErrorState } from './ErrorState';
 import { TicketLink } from './TicketLink';

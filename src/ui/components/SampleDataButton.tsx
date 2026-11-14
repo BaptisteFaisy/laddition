@@ -1,7 +1,7 @@
 import { Button, Fragment, Text } from '../kit';
 import { clearSampleData, loadSampleData } from '../api';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { useAction } from '../use-action';
 import { ErrorState } from './ErrorState';
 

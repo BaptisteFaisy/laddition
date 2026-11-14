@@ -1,9 +1,9 @@
 import { Cell, Head, Row, Table, Text } from '../kit';
 import type { RankedDebt } from '../../core/types';
 import type { QuarterCost, TeamCost } from '../api';
-import { teamLabel } from '../domain-strings';
-import type { Locale } from '../i18n/index';
-import { t } from '../i18n/index';
+import { teamLabel } from '../../i18n/domain-strings';
+import type { Locale } from '../../i18n/index';
+import { t } from '../../i18n/index';
 import { formatJp } from '../format';
 import { RangeBadge } from './RangeBadge';
 import { TicketLink } from './TicketLink';
